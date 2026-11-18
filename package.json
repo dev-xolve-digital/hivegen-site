@@ -12,7 +12,8 @@
     "preview": "astro preview",
     "e2e": "playwright test",
     "media": "node scripts/prepare-media.mjs",
-    "stills": "node scripts/render-3d-stills.mjs"
+    "stills": "node scripts/render-3d-stills.mjs",
+    "fonts": "node scripts/subset-fonts.mjs"
   },
   "keywords": [],
   "author": "",
@@ -37,6 +38,7 @@
     "@types/three": "^0.187.0",
     "cross-env": "^10.1.0",
     "jsdom": "^31.0.1",
+    "subset-font": "^2.9.0",
     "vitest": "^5.1.0"
   }
 }
