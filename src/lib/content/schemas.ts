@@ -85,7 +85,7 @@ export const sectionSchemas = {
     labels: z.strictObject({ before: text, after: text }),
     ariaLabel: text,
     reveal: z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive(), slowdown: z.number().positive(), cutAt: z.number().min(0) }).optional(),
-    slider: z.strictObject({ before: clip, after: clip, fullVideoId: text.optional() }).optional(),
+    slider: z.strictObject({ before: clip, after: clip, fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
     sample: z.boolean(),
     note: text.optional(),
   }).refine((s) => (s.mode === 'reveal' ? !!s.reveal : !!s.slider), (s) => ({

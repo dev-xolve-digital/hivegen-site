@@ -3,9 +3,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
 import Lightbox from '../components/Lightbox.astro';
 import RecentEdits from '../components/RecentEdits.astro';
+import WhoItsFor from '../components/WhoItsFor.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import BeforeAfter from '../components/BeforeAfter.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
-import { listPages, type Page } from '../lib/content/load';
+import { listPages, loadSection, loadSite, type Page } from '../lib/content/load';
 import { assertNoSamplesInProduction } from '../lib/content/samples';
 
 export function getStaticPaths() {
@@ -15,10 +18,14 @@ export function getStaticPaths() {
 
 interface Props { page: Page }
 const { page } = Astro.props;
+const settings = loadSite().settings;
 ---
 <BaseLayout seo={page.seo}>
   <Hero page={page} />
   <RecentEdits page={page} />
+  {page.showWhoItsFor && <WhoItsFor />}
+  <HowItWorks />
+  <BeforeAfter enabled={settings.showBeforeAfter} section={loadSection('before-after')} />
   <Footer />
   <MobileBar />
   <Lightbox slot="overlay" />

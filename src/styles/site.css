@@ -325,3 +325,15 @@ h1.disp{font-size:76px;margin:26px 0 24px;line-height:.98}
 .reel>img,.hcard>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .reel .play,.hcard .play,.reel .vlabel,.hcard .vlabel{z-index:1}
 .arrows[hidden]{display:none}
+
+/* Steps as a list; before/after */
+ol.steps{list-style:none;margin:0}
+.ba video.img{position:absolute;inset:0}
+.ba .lbl{z-index:2}
+.ba .smp{left:auto;right:10px;top:auto;bottom:10px}
+.ba-slider{cursor:ew-resize;touch-action:pan-y}
+.ba-slider .ba-top{clip-path:inset(0 0 0 var(--pos))}
+.ba-line{position:absolute;top:0;bottom:0;left:var(--pos);width:3px;margin-left:-1.5px;background:#fff;z-index:2}
+.ba-knob{position:absolute;top:50%;left:var(--pos);width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:var(--lime);display:grid;place-items:center;font-weight:700;color:var(--ink);box-shadow:0 8px 20px rgba(14,18,51,.25);z-index:3}
+.ba-full{margin-top:24px}
+.step h3,.wc h3,.disp{text-wrap:balance}

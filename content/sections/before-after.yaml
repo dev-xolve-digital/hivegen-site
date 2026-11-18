@@ -9,6 +9,7 @@
 #     before: { source: <path under references/>, start: 0, duration: 5 }
 #     after:  { source: <path under references/>, start: 0, duration: 5 }
 #     fullVideoId: <optional id from videos.yaml: adds a "watch the full edit" button>
+#     fullVideoLabel: Watch the full edit
 # then run `npm run media` and set sample: false.
 mode: reveal
 heading: Same home. Different result.
