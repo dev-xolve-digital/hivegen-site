@@ -1,0 +1,16 @@
+---
+import Logo from './Logo.astro';
+import { loadSection } from '../lib/content/load';
+const footer = loadSection('footer');
+---
+<footer class="foot-wrap">
+  <div class="foot in">
+    <Logo />
+    <div>{footer.copyright} · {footer.tagline}</div>
+    <div class="flinks">
+      {footer.links.map((l) => (
+        <a class="u" href={l.href} {...(/^https?:/.test(l.href) ? { target: '_blank', rel: 'noopener' } : {})}>{l.label}</a>
+      ))}
+    </div>
+  </div>
+</footer>

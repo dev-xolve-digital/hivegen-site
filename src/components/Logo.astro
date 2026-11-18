@@ -1,0 +1,5 @@
+---
+import { loadSite } from '../lib/content/load';
+const site = loadSite();
+---
+<img class="logo-img" src={site.brand.logo} alt={site.brand.name} width="70" height="34" decoding="async" />

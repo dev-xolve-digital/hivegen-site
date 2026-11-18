@@ -1,0 +1,16 @@
+---
+import Logo from './Logo.astro';
+import { loadSection } from '../lib/content/load';
+interface Props { base?: string }
+/** base is '' on the landing pages (links stay on the page) and '/' elsewhere (links go back to the main page). */
+const { base = '' } = Astro.props;
+const nav = loadSection('nav');
+const to = (href: string) => (href.startsWith('#') ? base + href : href);
+---
+<nav class="nav glass in" aria-label="Main">
+  <a href={base || '#top'} class="logo-link"><Logo /></a>
+  <div class="links">
+    {nav.links.map((l) => <a class="u" href={to(l.href)}>{l.label}</a>)}
+  </div>
+  <a class="btn sm" href={to(nav.cta.href)}>{nav.cta.label} <span class="arr" aria-hidden="true">→</span></a>
+</nav>

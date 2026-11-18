@@ -125,6 +125,7 @@ export const sectionSchemas = {
   faq: z.strictObject({ heading: text, items: z.array(z.strictObject({ q: text, a: text })) }),
   'final-cta': z.strictObject({ headingLines: z.array(text).min(1), highlight: text, subline: text, ctaLabel: text, instagramLabel: text }),
   footer: z.strictObject({ copyright: text, tagline: text, links: z.array(link) }),
+  'not-found': z.strictObject({ title: text, heading: text, text: text }),
 };
 
 export const testimonialsSchema = z.strictObject({
