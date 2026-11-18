@@ -7,8 +7,8 @@ bullets:
   - Start your free first edit right away
 instagramLine: Prefer to chat? Message us on Instagram
 steps:
-  details: "Step 1: Your details"
-  time: "Step 2: Pick a time"
+  details: Your details
+  time: Pick a time
 fields:
   name: Name
   email: Email
@@ -43,6 +43,7 @@ confirmation:
     - Send footage from one listing; your first edit is free.
     - Get your video in 24–48 hours.
   addToCalendar: Add to calendar
+  calendarTitle: 15-minute call with HiveGen   # event name used by "Add to calendar"
   instagramLabel: Chat on Instagram
 errors:
   name: Please enter your name.

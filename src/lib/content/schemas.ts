@@ -119,7 +119,7 @@ export const sectionSchemas = {
     timeHeading: text,
     timeNote: text,
     noSlots: text,
-    confirmation: z.strictObject({ heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, instagramLabel: text }),
+    confirmation: z.strictObject({ heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, calendarTitle: text, instagramLabel: text }),
     errors: z.strictObject({ name: text, email: text, slotTaken: text, unreachable: text }),
     demoNote: text,
   }),
