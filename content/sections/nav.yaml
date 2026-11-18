@@ -1,0 +1,13 @@
+# Top navigation
+links:
+  - label: Work
+    href: "#work"
+  - label: How it works
+    href: "#how"
+  - label: Plans
+    href: "#plans"
+  - label: FAQ
+    href: "#faq"
+cta:
+  label: Book a call
+  href: "#book"

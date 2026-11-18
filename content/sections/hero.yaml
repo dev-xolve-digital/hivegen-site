@@ -1,0 +1,11 @@
+# 01 · Hero (shared by all versions; headline, subline and chips live in pages/*.yaml)
+primaryCta:
+  label: Book a call · first edit free
+  href: "#book"
+instagramCta:
+  label: Questions? Chat on Instagram
+videoLabel: Portfolio reel · tap for sound
+videoDuration: "0:58"
+videoAriaLabel: Watch the full portfolio reel with sound
+floatTitle: 24–48h
+floatText: from footage to final cut

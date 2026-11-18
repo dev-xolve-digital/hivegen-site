@@ -1,0 +1,56 @@
+# Agents version: https://<domain>/agents (for ads; hidden from search)
+slug: agents
+seo:
+  title: HiveGen for agents · Listing videos that build your name
+  description: Turn listing footage into scroll-stopping, branded videos in 24–48 hours. First edit free.
+  noindex: true
+hero:
+  eyebrow: Listing videos for agents who post
+  headline:
+    - You list.
+    - We edit.
+    - You stand out.
+  highlight: stand out.
+  subline: Turn listing footage into scroll-stopping videos with strong hooks and your branding. Ready to post in 24–48 hours, so every listing builds your name.
+  chips:
+    - 24–48h delivery
+    - Single edits from $90
+    - Your branding on every video
+whyUs: Hooks in the first three seconds, so your listings get watched and your name gets remembered.
+preselectBuyer: agent
+pricingOrder: single-first
+showWhoItsFor: false
+videoOrder:
+  vertical:
+    - v-agent-spotlight
+    - v-client-reveal
+    - v-twilight-exterior
+    - v-night-sky
+    - v-street-hook
+    - v-lifestyle-story
+    - v-luxury-kitchen
+    - v-creative-hook
+    - v-investor-angle
+    - v-community-tour
+    - v-autumn-cottage
+    - v-ranch-acreage
+    - v-still-not-sold
+    - v-new-build-host
+    - v-pool-home-hook
+    - v-rooftop-hook
+    - v-agent-hosted
+    - v-buyer-story
+    - v-lifestyle-couple
+    - v-golf-cart-tour
+    - v-lakefront
+    - v-miami-story
+    - v-portfolio-reel
+  horizontal:
+    - h-modern-villa
+    - h-country-barn
+    - h-estate-aerial
+    - h-agent-led
+    - h-family-home
+    - h-new-build
+    - h-bright-modern
+    - h-yacht

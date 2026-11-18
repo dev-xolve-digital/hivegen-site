@@ -1,0 +1,27 @@
+# 05 · Before / after
+# PENDING: the raw clip and its edited version arrive on 2026-11-19.
+# When they do: put both files under references/, then switch to the slider:
+#   mode: slider
+#   heading: Same footage. Different result.
+#   subline: Drag the handle to compare a raw clip with our finished edit.
+#   labels: { before: Raw footage, after: HiveGen edit }
+#   slider:
+#     before: { source: <path under references/>, start: 0, duration: 5 }
+#     after:  { source: <path under references/>, start: 0, duration: 5 }
+#     fullVideoId: <optional id from videos.yaml: adds a "watch the full edit" button>
+# then run `npm run media` and set sample: false.
+mode: reveal
+heading: Same home. Different result.
+subline: Watch a daylight shot turn into a twilight hero shot.
+labels:
+  before: Before · daylight
+  after: After · dusk
+ariaLabel: Daylight shot of a home cutting to the same home at dusk
+reveal:                       # stand-in: a real day-to-dusk cut from portrait video 1
+  source: final-videos/Potrait/potrait-video-1.mp4
+  start: 31.62
+  duration: 2.83
+  slowdown: 1.4
+  cutAt: 1.5                  # seconds into the prepared clip where the label switches
+sample: true
+note: Stand-in until the raw clip and its finished edit arrive; then this section becomes a drag slider.

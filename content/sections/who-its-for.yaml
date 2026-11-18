@@ -1,0 +1,18 @@
+# 03 · Who it's for (main version only)
+heading: Built for the people who film real estate
+cards:
+  - title: Media agencies
+    text: Hand us the editing and deliver more listings every week, under your own name.
+    linkLabel: For agencies
+    href: /agencies
+    icon: building
+  - title: Videographers
+    text: Spend your days shooting, not editing. Take on more homes without the late nights.
+    linkLabel: For videographers
+    href: /videographers
+    icon: camera
+  - title: Agents
+    text: Videos that sell the listing and build your name every time you post.
+    linkLabel: For agents
+    href: /agents
+    icon: person

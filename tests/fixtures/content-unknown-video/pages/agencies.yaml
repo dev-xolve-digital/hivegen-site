@@ -1,0 +1,57 @@
+# Agencies version: https://<domain>/agencies (for ads; hidden from search)
+slug: agencies
+seo:
+  title: HiveGen for media agencies · White-label editing
+  description: Your shoots, our editors, your brand. High-volume real estate video editing delivered in 24–48 hours, white-label by default. First edit free.
+  noindex: true
+hero:
+  eyebrow: White-label editing for real estate media companies
+  headline:
+    - Your shoots.
+    - Our editors.
+    - Your brand.
+  highlight: brand.
+  subline: Hand us your edit queue. We deliver polished listing videos in 24–48 hours, branded as yours, so you can take on more clients without hiring editors.
+  chips:
+    - White-label
+    - 24–48h delivery
+    - Volume plans from $60 / video
+# [confirm: no-contact policy] Delete this comment once Hassan confirms it.
+whyUs: Your clients never see our name. No logos, no credits, no contact with your clients.
+preselectBuyer: agency
+pricingOrder: plans-first
+showWhoItsFor: false
+videoOrder:
+  vertical:
+    - v-agent-spotlight
+    - v-twilight-exterior
+    - v-client-reveal
+    - v-night-sky
+    - v-street-hook
+    - v-lifestyle-story
+    - v-luxury-kitchen
+    - v-creative-hook
+    - v-investor-angle
+    - v-community-tour
+    - v-autumn-cottage
+    - v-ranch-acreage
+    - v-still-not-sold
+    - v-new-build-host
+    - v-pool-home-hook
+    - v-rooftop-hook
+    - v-agent-hosted
+    - v-buyer-story
+    - v-lifestyle-couple
+    - v-golf-cart-tour
+    - v-lakefront
+    - v-miami-story
+    - v-portfolio-reel
+  horizontal:
+    - h-agent-led
+    - h-modern-villa
+    - h-country-barn
+    - h-estate-aerial
+    - h-family-home
+    - h-new-build
+    - h-bright-modern
+    - h-yacht

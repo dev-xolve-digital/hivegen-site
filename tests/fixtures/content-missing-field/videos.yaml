@@ -1,0 +1,285 @@
+# Every video on the site.
+# id          short name used in pages/*.yaml and testimonials.yaml (letters, numbers, dashes)
+# label       text on the card ("label · duration")
+# source      the original file under references/ (used by `npm run media` for the poster)
+# posterTime  second of the video used for the poster image
+# streamUid   the video's ID in Cloudflare Stream
+# host        optional: local = play the prepared file instead of Stream
+# sample      true = placeholder; the production build refuses to publish it
+videos:
+  - id: v-portfolio-reel
+    title: Portfolio reel
+    label: Portfolio reel
+    duration: "0:58"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-20.mp4
+    posterTime: 13
+    streamUid: 69f417a2079e8572ca2ec41802f03bc2
+  - id: v-agent-spotlight
+    title: Agent spotlight
+    label: Agent spotlight
+    duration: "1:09"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-11.mp4
+    posterTime: 13.95
+    streamUid: 5246383ab493548e7b2a18b6e1f24296
+  - id: v-twilight-exterior
+    title: Twilight exterior
+    label: Twilight exterior
+    duration: "1:07"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-1.mp4
+    posterTime: 33.87
+    streamUid: 2283b20b0a152c818ac016666e4f2a89
+  - id: v-client-reveal
+    title: Client reveal
+    label: Client reveal
+    duration: "1:14"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-4.mp4
+    posterTime: 37.39
+    streamUid: d1b342b3232de8f27e62fe5bddcf908a
+  - id: v-night-sky
+    title: Night-sky intro
+    label: Night-sky intro
+    duration: "1:04"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-21.mp4
+    posterTime: 12.82
+    streamUid: 8c1c70b2a3c83ba443ddf2fb316ba899
+  - id: v-street-hook
+    title: Street hook
+    label: Street hook
+    duration: "0:27"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-2.mp4
+    posterTime: 5.49
+    streamUid: b6d856ec280af1edec812d77c803d88a
+  - id: v-lifestyle-story
+    title: Lifestyle story
+    label: Lifestyle story
+    duration: "0:58"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-6.mp4
+    posterTime: 29.27
+    streamUid: 3fa8a30c4ff7472bf44368120f00343e
+  - id: v-luxury-kitchen
+    title: Luxury kitchen
+    label: Luxury kitchen
+    duration: "1:27"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-12.mp4
+    posterTime: 17.59
+    streamUid: 0be0f29024983c4edb94d1e6b831df82
+  - id: v-creative-hook
+    title: Creative hook
+    label: Creative hook
+    duration: "1:22"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-17.mp4
+    posterTime: 16.51
+    streamUid: c58cfb12587e6ea5f7f407a577d569f0
+  - id: v-investor-angle
+    title: Investor angle
+    label: Investor angle
+    duration: "1:27"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-15.mp4
+    posterTime: 69.79
+    streamUid: b8dec2810e55128e3d170815ef7e3ca8
+  - id: v-community-tour
+    title: Community tour
+    label: Community tour
+    duration: "1:04"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-23.mp4
+    posterTime: 12.83
+    streamUid: 2275e797a89fbde9a96e9667627ff073
+  - id: v-autumn-cottage
+    title: Autumn cottage story
+    label: Autumn cottage story
+    duration: "0:42"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-3.mp4
+    posterTime: 25.95
+    streamUid: 068ae6b8764b0976090e9aab184006a4
+  - id: v-ranch-acreage
+    title: Ranch on acreage
+    label: Ranch on acreage
+    duration: "0:40"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-5.mp4
+    posterTime: 5.01
+    streamUid: 4dd8f6e69d3bc098e9df61ee4c6776f6
+  - id: v-still-not-sold
+    title: Still-not-sold hook
+    label: Still-not-sold hook
+    duration: "1:21"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-7.mp4
+    posterTime: 16.83
+    streamUid: f2300c46a44bf0f49ef5e3e4b730ef19
+  - id: v-new-build-host
+    title: Hosted new-build tour
+    label: Hosted new-build tour
+    duration: "2:20"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-8.mp4
+    posterTime: 29.12
+    streamUid: 34087c13e9ccc5b511ecd502757ff076
+  - id: v-pool-home-hook
+    title: Pool home hook
+    label: Pool home hook
+    duration: "0:43"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-9.mp4
+    posterTime: 5.37
+    streamUid: 95c87a2ad2c2809235d7d8ae4df5603f
+  - id: v-rooftop-hook
+    title: Rooftop stunt hook
+    label: Rooftop stunt hook
+    duration: "0:39"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-10.mp4
+    posterTime: 1.61
+    streamUid: d730b5e6db7b970da9329a6609336c34
+  - id: v-agent-hosted
+    title: Agent-hosted home tour
+    label: Agent-hosted home tour
+    duration: "1:36"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-13.mp4
+    posterTime: 19.92
+    streamUid: 68b4864a40042a3612b1c72887a69aec
+  - id: v-buyer-story
+    title: First-home buyer story
+    label: First-home buyer story
+    duration: "0:59"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-14.mp4
+    posterTime: 22.24
+    streamUid: aa6def0e1f19a58beb4bd635b15a66f7
+  - id: v-lifestyle-couple
+    title: Lifestyle couple tour
+    label: Lifestyle couple tour
+    duration: "0:50"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-16.mp4
+    posterTime: 10.39
+    streamUid: a4f03ba0bc80c06cb9cd22e4401608b1
+  - id: v-golf-cart-tour
+    title: Golf-cart community tour
+    label: Golf-cart community tour
+    duration: "1:30"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-18.mp4
+    posterTime: 18.71
+    streamUid: e70c952972d1424998733815c68cd3f9
+  - id: v-lakefront
+    title: Lakefront retreat
+    label: Lakefront retreat
+    duration: "0:59"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-19.mp4
+    posterTime: 31.96
+    streamUid: 54b4b8fab04f40caf2c3e48d6b7af76e
+  - id: v-miami-story
+    title: Miami lifestyle story
+    label: Miami lifestyle story
+    duration: "1:00"
+    orientation: vertical
+    source: final-videos/Potrait/potrait-video-22.mp4
+    posterTime: 2.48
+    streamUid: 34af88d7cd5cd2a19e88bebccf9f609a
+  - id: h-modern-villa
+    title: Modern villa · cinematic
+    label: Modern villa · cinematic
+    duration: "2:05"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-5.mp4
+    posterTime: 25.10
+    streamUid: 12dcd6bc6b4f6184b5370463743bb748
+  - id: h-country-barn
+    title: Country barn at golden hour
+    label: Country barn at golden hour
+    duration: "0:42"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-7.mp4
+    posterTime: 8.47
+    streamUid: 7be89f38681f7b8faf9d9c7695c8e612
+  - id: h-estate-aerial
+    title: Estate aerial tour
+    label: Estate aerial tour
+    duration: "2:06"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-1.mp4
+    posterTime: 63.05
+    streamUid: 40caf04f0c3295104a672e56a729bc92
+  - id: h-agent-led
+    title: Agent-led tour
+    label: Agent-led tour
+    duration: "1:39"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-2.mp4
+    posterTime: 49.60
+    streamUid: a1c00368cf4fc02cfa7ee73d06a7c3c5
+  - id: h-family-home
+    title: Family home walkthrough
+    label: Family home walkthrough
+    duration: "2:09"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-4.mp4
+    posterTime: 25.96
+    streamUid: 1ed6c0e68eaffb9313e4e5aab353eae7
+  - id: h-new-build
+    title: New build
+    label: New build
+    duration: "1:05"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-8.mp4
+    posterTime: 13.05
+    streamUid: 7f4a0fcad11ce90f6b8eeec61390e323
+  - id: h-bright-modern
+    title: Bright modern home
+    label: Bright modern home
+    duration: "1:07"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-3.mp4
+    posterTime: 19.58
+    streamUid: e55b9477611ebd90d9d3422b68560757
+  - id: h-yacht
+    title: Luxury yacht · cinematic
+    label: Luxury yacht · cinematic
+    duration: "0:55"
+    orientation: horizontal
+    source: final-videos/Landscape/landscape-cinematic-6.mp4
+    posterTime: 2.28
+    streamUid: 2945693f201eae65b4d796ff48e36618
+  # Client testimonial videos (placeholders from Instagram; replace with real ones)
+  - id: t-listing-agent
+    title: Listing agent testimonial
+    label: Listing agent
+    duration: "1:09"
+    orientation: vertical
+    source: "instagram-videos/Another happy client 🤝Just finished editing this video for Chris, and here’s what he had to say.mp4"
+    posterTime: 0.3
+    host: local
+    sample: true
+  - id: t-creator
+    title: Real estate creator testimonial
+    label: Real estate creator
+    duration: "0:13"
+    orientation: vertical
+    source: "instagram-videos/Real feedback from a real client. 🙌If you want videos that actually stand out and perform, we’v.mp4"
+    posterTime: 3.3
+    host: local
+    sample: true
+  - id: t-agency-owner
+    title: Media agency owner testimonial
+    label: Media agency owner
+    duration: "1:56"
+    orientation: vertical
+    source: "instagram-videos/This is why I do what I do 🙏Helping people bring their vision to life, one video at a time 🎥✨.mp4"
+    posterTime: 58.4
+    host: local
+    sample: true

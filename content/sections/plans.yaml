@@ -1,0 +1,46 @@
+# 07 · Plans
+# [confirm] every plan feature is something HiveGen delivers today.
+# [confirm] music is licensed for the client's use.
+heading: Simple pricing
+subline: Per-video prices on a monthly plan. We confirm your exact quote on the call.
+planCtaLabel: Book a call
+plans:
+  - name: Basic
+    price: 60
+    minimumPerMonth: 30
+    revisions: 1
+    features:
+      - Tight cuts and pacing
+      - Color correction
+      - Music and clean titles
+      - Your logo or your client's
+  - name: Premium
+    price: 100
+    minimumPerMonth: 15
+    revisions: 2
+    includesPrevious: "Everything in Basic, plus:"
+    features:
+      - A hook in the first 3 seconds
+      - Animated text and captions
+      - Speed ramps and smooth transitions
+      - Sound design
+  - name: Advanced AI
+    badge: AI + 3D
+    price: 150
+    minimumPerMonth: 10
+    revisions: 2
+    includesPrevious: "Everything in Premium, plus:"
+    featured: true
+    features:
+      - 3D text hooks pinned to the scene
+      - Illustrated animations
+      - Virtual staging of empty rooms
+      - Day-to-dusk and sky replacement
+      - Renovation previews and animated maps
+single:
+  lead: Just need one video?
+  text: Single edits from
+  priceFrom: 90
+  note: priced by complexity. No minimum.
+  ctaLabel: Book a call
+freeNote: Your first edit is free. It comes with a small watermark; keep it and we remove the watermark at the normal price.

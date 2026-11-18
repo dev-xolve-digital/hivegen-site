@@ -1,0 +1,53 @@
+# 08 · Book a call. Words in {curly braces} are filled in by the site; keep them as they are.
+heading: Book your 15-minute call
+subline: Pick a time that suits you. We'll go through your listings together, and your first edit is free.
+bullets:
+  - See edits made for listings like yours
+  - Get an exact quote for your volume
+  - Start your free first edit right away
+instagramLine: Prefer to chat? Message us on Instagram
+steps:
+  details: "Step 1: Your details"
+  time: "Step 2: Pick a time"
+fields:
+  name: Name
+  email: Email
+  phone: Phone or WhatsApp (optional)
+  buyer: I am a…
+  volume: Videos per month
+  footage: Raw footage link (optional, for your free edit)
+  footageHint: A Google Drive, Dropbox or WeTransfer link is fine.
+buyerOptions:
+  - value: agency
+    label: Media agency
+  - value: videographer
+    label: Videographer
+  - value: agent
+    label: Agent
+  - value: other
+    label: Other
+volumeOptions: ["1–5", "6–15", "16–30", "30+"]
+nextLabel: "Next: pick a time"
+backLabel: Back
+confirmLabel: Confirm booking
+consentLine: By booking, you agree to our Privacy Policy. We only use your details to arrange your call and your free edit.
+timeHeading: Pick a time
+timeNote: Times shown in your time zone ({timezone}).
+noSlots: No times are open in the next two weeks. Message us on Instagram and we'll find one.
+confirmation:
+  heading: You're booked.
+  text: We've sent a calendar invite with a Google Meet link to {email}.
+  nextStepsHeading: What happens next
+  nextSteps:
+    - Join the call on {when}.
+    - Send footage from one listing; your first edit is free.
+    - Get your video in 24–48 hours.
+  addToCalendar: Add to calendar
+  instagramLabel: Chat on Instagram
+errors:
+  name: Please enter your name.
+  email: Please enter a valid email.
+  slotTaken: That time was just taken. Please pick another one.
+  # [confirm: how fast Hassan replies]
+  unreachable: Your details are saved. We'll confirm your time by email shortly.
+demoNote: "Demo booking: no real call is booked yet. Real calendar booking arrives in the next phase."
