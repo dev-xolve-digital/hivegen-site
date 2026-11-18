@@ -7,6 +7,9 @@ import WhoItsFor from '../components/WhoItsFor.astro';
 import HowItWorks from '../components/HowItWorks.astro';
 import BeforeAfter from '../components/BeforeAfter.astro';
 import ClientVideos from '../components/ClientVideos.astro';
+import Plans from '../components/Plans.astro';
+import Faq from '../components/Faq.astro';
+import FinalCta from '../components/FinalCta.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
 import { listPages, loadSection, loadSite, type Page } from '../lib/content/load';
@@ -28,6 +31,9 @@ const settings = loadSite().settings;
   <HowItWorks />
   <BeforeAfter enabled={settings.showBeforeAfter} section={loadSection('before-after')} />
   <ClientVideos />
+  <Plans order={page.pricingOrder} />
+  <Faq />
+  <FinalCta />
   <Footer />
   <MobileBar />
   <Lightbox slot="overlay" />

@@ -95,6 +95,7 @@ export const sectionSchemas = {
     heading: text,
     subline: text,
     planCtaLabel: text,
+    priceSuffix: text,
     plans: z.array(z.strictObject({
       name: text, badge: text.optional(), price: z.number().positive(), minimumPerMonth: z.number().int().positive(),
       revisions: z.number().int().min(0), includesPrevious: text.optional(), features: z.array(text), featured: z.boolean().optional(),

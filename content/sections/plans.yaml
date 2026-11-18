@@ -4,6 +4,7 @@
 heading: Simple pricing
 subline: Per-video prices on a monthly plan. We confirm your exact quote on the call.
 planCtaLabel: Book a call
+priceSuffix: / video          # shown after each plan price
 plans:
   - name: Basic
     price: 60

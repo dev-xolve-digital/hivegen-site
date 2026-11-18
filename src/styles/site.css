@@ -344,3 +344,12 @@ ol.steps{list-style:none;margin:0}
 .tcard .smp{z-index:3}
 .snd{display:inline-flex;gap:6px}
 .inbox .draft-note{margin-bottom:10px}
+
+/* Plans order, FAQ as details */
+.single.first{margin:0 0 20px}
+.q summary{list-style:none;cursor:pointer}
+.q summary::-webkit-details-marker{display:none}
+.pm::before{content:'+'}
+.q[open] .pm{background:var(--lime);color:var(--ink)}
+.q[open] .pm::before{content:'–'}
+.final .ctas .ig{justify-content:center}
