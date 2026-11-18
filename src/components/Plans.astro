@@ -1,0 +1,34 @@
+---
+import SingleBar from './SingleBar.astro';
+import Three3D from './Three3D.astro';
+import { loadSection } from '../lib/content/load';
+import { fillTerms } from '../lib/text';
+interface Props { order: 'plans-first' | 'single-first' }
+const { order } = Astro.props;
+const s = loadSection('plans');
+---
+<section class="sec" id="plans">
+  <div class="blob lime" style="width:400px;height:400px;left:30%;top:22%"></div>
+  <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:8%"></div>
+  <Three3D slot="plans-play" kind="play" finish="chrome" />
+  <div class="in">
+    <div class="sec-head"><div><h2 class="disp">{s.heading}</h2><p class="sub">{s.subline}</p></div></div>
+    {order === 'single-first' && <SingleBar first />}
+      <div class="plans">
+        {s.plans.map((p) => (
+          <div class:list={['plan glass', { feature: p.featured }]} data-testid="plan-card">
+            <div class="pname">{p.name}{p.badge && <span class="pill">{p.badge}</span>}</div>
+            <div class="price">${p.price}<small> {s.priceSuffix}</small></div>
+            <div class="terms">{fillTerms(s.termsLine, p.minimumPerMonth, p.revisions)}</div>
+            <ul class="feat">
+              {p.includesPrevious && <li class="plus">{p.includesPrevious}</li>}
+              {p.features.map((f) => <li>{f}</li>)}
+            </ul>
+            <a class:list={['btn', { ghost: !p.featured }]} href="#book">{s.planCtaLabel}</a>
+          </div>
+        ))}
+      </div>
+    {order === 'plans-first' && <SingleBar />}
+    <p class="freenote">{s.freeNote}</p>
+  </div>
+</section>

@@ -1,0 +1,28 @@
+---
+import IgIcon from './IgIcon.astro';
+import Three3D from './Three3D.astro';
+import { loadSection, loadSite } from '../lib/content/load';
+const s = loadSection('final-cta');
+const site = loadSite();
+const lines = s.headingLines;
+const last = lines[lines.length - 1];
+const at = last.lastIndexOf(s.highlight);
+---
+<section class="sec" id="final" style="padding-top:40px">
+  <Three3D slot="final-camera" kind="camera" finish="navy" />
+  <div class="in final glass">
+    <div class="blob lime" style="width:380px;height:380px;left:-90px;top:-140px"></div>
+    <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:-170px"></div>
+    <div class="in">
+      <h2 class="disp">
+        {lines.slice(0, -1).map((l) => <>{l}<br /></>)}
+        {at >= 0 ? <>{last.slice(0, at)}<span class="hl">{s.highlight}</span>{last.slice(at + s.highlight.length)}</> : last}
+      </h2>
+      <p class="sub">{s.subline}</p>
+      <div class="ctas" style="justify-content:center">
+        <a class="btn" href="#book">{s.ctaLabel} <span class="arr" aria-hidden="true">→</span></a>
+        <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{s.instagramLabel}</a>
+      </div>
+    </div>
+  </div>
+</section>

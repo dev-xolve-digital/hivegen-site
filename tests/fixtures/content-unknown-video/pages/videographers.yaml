@@ -1,0 +1,57 @@
+# Videographers version: https://<domain>/videographers (for ads; hidden from search)
+slug: videographers
+seo:
+  title: HiveGen for videographers · Editing that frees your week
+  description: Shoot more, edit less. Hook-first real estate edits in 24–48 hours, matched to your style. First edit free.
+  noindex: true
+hero:
+  eyebrow: The editing partner for real estate videographers
+  headline:
+    - You shoot.
+    - We edit.
+    - You book more.
+  highlight: book more.
+  subline: Stop losing nights to the timeline. Send your raw footage and get back a hook-first listing video in 24–48 hours, ready for your client.
+  chips:
+    - 24–48h delivery
+    - Single edits from $90
+    - Your style, matched      # [confirm]
+# [confirm] Delete this comment once Hassan confirms style matching.
+whyUs: Send a past edit you love and we'll cut to that style.
+preselectBuyer: videographer
+pricingOrder: single-first
+showWhoItsFor: false
+videoOrder:
+  vertical:
+    - v-night-sky
+    - v-agent-spotlight
+    - v-twilight-exterior
+    - v-client-reveal
+    - v-street-hook
+    - v-lifestyle-story
+    - v-luxury-kitchen
+    - v-creative-hook
+    - v-investor-angle
+    - v-community-tour
+    - v-autumn-cottage
+    - v-ranch-acreage
+    - v-still-not-sold
+    - v-new-build-host
+    - v-pool-home-hook
+    - v-rooftop-hook
+    - v-agent-hosted
+    - v-buyer-story
+    - v-lifestyle-couple
+    - v-golf-cart-tour
+    - v-lakefront
+    - v-miami-story
+    - v-portfolio-reel
+  horizontal:
+    - h-modern-villa
+    - h-country-barn
+    - h-estate-aerial
+    - h-agent-led
+    - h-family-home
+    - h-new-build
+    - h-bright-modern
+    - h-yacht

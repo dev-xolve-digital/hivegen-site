@@ -1,0 +1,17 @@
+---
+import { loadSection } from '../lib/content/load';
+const s = loadSection('faq');
+---
+<section class="sec" id="faq">
+  <div class="in">
+    <div class="sec-head center"><div><h2 class="disp">{s.heading}</h2></div></div>
+    <div class="faq">
+      {s.items.map((item) => (
+        <details class="q glass">
+          <summary class="qh">{item.q}<span class="pm" aria-hidden="true"></span></summary>
+          <p>{item.a}</p>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,65 @@
+# 06 · Client videos and messages
+heading: Hear it from our clients
+subline: Clients we edit for, in their own words.
+watchLabel: Watch with sound
+videos:                       # ids from videos.yaml; role = the label under each card
+  - videoId: t-listing-agent
+    role: Listing agent
+  - videoId: t-creator
+    role: Real estate creator
+  - videoId: t-agency-owner
+    role: Media agency owner
+inbox:
+  heading: Straight from our inbox
+  subline: Messages clients sent us after their edits landed.
+  note: These message screenshots are generated samples for the draft. Replace them with real client messages (with permission) before ads go live.
+# Files live in public/media/screenshots/. row: front (moves right) or back (moves left, behind).
+screenshots:
+  - file: shot-01.jpg
+    alt: "Text message: “Just watched the Maple Ridge edit, that opening hook is so good”"
+    row: front
+    sample: true
+  - file: shot-02.jpg
+    alt: "Chat message: “The turnaround on this was crazy fast. Got it before my showing”"
+    row: front
+    sample: true
+  - file: shot-03.jpg
+    alt: "Direct message: “Honestly the best edit I've had on a listing. My seller loved it”"
+    row: front
+    sample: true
+  - file: shot-04.jpg
+    alt: "Email: “The final cut is perfect. Clean, fast, and exactly the style we asked for”"
+    row: front
+    sample: true
+  - file: shot-05.jpg
+    alt: "Text message: “The twilight shots look unreal. Can you do the same look on the lake house?”"
+    row: front
+    sample: true
+  - file: shot-06.jpg
+    alt: "Chat message: “Revision came back in 2 hours. Smooth as always”"
+    row: front
+    sample: true
+  - file: shot-07.jpg
+    alt: "Text message: “Got the video. My client watched it 3 times in a row, thank you!”"
+    row: back
+    sample: true
+  - file: shot-08.jpg
+    alt: "Direct message: “Your edit made my footage look 10x better”"
+    row: back
+    sample: true
+  - file: shot-09.jpg
+    alt: "Text message: “Love the 3D text over the driveway”"
+    row: back
+    sample: true
+  - file: shot-10.jpg
+    alt: "Team chat: “All 12 edits this week came back on time. Our clients think we have an in-house team”"
+    row: back
+    sample: true
+  - file: shot-11.jpg
+    alt: "Chat message: “Thank you for being so easy to work with. Sent you my logo pack for the next ones”"
+    row: back
+    sample: true
+  - file: shot-12.jpg
+    alt: "Email: “The listing video was fantastic. You captured the feel of the home perfectly”"
+    row: back
+    sample: true

@@ -1,0 +1,5 @@
+brand:
+  name: HiveGen
+  logo: /brand/logo.png
+contact:
+	notificationEmail: x@example.com

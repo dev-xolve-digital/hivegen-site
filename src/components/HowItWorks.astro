@@ -1,0 +1,15 @@
+---
+import { loadSection } from '../lib/content/load';
+const s = loadSection('how-it-works');
+---
+<section class="sec" id="how">
+  <div class="blob blue" style="width:400px;height:400px;left:-110px;top:18%"></div>
+  <div class="in">
+    <div class="sec-head"><div><h2 class="disp">{s.heading}</h2></div></div>
+    <ol class="steps glass">
+      {s.steps.map((st) => (
+        <li class="step" data-testid="step"><div class="num" aria-hidden="true">{st.number}</div><h3>{st.title}</h3><p>{st.text}</p></li>
+      ))}
+    </ol>
+  </div>
+</section>

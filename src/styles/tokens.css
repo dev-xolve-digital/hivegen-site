@@ -1,0 +1,37 @@
+/* Design tokens. Values come from docs/mockup/index.html. */
+:root {
+  --bg: #FFF9EB;
+  --ink: #0E1233;
+  --ink2: #4A4F6A;
+  --ink3: #6B6F88; /* lightest colour allowed for text */
+  --blue: #1C45F5;
+  --lime: #D3FF52; /* fill only, never text */
+  --glass: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --shadow: 0 10px 40px rgba(14, 18, 51, 0.08), 0 2px 8px rgba(14, 18, 51, 0.04);
+  --shadow-tight: 0 6px 18px rgba(14, 18, 51, 0.10), 0 1px 3px rgba(14, 18, 51, 0.06);
+
+  --font-head: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
+  --font-body: 'Montserrat Variable', 'Montserrat', system-ui, sans-serif;
+
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-pill: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 72px;
+  --sp-9: 112px;
+
+  --page-max: 1200px;
+  --gutter: 24px;
+}
+@media (max-width: 640px) {
+  :root { --gutter: 16px; }
+}

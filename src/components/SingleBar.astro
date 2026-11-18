@@ -1,0 +1,9 @@
+---
+import { loadSection } from '../lib/content/load';
+interface Props { first?: boolean }
+const single = loadSection('plans').single;
+---
+<div class:list={['single glass', { first: Astro.props.first }]} data-testid="single-bar">
+  <div><b>{single.lead}</b> {single.text} <b>${single.priceFrom}</b>, {single.note}</div>
+  <a class="btn sm" href="#book">{single.ctaLabel} <span class="arr" aria-hidden="true">→</span></a>
+</div>

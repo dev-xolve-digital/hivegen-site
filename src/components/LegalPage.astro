@@ -1,0 +1,21 @@
+---
+import { marked } from 'marked';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from './Nav.astro';
+import Footer from './Footer.astro';
+import { loadLegal, loadSite } from '../lib/content/load';
+interface Props { name: 'privacy' | 'terms' }
+const { title, markdown } = loadLegal(Astro.props.name);
+const site = loadSite();
+const html = await marked.parse(markdown);
+---
+<BaseLayout seo={{ title: `${title} · ${site.brand.name}`, description: title, noindex: false }}>
+  <section class="sec hero-sec legal">
+    <Nav base="/" />
+    <article class="legal-body glass in">
+      <h1 class="disp">{title}</h1>
+      <Fragment set:html={html} />
+    </article>
+  </section>
+  <Footer />
+</BaseLayout>

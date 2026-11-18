@@ -1,0 +1,48 @@
+---
+import SampleTag from './SampleTag.astro';
+import BeforeAfterScript from './BeforeAfterScript.astro';
+import { getVideo, loadSite, type Sections } from '../lib/content/load';
+import { resolveVideo } from '../lib/media';
+interface Props { enabled: boolean; section: Sections['before-after'] }
+const { enabled, section: s } = Astro.props;
+const draft = process.env.SITE_MODE !== 'production';
+const media = { muted: true, loop: true, playsinline: true, preload: 'none', controlslist: 'nodownload noplaybackrate', disablepictureinpicture: true };
+let full: string | undefined;
+if (enabled && s.mode === 'slider' && s.slider?.fullVideoId) {
+  const v = getVideo(s.slider.fullVideoId);
+  const { play } = resolveVideo(v, loadSite().settings);
+  full = JSON.stringify({ kind: play.kind, src: play.src, orientation: v.orientation, title: v.title });
+}
+---
+{enabled && (
+  <section class="sec" id="ba" data-testid="before-after">
+    <div class="blob lime" style="width:360px;height:360px;right:14%;top:16%"></div>
+    <div class="in ba-wrap">
+      <div>
+        {draft && s.sample && s.note && <span class="draft-note">{s.note}</span>}
+        <h2 class="disp">{s.heading}</h2>
+        <p class="sub">{s.subline}</p>
+        {full && s.slider?.fullVideoLabel && <button type="button" class="btn ghost ba-full" data-lightbox={full}>{s.slider.fullVideoLabel}</button>}
+      </div>
+      {s.mode === 'reveal' ? (
+        <div class="ba" data-reveal data-cut-at={s.reveal?.cutAt ?? 0} data-protect>
+          <SampleTag show={s.sample} />
+          <video class="img" src="/media/clips/ba-reveal.mp4" poster="/media/posters/ba-reveal.jpg" aria-label={s.ariaLabel} {...media}></video>
+          <span class="lbl on" data-label="before" style="left:14px">{s.labels.before}</span>
+          <span class="lbl" data-label="after" style="right:14px">{s.labels.after}</span>
+        </div>
+      ) : (
+        <div class="ba ba-slider" data-ba-slider data-protect role="slider" tabindex="0" aria-label={s.ariaLabel} aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="--pos:50%">
+          <video class="img" src="/media/clips/ba-before.mp4" poster="/media/posters/ba-before.jpg" aria-hidden="true" {...media}></video>
+          <video class="img ba-top" src="/media/clips/ba-after.mp4" poster="/media/posters/ba-after.jpg" aria-hidden="true" {...media}></video>
+          <span class="ba-line" aria-hidden="true"></span>
+          <span class="ba-knob" aria-hidden="true">↔</span>
+          <span class="lbl on" style="left:14px">{s.labels.before}</span>
+          <span class="lbl" style="right:14px">{s.labels.after}</span>
+          <SampleTag show={s.sample} />
+        </div>
+      )}
+    </div>
+    <BeforeAfterScript />
+  </section>
+)}

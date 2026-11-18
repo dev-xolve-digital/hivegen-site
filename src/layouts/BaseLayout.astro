@@ -1,0 +1,36 @@
+---
+import '../styles/global.css';
+import '../styles/site.css';
+import { loadSite } from '../lib/content/load';
+
+interface Props { seo: { title: string; description: string; noindex: boolean } }
+const { seo } = Astro.props;
+const site = loadSite();
+---
+<!doctype html>
+<html lang="en" data-live3d-mobile={site.settings.live3dOnMobile ? 'true' : 'false'}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{seo.title}</title>
+    <meta name="description" content={seo.description} />
+    {seo.noindex && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="theme-color" content="#FFF9EB" />
+    <meta property="og:title" content={seo.title} />
+    <meta property="og:description" content={seo.description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/png" href={site.brand.logo} />
+    <link rel="preload" href="/fonts/archivo-display.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/montserrat-text.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div class="page">
+      <slot />
+    </div>
+    <slot name="overlay" />
+    <script>
+      import { initThree } from '../scripts/three/loader';
+      initThree();
+    </script>
+  </body>
+</html>

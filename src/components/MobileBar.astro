@@ -1,0 +1,15 @@
+---
+import IgIcon from './IgIcon.astro';
+import { loadSection, loadSite } from '../lib/content/load';
+const hero = loadSection('hero');
+const finalCta = loadSection('final-cta');
+const site = loadSite();
+---
+<div class="mbar" data-testid="mobile-bar" hidden>
+  <a class="btn" href={hero.primaryCta.href}>{hero.primaryCta.label}</a>
+  <a class="igb" href={site.contact.instagramUrl} target="_blank" rel="noopener" aria-label={finalCta.instagramLabel}><IgIcon size={20} /></a>
+</div>
+<script>
+  import { initMobileBar } from '../scripts/mobile-bar';
+  initMobileBar();
+</script>

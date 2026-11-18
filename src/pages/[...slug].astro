@@ -1,0 +1,43 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Hero from '../components/Hero.astro';
+import Lightbox from '../components/Lightbox.astro';
+import RecentEdits from '../components/RecentEdits.astro';
+import WhoItsFor from '../components/WhoItsFor.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import BeforeAfter from '../components/BeforeAfter.astro';
+import ClientVideos from '../components/ClientVideos.astro';
+import Plans from '../components/Plans.astro';
+import Faq from '../components/Faq.astro';
+import Booking from '../components/Booking.astro';
+import FinalCta from '../components/FinalCta.astro';
+import Footer from '../components/Footer.astro';
+import MobileBar from '../components/MobileBar.astro';
+import { listPages, loadPage, loadSection, loadSite, type PageSlug } from '../lib/content/load';
+import { assertNoSamplesInProduction } from '../lib/content/samples';
+
+// Only the paths come from here: the dev server keeps this result between refreshes,
+// so the page itself is read fresh below, and an edited page file shows on refresh.
+export function getStaticPaths() {
+  assertNoSamplesInProduction();
+  return listPages().map((page) => ({ params: { slug: page.slug || undefined } }));
+}
+
+const page = loadPage((Astro.params.slug ?? '') as PageSlug);
+const settings = loadSite().settings;
+---
+<BaseLayout seo={page.seo}>
+  <Hero page={page} />
+  <RecentEdits page={page} />
+  {page.showWhoItsFor && <WhoItsFor />}
+  <HowItWorks />
+  <BeforeAfter enabled={settings.showBeforeAfter} section={loadSection('before-after')} />
+  <ClientVideos />
+  <Plans order={page.pricingOrder} />
+  <Booking page={page} />
+  <Faq />
+  <FinalCta />
+  <Footer />
+  <MobileBar />
+  <Lightbox slot="overlay" />
+</BaseLayout>

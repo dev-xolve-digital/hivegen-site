@@ -1,0 +1,20 @@
+@import './tokens.css';
+/* Self-hosted, trimmed fonts (made by `npm run fonts`): Archivo 125% width 800–900, Montserrat 400–700, Latin. */
+@font-face{font-family:'Archivo Variable';font-style:normal;font-display:swap;font-weight:800 900;font-stretch:125%;src:url('/fonts/archivo-display.woff2') format('woff2')}
+@font-face{font-family:'Montserrat Variable';font-style:normal;font-display:swap;font-weight:400 700;src:url('/fonts/montserrat-text.woff2') format('woff2')}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+img, video { max-width: 100%; display: block; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 6px; }

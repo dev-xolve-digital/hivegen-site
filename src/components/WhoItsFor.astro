@@ -1,0 +1,27 @@
+---
+import Three3D from './Three3D.astro';
+import { loadSection } from '../lib/content/load';
+const s = loadSection('who-its-for');
+const icons: Record<string, string> = {
+  building: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01',
+  camera: 'M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
+  person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-7 8-7s8 3 8 7',
+};
+---
+<section class="sec" data-testid="who-its-for">
+  <div class="blob lime" style="width:380px;height:380px;left:36%;top:28%"></div>
+  <div class="blob blue" style="width:320px;height:320px;right:-60px;top:12%"></div>
+  <Three3D slot="who-reel" kind="reel" finish="chrome" />
+  <div class="in">
+    <div class="sec-head"><div><h2 class="disp">{s.heading}</h2></div></div>
+    <div class="who">
+      {s.cards.map((c) => (
+        <div class="wc glass">
+          <h3><span class="ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={icons[c.icon]} /></svg></span>{c.title}</h3>
+          <p>{c.text}</p>
+          <a class="go u" href={c.href}>{c.linkLabel} <span aria-hidden="true">→</span></a>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

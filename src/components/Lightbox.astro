@@ -1,0 +1,15 @@
+---
+import { loadSection } from '../lib/content/load';
+const hero = loadSection('hero');
+---
+<div class="hglb" data-testid="lightbox" role="dialog" aria-modal="true" data-protect hidden>
+  <div class="hglb-in">
+    <button type="button" class="hglb-x" aria-label={hero.closeVideoLabel}>×</button>
+    <div data-media style="width:100%;height:100%"></div>
+  </div>
+</div>
+<script>
+  import '../scripts/lightbox';
+  import { initProtection } from '../scripts/protect';
+  initProtection();
+</script>

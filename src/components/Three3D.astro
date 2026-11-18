@@ -1,0 +1,20 @@
+---
+import type { ObjectKind, Finish } from '../scripts/three/objects';
+interface Props { slot: string; kind: ObjectKind; finish: Finish; behind?: boolean }
+const { slot, kind, finish, behind = false } = Astro.props;
+const place: Record<string, { cls: string; scale: number }> = {
+  'hero-play': { cls: 'h-play', scale: 0.82 },
+  'hero-camera': { cls: 'h-cam', scale: 0.82 },
+  'hero-pause': { cls: 'h-pause', scale: 1.05 },
+  'who-reel': { cls: 'w-reel', scale: 0.9 },
+  'plans-play': { cls: 'p-play', scale: 0.82 },
+  'booking-pause': { cls: 'b-pause', scale: 0.95 },
+  'final-camera': { cls: 'f-cam', scale: 0.72 },
+};
+const STILLS = ['hero-play', 'hero-camera', 'hero-pause', 'booking-pause'];
+const p = place[slot];
+---
+<canvas class:list={['c3d', p.cls, { behind }]} data-testid="three-canvas" data-slot={slot} data-kind={kind} data-finish={finish} data-scale={p.scale} aria-hidden="true"></canvas>
+{STILLS.includes(slot) && (
+  <img class:list={['c3d-still', p.cls, { behind }]} data-testid="three-still" src={`/media/3d/${slot}.webp`} alt="" aria-hidden="true" width="190" height="190" decoding="async" />
+)}

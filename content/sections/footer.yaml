@@ -1,0 +1,14 @@
+# Footer
+copyright: © 2026 HiveGen LLC
+tagline: White-label real estate video editing
+links:
+  - label: Instagram
+    href: https://www.instagram.com/hasan.drp
+  # Shown publicly. connect@hivegen.co forwards to Gmail through Cloudflare Email Routing;
+  # swap it for the professional mailbox once that is set up. Keep the Gmail off the site.
+  - label: Email
+    href: "mailto:connect@hivegen.co"
+  - label: Privacy
+    href: /privacy
+  - label: Terms
+    href: /terms

@@ -1,0 +1,31 @@
+# Site-wide settings. Edit values after the colon; keep the indentation (two spaces, never tabs).
+brand:
+  name: HiveGen
+  logo: /brand/logo.png
+
+contact:
+  # Where new-lead and booking emails go (used from Phase 2).
+  notificationEmail: "Hasansiddiqui56@gmail.com"
+  instagramHandle: hasan.drp
+  # Opens an Instagram chat with the account above.
+  instagramUrl: https://ig.me/m/hasan.drp
+
+booking:
+  timeZone: Asia/Karachi      # Hassan's time zone
+  days: [mon, tue, wed, thu, fri]   # days a call window starts on (Pakistan date)
+  windowStart: "19:00"        # 7:00 PM Pakistan time
+  windowEnd: "02:00"          # 2:00 AM (the next day)
+  slotMinutes: 15
+  bufferMinutes: 5
+  minNoticeMinutes: 60
+  horizonDays: 14
+
+settings:
+  videoSource: stream         # stream = Cloudflare Stream; local = files from `npm run media`
+  streamCustomerCode: yph9uum1du6x869b
+  live3dOnMobile: false       # true = phones get the live 3D objects instead of still images
+  showBeforeAfter: true       # false hides section 05
+  heroLoop:                   # the short silent loop at the top (served by the site, not Stream)
+    videoId: v-portfolio-reel
+    start: 13                 # seconds into the source video
+    duration: 14

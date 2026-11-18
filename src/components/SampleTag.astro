@@ -1,0 +1,6 @@
+---
+/** Draft-only marker on placeholder content. Production builds refuse samples, so it never ships. */
+interface Props { show: boolean; inline?: boolean }
+const { show, inline = false } = Astro.props;
+---
+{show && <span class:list={['smp', { inline }]}>Sample</span>}

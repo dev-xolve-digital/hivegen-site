@@ -1,0 +1,54 @@
+# Main version: https://<domain>/
+slug: ""
+seo:
+  title: HiveGen · Real estate video editing in 24–48 hours
+  description: White-label real estate video editing for agencies, videographers and agents. Send raw footage, get a polished, hook-first listing video in 24–48 hours. First edit free.
+  noindex: false
+hero:
+  eyebrow: White-label video editing for real estate
+  headline:
+    - You shoot.
+    - We edit.
+    - Homes sell.
+  highlight: sell.            # the words in the last line that get the lime marker
+  subline: Send us raw footage from any listing. In 24–48 hours you get a polished, hook-first video, ready to post with your branding, never ours.
+  chips:
+    - 24–48h delivery
+    - White-label
+    - Plans from $60 / video
+pricingOrder: plans-first     # plans-first or single-first
+showWhoItsFor: true
+videoOrder:                   # ids from videos.yaml, in the order shown
+  vertical:
+    - v-agent-spotlight
+    - v-twilight-exterior
+    - v-client-reveal
+    - v-night-sky
+    - v-street-hook
+    - v-lifestyle-story
+    - v-luxury-kitchen
+    - v-creative-hook
+    - v-investor-angle
+    - v-community-tour
+    - v-autumn-cottage
+    - v-ranch-acreage
+    - v-still-not-sold
+    - v-new-build-host
+    - v-pool-home-hook
+    - v-rooftop-hook
+    - v-agent-hosted
+    - v-buyer-story
+    - v-lifestyle-couple
+    - v-golf-cart-tour
+    - v-lakefront
+    - v-miami-story
+    - v-portfolio-reel
+  horizontal:
+    - h-modern-villa
+    - h-country-barn
+    - h-estate-aerial
+    - h-agent-led
+    - h-family-home
+    - h-new-build
+    - h-bright-modern
+    - h-yacht
