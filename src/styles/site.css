@@ -314,3 +314,8 @@ h1.disp{font-size:76px;margin:26px 0 24px;line-height:.98}
   .legal-body{margin-top:32px;padding:26px 20px}
   .legal-body h1.disp{font-size:32px}
 }
+
+/* Hero extras */
+.vcard{display:block;width:100%;padding:0;border:0;font:inherit;text-align:left}
+.vcard video.vid{background:#0E1233}
+.why-us{margin:22px 0 0;max-width:520px;padding-left:14px;border-left:3px solid var(--blue);font-size:15px;line-height:1.6;color:var(--ink2)}

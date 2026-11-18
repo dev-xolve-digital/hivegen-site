@@ -9,3 +9,4 @@ videoDuration: "0:58"
 videoAriaLabel: Watch the full portfolio reel with sound
 floatTitle: 24–48h
 floatText: from footage to final cut
+closeVideoLabel: Close video   # the close button on every video pop-up

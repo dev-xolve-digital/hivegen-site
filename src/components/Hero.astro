@@ -1,0 +1,35 @@
+---
+import Nav from './Nav.astro';
+import HeroStage from './HeroStage.astro';
+import IgIcon from './IgIcon.astro';
+import { loadSection, loadSite, type Page } from '../lib/content/load';
+interface Props { page: Page }
+const { page } = Astro.props;
+const hero = loadSection('hero');
+const site = loadSite();
+const [l1, l2, last] = page.hero.headline;
+const at = last.lastIndexOf(page.hero.highlight);
+const before = last.slice(0, at);
+const after = last.slice(at + page.hero.highlight.length);
+---
+<section class="sec hero-sec" id="top">
+  <div class="blob blue" style="width:540px;height:540px;right:-140px;top:60px"></div>
+  <div class="blob lime" style="width:440px;height:440px;left:-150px;bottom:-110px"></div>
+  <Nav />
+  <div class="hero in">
+    <div>
+      <div class="eyebrow glass"><span class="dot" aria-hidden="true"></span>{page.hero.eyebrow}</div>
+      <h1 class="disp">{l1}<br />{l2}<br />{before}<span class="hl">{page.hero.highlight}</span>{after}</h1>
+      <p class="lead">{page.hero.subline}</p>
+      <div class="ctas">
+        <a class="btn" data-hero-cta href={hero.primaryCta.href}>{hero.primaryCta.label} <span class="arr" aria-hidden="true">→</span></a>
+        <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{hero.instagramCta.label}</a>
+      </div>
+      <div class="chips">
+        {page.hero.chips.map((c) => <span class="chip glass"><span class="ck" aria-hidden="true">✓</span>{c}</span>)}
+      </div>
+      {page.whyUs && <p class="why-us" data-testid="why-us">{page.whyUs}</p>}
+    </div>
+    <HeroStage />
+  </div>
+</section>

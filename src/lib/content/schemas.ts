@@ -70,7 +70,7 @@ export const sectionSchemas = {
   nav: z.strictObject({ links: z.array(link), cta: link }),
   hero: z.strictObject({
     primaryCta: link, instagramCta: z.strictObject({ label: text }), videoLabel: text, videoDuration: text,
-    videoAriaLabel: text, floatTitle: text, floatText: text,
+    videoAriaLabel: text, floatTitle: text, floatText: text, closeVideoLabel: text,
   }),
   'recent-edits': z.strictObject({ heading: text, subline: text, verticalLabel: text, horizontalLabel: text, prevLabel: text, nextLabel: text }),
   'who-its-for': z.strictObject({
