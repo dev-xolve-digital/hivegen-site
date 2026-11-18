@@ -1,0 +1,18 @@
+---
+import SampleTag from './SampleTag.astro';
+import type { Testimonials } from '../lib/content/load';
+interface Props { shots: Testimonials['screenshots']; direction: 'right' | 'left'; layer: 'front' | 'back' }
+const { shots, layer } = Astro.props;
+// Same speed whatever the number of screenshots (~9 s per card).
+const dur = `${Math.max(shots.length, 1) * 9}s`;
+---
+<div class:list={['mq', layer]} data-testid={`marquee-${layer}`}>
+  <div class="mq-track" data-track style={`--dur:${dur}`}>
+    {[0, 1].map((copy) => shots.map((s) => (
+      <figure class="shot" data-testid="shot" aria-hidden={copy === 1 ? 'true' : undefined}>
+        <img src={`/media/screenshots/${s.file}`} alt={copy === 1 ? '' : s.alt} loading="lazy" decoding="async" draggable="false" />
+        <SampleTag show={s.sample} />
+      </figure>
+    )))}
+  </div>
+</div>

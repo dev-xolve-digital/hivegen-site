@@ -126,12 +126,12 @@ h1.disp{font-size:76px;margin:26px 0 24px;line-height:.98}
 .mq.front{z-index:2}
 .mq.back{z-index:1;margin-top:-34px}
 .mq.back .msg{height:180px;background:rgba(255,255,255,.62)}
-.mq-track{display:flex;align-items:center;gap:18px;width:max-content;will-change:transform;animation:hg-left 56s linear infinite}
-.mq.front .mq-track{animation-name:hg-right}
+.mq-track{display:flex;align-items:center;gap:18px;width:max-content;will-change:transform;animation:marquee-left var(--dur,56s) linear infinite}
+.mq.front .mq-track{animation-name:marquee-right}
 .mq:hover .mq-track{animation-play-state:paused}
-@keyframes hg-left{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 9px))}}
-@keyframes hg-right{from{transform:translateX(calc(-50% - 9px))}to{transform:translateX(0)}}
-@media (prefers-reduced-motion:reduce){.mq-track{animation:none}}
+@keyframes marquee-left{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 9px))}}
+@keyframes marquee-right{from{transform:translateX(calc(-50% - 9px))}to{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){.mq-track,.mq.front .mq-track,.mq.back .mq-track{animation:none}}
 
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
 .plan{padding:30px;display:flex;flex-direction:column}
@@ -337,3 +337,10 @@ ol.steps{list-style:none;margin:0}
 .ba-knob{position:absolute;top:50%;left:var(--pos);width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:var(--lime);display:grid;place-items:center;font-weight:700;color:var(--ink);box-shadow:0 8px 20px rgba(14,18,51,.25);z-index:3}
 .ba-full{margin-top:24px}
 .step h3,.wc h3,.disp{text-wrap:balance}
+
+/* Testimonial cards */
+.tcard{position:relative}
+.tcard .reel{width:100%}
+.tcard .smp{z-index:3}
+.snd{display:inline-flex;gap:6px}
+.inbox .draft-note{margin-bottom:10px}

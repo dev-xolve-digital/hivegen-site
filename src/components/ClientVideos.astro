@@ -1,0 +1,37 @@
+---
+import VideoCard from './VideoCard.astro';
+import SampleTag from './SampleTag.astro';
+import MessageMarquee from './MessageMarquee.astro';
+import { getVideo, loadTestimonials } from '../lib/content/load';
+const t = loadTestimonials();
+const draft = process.env.SITE_MODE !== 'production';
+const anySample = t.screenshots.some((s) => s.sample);
+---
+<section class="sec" id="clients">
+  <div class="blob blue" style="width:340px;height:340px;left:8%;top:30%"></div>
+  <div class="blob lime" style="width:420px;height:420px;right:6%;bottom:-60px"></div>
+  <div class="in">
+    <div class="sec-head center"><div><h2 class="disp">{t.heading}</h2><p class="sub" style="margin-left:auto;margin-right:auto">{t.subline}</p></div></div>
+    <div class="tgrid">
+      {t.videos.map((tv) => {
+        const video = getVideo(tv.videoId);
+        return (
+          <div class="tcard glass" data-testid="testimonial-card">
+            <SampleTag show={!!video.sample} />
+            <VideoCard video={video} testid="testimonial-video" showLabel={false} ariaLabel={`${tv.role}: ${t.watchLabel}`} />
+            <div class="tmeta"><b>{tv.role}</b><span class="snd" aria-hidden="true">▶ {t.watchLabel}</span></div>
+          </div>
+        );
+      })}
+    </div>
+    <div class="inbox">
+      {draft && anySample && t.inbox.note && <span class="draft-note">{t.inbox.note}</span>}
+      <h3 class="disp">{t.inbox.heading}</h3>
+      <p class="sub">{t.inbox.subline}</p>
+      <div class="mqwrap">
+        <MessageMarquee shots={t.screenshots.filter((s) => s.row === 'front')} direction="right" layer="front" />
+        <MessageMarquee shots={t.screenshots.filter((s) => s.row === 'back')} direction="left" layer="back" />
+      </div>
+    </div>
+  </div>
+</section>
