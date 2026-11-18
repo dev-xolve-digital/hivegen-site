@@ -26,5 +26,9 @@ const site = loadSite();
       <slot />
     </div>
     <slot name="overlay" />
+    <script>
+      import { initThree } from '../scripts/three/loader';
+      initThree();
+    </script>
   </body>
 </html>

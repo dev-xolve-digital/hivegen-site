@@ -1,5 +1,6 @@
 ---
 import IgIcon from './IgIcon.astro';
+import Three3D from './Three3D.astro';
 import { loadSection, loadSite, type Page } from '../lib/content/load';
 import { keepHyphenated } from '../lib/text';
 interface Props { page: Page }
@@ -13,7 +14,7 @@ const rules = JSON.stringify(site.booking);
 <section class="sec" id="book" data-testid="booking">
   <div class="blob lime" style="width:440px;height:440px;left:-90px;top:-20px"></div>
   <div class="blob blue" style="width:440px;height:440px;right:-70px;bottom:-70px"></div>
-  <slot name="three" />
+  <Three3D slot="booking-pause" kind="pause" finish="blue" behind />
   <div class="in book glass" data-booking data-page={page.slug || 'main'}>
     <script type="application/json" data-booking-copy set:html={copy} />
     <script type="application/json" data-booking-rules set:html={rules} />

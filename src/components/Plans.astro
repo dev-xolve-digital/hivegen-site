@@ -1,5 +1,6 @@
 ---
 import SingleBar from './SingleBar.astro';
+import Three3D from './Three3D.astro';
 import { loadSection } from '../lib/content/load';
 interface Props { order: 'plans-first' | 'single-first' }
 const { order } = Astro.props;
@@ -8,7 +9,7 @@ const s = loadSection('plans');
 <section class="sec" id="plans">
   <div class="blob lime" style="width:400px;height:400px;left:30%;top:22%"></div>
   <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:8%"></div>
-  <slot name="three" />
+  <Three3D slot="plans-play" kind="play" finish="chrome" />
   <div class="in">
     <div class="sec-head"><div><h2 class="disp">{s.heading}</h2><p class="sub">{s.subline}</p></div></div>
     {order === 'single-first' && <SingleBar first />}

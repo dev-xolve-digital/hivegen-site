@@ -1,6 +1,7 @@
 ---
 import { getVideo, loadSection, loadSite } from '../lib/content/load';
 import { resolveVideo, heroLoopSrc } from '../lib/media';
+import Three3D from './Three3D.astro';
 const hero = loadSection('hero');
 const settings = loadSite().settings;
 const reel = getVideo(settings.heroLoop.videoId);
@@ -8,7 +9,7 @@ const { play } = resolveVideo(reel, settings);
 const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: reel.orientation, title: reel.title });
 ---
 <div class="stage">
-  <slot name="behind" />
+  <Three3D slot="hero-pause" kind="pause" finish="lime" behind />
   <div class="plate glass"></div>
   <button type="button" class="vcard" data-testid="hero-card" data-lightbox={lightbox} data-protect aria-label={hero.videoAriaLabel}>
     <video
@@ -27,7 +28,8 @@ const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: r
     <span class="play" aria-hidden="true"></span>
     <span class="vlabel" aria-hidden="true"><span>{hero.videoLabel}</span><span>{hero.videoDuration}</span></span>
   </button>
-  <slot name="front" />
+  <Three3D slot="hero-play" kind="play" finish="blue" />
+  <Three3D slot="hero-camera" kind="camera" finish="navy" />
   <div class="float glass">
     <span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
     <div><b>{hero.floatTitle}</b><small>{hero.floatText}</small></div>

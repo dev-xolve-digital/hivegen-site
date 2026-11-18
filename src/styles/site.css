@@ -396,3 +396,14 @@ input.inp[aria-invalid="true"]{border-color:#B42318}
 .nw{white-space:nowrap}
 .book>*,.fwrap,.form{min-width:0}
 .days button span{display:inline;padding:0;background:none;border-radius:0;color:inherit;font:inherit}
+
+/* 3D: live canvases only when the loader switched them on; stills on phones and tablets */
+canvas.c3d{display:none}
+.live3d canvas.c3d{display:block}
+.c3d-still{display:none;position:absolute;pointer-events:none;filter:drop-shadow(0 18px 16px rgba(14,18,51,.2));animation:float3d 6s ease-in-out infinite}
+.c3d-still.behind{filter:none}
+.c3d-still.h-cam{animation-delay:-2s}
+.c3d-still.h-pause{animation-delay:-4s}
+@keyframes float3d{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-8px) rotate(-2deg)}}
+@media (max-width:1060px){html:not(.live3d) .c3d-still{display:block}}
+@media (prefers-reduced-motion:reduce){.c3d-still{animation:none}}

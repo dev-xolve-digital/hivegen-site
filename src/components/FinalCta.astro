@@ -1,5 +1,6 @@
 ---
 import IgIcon from './IgIcon.astro';
+import Three3D from './Three3D.astro';
 import { loadSection, loadSite } from '../lib/content/load';
 const s = loadSection('final-cta');
 const site = loadSite();
@@ -8,7 +9,7 @@ const last = lines[lines.length - 1];
 const at = last.lastIndexOf(s.highlight);
 ---
 <section class="sec" id="final" style="padding-top:40px">
-  <slot name="three" />
+  <Three3D slot="final-camera" kind="camera" finish="navy" />
   <div class="in final glass">
     <div class="blob lime" style="width:380px;height:380px;left:-90px;top:-140px"></div>
     <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:-170px"></div>

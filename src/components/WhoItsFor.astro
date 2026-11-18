@@ -1,4 +1,5 @@
 ---
+import Three3D from './Three3D.astro';
 import { loadSection } from '../lib/content/load';
 const s = loadSection('who-its-for');
 const icons: Record<string, string> = {
@@ -10,7 +11,7 @@ const icons: Record<string, string> = {
 <section class="sec" data-testid="who-its-for">
   <div class="blob lime" style="width:380px;height:380px;left:36%;top:28%"></div>
   <div class="blob blue" style="width:320px;height:320px;right:-60px;top:12%"></div>
-  <slot name="three" />
+  <Three3D slot="who-reel" kind="reel" finish="chrome" />
   <div class="in">
     <div class="sec-head"><div><h2 class="disp">{s.heading}</h2></div></div>
     <div class="who">
