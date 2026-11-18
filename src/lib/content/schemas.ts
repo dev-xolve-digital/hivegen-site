@@ -88,9 +88,11 @@ export const sectionSchemas = {
     slider: z.strictObject({ before: clip, after: clip, fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
     sample: z.boolean(),
     note: text.optional(),
-  }).refine((s) => (s.mode === 'reveal' ? !!s.reveal : !!s.slider), (s) => ({
-    message: `is needed when mode is ${s.mode}`, path: [s.mode],
-  })),
+  }).superRefine((s, ctx) => {
+    if (s.mode === 'reveal' ? !s.reveal : !s.slider) {
+      ctx.addIssue({ code: 'custom', message: `is needed when mode is ${s.mode}`, path: [s.mode] });
+    }
+  }),
   plans: z.strictObject({
     heading: text,
     subline: text,

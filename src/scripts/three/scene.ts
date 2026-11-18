@@ -75,9 +75,9 @@ export function mountScene(canvases: HTMLCanvasElement[], opts: { animate: boole
 
   if (opts.animate) {
     window.addEventListener('pointermove', onMove, { passive: true });
-    const clock = new THREE.Clock();
+    const t0 = performance.now();
     const loop = () => {
-      const t = clock.getElapsedTime();
+      const t = (performance.now() - t0) / 1000;
       pointer.x += (pointer.tx - pointer.x) * 0.05;
       pointer.y += (pointer.ty - pointer.y) * 0.05;
       if (!document.hidden) for (const it of items) if (it.visible && it.w && it.h) draw(it, t);

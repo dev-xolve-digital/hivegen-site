@@ -21,7 +21,7 @@ export function initCarousels(): void {
     });
     const update = () => { if (arrows) arrows.hidden = !shouldShowArrows(track.scrollWidth, track.clientWidth); };
     update();
-    if ('ResizeObserver' in window) new ResizeObserver(update).observe(track);
-    else window.addEventListener('resize', update);
+    if (typeof ResizeObserver === 'function') new ResizeObserver(update).observe(track);
+    else addEventListener('resize', update);
   });
 }

@@ -27,3 +27,7 @@ it('an unknown video id is named', () => {
   process.env.CONTENT_DIR = 'tests/fixtures/content-unknown-video';
   expect(() => listPages()).toThrowError(/v-nope/);
 });
+it('slider mode without a slider block names the missing field', () => {
+  process.env.CONTENT_DIR = 'tests/fixtures/content-slider-missing';
+  expect(() => loadSection('before-after')).toThrowError(/before-after\.yaml.*"slider" is needed when mode is slider \(field slider\)/);
+});
