@@ -13,16 +13,17 @@ import Booking from '../components/Booking.astro';
 import FinalCta from '../components/FinalCta.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
-import { listPages, loadSection, loadSite, type Page } from '../lib/content/load';
+import { listPages, loadPage, loadSection, loadSite, type PageSlug } from '../lib/content/load';
 import { assertNoSamplesInProduction } from '../lib/content/samples';
 
+// Only the paths come from here: the dev server keeps this result between refreshes,
+// so the page itself is read fresh below, and an edited page file shows on refresh.
 export function getStaticPaths() {
   assertNoSamplesInProduction();
-  return listPages().map((page) => ({ params: { slug: page.slug || undefined }, props: { page } }));
+  return listPages().map((page) => ({ params: { slug: page.slug || undefined } }));
 }
 
-interface Props { page: Page }
-const { page } = Astro.props;
+const page = loadPage((Astro.params.slug ?? '') as PageSlug);
 const settings = loadSite().settings;
 ---
 <BaseLayout seo={page.seo}>

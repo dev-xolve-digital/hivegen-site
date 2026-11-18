@@ -31,3 +31,12 @@ test('phone: mobile bar appears after scrolling past the hero button', async ({ 
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(page.getByTestId('mobile-bar')).toBeVisible();
 });
+test('phone: mobile bar hides while the booking form is on screen', async ({ page, isMobile }) => {
+  test.skip(!isMobile);
+  await page.goto('/');
+  const bar = page.getByTestId('mobile-bar');
+  await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
+  await expect(bar).toBeVisible();
+  await page.getByTestId('booking').locator('form').scrollIntoViewIfNeeded();
+  await expect(bar).toBeHidden();
+});

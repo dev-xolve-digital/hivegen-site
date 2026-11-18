@@ -5,6 +5,9 @@ heading: Simple pricing
 subline: Per-video prices on a monthly plan. We confirm your exact quote on the call.
 planCtaLabel: Book a call
 priceSuffix: / video          # shown after each plan price
+# The line under each price. {min} and {revisions} are filled in from each plan below;
+# {s} adds an "s" unless the number of revisions is 1. Keep the curly-brace words as they are.
+termsLine: "{min}+ videos a month · {revisions} revision{s}"
 plans:
   - name: Basic
     price: 60

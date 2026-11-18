@@ -128,7 +128,7 @@ h1.disp{font-size:76px;margin:26px 0 24px;line-height:.98}
 .mq.back .msg{height:180px;background:rgba(255,255,255,.62)}
 .mq-track{display:flex;align-items:center;gap:18px;width:max-content;will-change:transform;animation:marquee-left var(--dur,56s) linear infinite}
 .mq.front .mq-track{animation-name:marquee-right}
-.mq:hover .mq-track{animation-play-state:paused}
+.mq:hover .mq-track,.mq.off .mq-track{animation-play-state:paused}
 @keyframes marquee-left{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 9px))}}
 @keyframes marquee-right{from{transform:translateX(calc(-50% - 9px))}to{transform:translateX(0)}}
 @media (prefers-reduced-motion:reduce){.mq-track,.mq.front .mq-track,.mq.back .mq-track{animation:none}}

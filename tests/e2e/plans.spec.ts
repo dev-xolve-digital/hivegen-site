@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { listPages, loadSection } from '../../src/lib/content/load';
+import { fillTerms } from '../../src/lib/text';
 test('plans show prices and terms from content', async ({ page }) => {
   await page.goto('/');
-  const cards = page.getByTestId('plan-card'), { plans } = loadSection('plans');
+  const cards = page.getByTestId('plan-card'), { plans, termsLine } = loadSection('plans');
   await expect(cards).toHaveCount(plans.length);
   for (const [i, p] of plans.entries()) {
     await expect(cards.nth(i)).toContainText(`$${p.price}`);
-    await expect(cards.nth(i)).toContainText(`${p.minimumPerMonth}+ videos a month · ${p.revisions} revision${p.revisions > 1 ? 's' : ''}`);
+    await expect(cards.nth(i)).toContainText(fillTerms(termsLine, p.minimumPerMonth, p.revisions));
   }
 });
 test('pricing order follows each version', async ({ page }) => {

@@ -2,6 +2,7 @@
 import SingleBar from './SingleBar.astro';
 import Three3D from './Three3D.astro';
 import { loadSection } from '../lib/content/load';
+import { fillTerms } from '../lib/text';
 interface Props { order: 'plans-first' | 'single-first' }
 const { order } = Astro.props;
 const s = loadSection('plans');
@@ -18,7 +19,7 @@ const s = loadSection('plans');
           <div class:list={['plan glass', { feature: p.featured }]} data-testid="plan-card">
             <div class="pname">{p.name}{p.badge && <span class="pill">{p.badge}</span>}</div>
             <div class="price">${p.price}<small> {s.priceSuffix}</small></div>
-            <div class="terms">{p.minimumPerMonth}+ videos a month · {p.revisions} revision{p.revisions > 1 ? 's' : ''}</div>
+            <div class="terms">{fillTerms(s.termsLine, p.minimumPerMonth, p.revisions)}</div>
             <ul class="feat">
               {p.includesPrevious && <li class="plus">{p.includesPrevious}</li>}
               {p.features.map((f) => <li>{f}</li>)}

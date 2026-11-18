@@ -1,6 +1,9 @@
 export interface LightboxItem { kind: 'file' | 'stream'; src: string; orientation: 'vertical' | 'horizontal'; title: string }
 
 let opener: HTMLElement | null = null;
+// The pop-up adds one history step, so the phone's Back button (or swipe-back) closes it
+// instead of leaving the site.
+let ownsHistoryStep = false;
 const root = () => document.querySelector<HTMLElement>('[data-testid="lightbox"]');
 
 export function openLightbox(item: LightboxItem): void {
@@ -30,6 +33,10 @@ export function openLightbox(item: LightboxItem): void {
     v.play().catch(() => {});
   }
   lb.hidden = false;
+  if (!ownsHistoryStep) {
+    history.pushState({ hglb: 1 }, '');
+    ownsHistoryStep = true;
+  }
   document.documentElement.style.overflow = 'hidden';
   const page = document.querySelector<HTMLElement>('.page');
   if (page) page.inert = true; // keeps keyboard focus inside the pop-up
@@ -48,6 +55,10 @@ export function closeLightbox(): void {
   if (page) page.inert = false;
   opener?.focus();
   opener = null;
+  if (ownsHistoryStep) {
+    ownsHistoryStep = false;
+    history.back(); // closed with X, Escape or the backdrop: remove the step we added
+  }
 }
 
 function bind(): void {
@@ -58,6 +69,11 @@ function bind(): void {
   lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeLightbox();
+  });
+  window.addEventListener('popstate', () => {
+    if (!ownsHistoryStep) return;
+    ownsHistoryStep = false; // Back already removed our step
+    closeLightbox();
   });
   document.addEventListener('click', (e) => {
     const el = (e.target as Element | null)?.closest?.<HTMLElement>('[data-lightbox]');
