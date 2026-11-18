@@ -4,9 +4,10 @@ tagline: White-label real estate video editing
 links:
   - label: Instagram
     href: https://www.instagram.com/hasan.drp
-  # Shown publicly. Swap for a mailbox on your domain once you have one.
+  # Shown publicly. connect@hivegen.co forwards to Gmail through Cloudflare Email Routing;
+  # swap it for the professional mailbox once that is set up. Keep the Gmail off the site.
   - label: Email
-    href: "mailto:Hasansiddiqui56@gmail.com"
+    href: "mailto:connect@hivegen.co"
   - label: Privacy
     href: /privacy
   - label: Terms

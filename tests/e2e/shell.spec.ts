@@ -40,3 +40,12 @@ test('phone: mobile bar hides while the booking form is on screen', async ({ pag
   await page.getByTestId('booking').locator('form').scrollIntoViewIfNeeded();
   await expect(bar).toBeHidden();
 });
+test('the footer email is a hivegen.co address, and the private Gmail is on no page', async ({ page, isMobile }) => {
+  test.skip(!!isMobile);
+  const privateEmail = loadSite().contact.notificationEmail;
+  for (const path of [...listPages().map((p) => '/' + p.slug), '/privacy', '/terms', '/no-such-page']) {
+    expect(await (await page.request.get(path)).text(), path).not.toContain(privateEmail);
+  }
+  await page.goto('/');
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Email' })).toHaveAttribute('href', /^mailto:[^@]+@hivegen\.co$/);
+});
