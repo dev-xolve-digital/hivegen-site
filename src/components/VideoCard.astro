@@ -1,0 +1,21 @@
+---
+import type { Video } from '../lib/content/load';
+import { loadSite } from '../lib/content/load';
+import { resolveVideo } from '../lib/media';
+interface Props { video: Video; testid?: string; class?: string }
+const { video, testid, class: cls } = Astro.props;
+const { poster, play } = resolveVideo(video, loadSite().settings);
+const vertical = video.orientation === 'vertical';
+const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: video.orientation, title: video.title });
+---
+<button
+  type="button"
+  class:list={[vertical ? 'reel' : 'hcard', cls]}
+  data-testid={testid ?? (vertical ? 'vertical-card' : 'horizontal-card')}
+  data-lightbox={lightbox}
+  data-protect
+>
+  <img src={poster} alt="" loading="lazy" decoding="async" width={vertical ? 360 : 640} height={vertical ? 640 : 360} draggable="false" />
+  <span class="play" aria-hidden="true"></span>
+  <slot><span class="vlabel"><span>{video.label}</span><span>{video.duration}</span></span></slot>
+</button>

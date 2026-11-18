@@ -1,0 +1,20 @@
+---
+import VideoCarousel from './VideoCarousel.astro';
+import { getVideo, loadSection, type Page } from '../lib/content/load';
+interface Props { page: Page }
+const { page } = Astro.props;
+const s = loadSection('recent-edits');
+---
+<section class="sec" id="work">
+  <div class="in">
+    <div class="sec-head"><div><h2 class="disp">{s.heading}</h2><p class="sub">{s.subline}</p></div></div>
+    <VideoCarousel orientation="vertical" videos={page.videoOrder.vertical.map(getVideo)} label={s.verticalLabel} prevLabel={s.prevLabel} nextLabel={s.nextLabel} />
+    <div class="subblock">
+      <VideoCarousel orientation="horizontal" videos={page.videoOrder.horizontal.map(getVideo)} label={s.horizontalLabel} prevLabel={s.prevLabel} nextLabel={s.nextLabel} />
+    </div>
+  </div>
+</section>
+<script>
+  import { initCarousels } from '../scripts/carousel';
+  initCarousels();
+</script>

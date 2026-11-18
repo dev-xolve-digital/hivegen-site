@@ -1,0 +1,20 @@
+---
+import VideoCard from './VideoCard.astro';
+import type { Video } from '../lib/content/load';
+interface Props { orientation: 'vertical' | 'horizontal'; videos: Video[]; label: string; prevLabel: string; nextLabel: string }
+const { orientation, videos, label, prevLabel, nextLabel } = Astro.props;
+const [kind, ...rest] = label.split(' · ');
+const v = orientation === 'vertical';
+---
+<div data-carousel>
+  <div class="row-head">
+    <span class="fmt glass"><b>{kind}</b>{rest.length > 0 && ` · ${rest.join(' · ')}`}</span>
+    <div class="arrows" data-arrows>
+      <button type="button" class="arw" data-dir="-1" aria-label={`${prevLabel} (${kind})`}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button type="button" class="arw" data-dir="1" aria-label={`${nextLabel} (${kind})`}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+  </div>
+  <div class:list={['track', v ? 'vtrack' : 'htrack']} data-track data-testid={v ? 'vertical-track' : 'horizontal-track'} role="group" aria-label={label}>
+    {videos.map((video) => <VideoCard video={video} />)}
+  </div>
+</div>
