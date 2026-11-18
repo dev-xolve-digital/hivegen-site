@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+.env*
+.superpowers/
+.impeccable/
+references/
+public/media/videos/
+test-results/
+playwright-report/

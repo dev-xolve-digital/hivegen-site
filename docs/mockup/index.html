@@ -1,0 +1,936 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HiveGen mockup (draft v3.3)</title><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#f5f5f7;font-family:system-ui,sans-serif;color:#1d1d1f}#frame-content{padding:2rem}h2{font-size:1.5rem;font-weight:600;margin-bottom:.5rem}.subtitle{color:#6e6e73;margin-bottom:1.5rem;max-width:980px}</style></head><body><div id="frame-content">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Montserrat:wght@400;500;600;700&display=swap">
+
+<h2>HiveGen site: draft for review (v3.3)</h2>
+<p class="subtitle">Main version of the page. Click the hero video for the full reel with sound. Switch between Desktop and Mobile below; in Mobile view the 3D objects are still images unless you switch on "Live 3D on phones". Testimonials and message screenshots are placeholders. The final words come from docs/design/2026-11-18-hivegen-copy-deck.md.</p>
+
+<div class="vrow">
+  <div class="vbar">
+    <button type="button" class="vbtn on" id="vDesk">Desktop</button>
+    <button type="button" class="vbtn" id="vMob">Mobile</button>
+  </div>
+  <button type="button" class="vlive" id="vLive" hidden>Live 3D on phones: Off</button>
+</div>
+
+<style>
+.vrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 1.5rem}
+.vbar{display:inline-flex;gap:4px;padding:4px;border-radius:999px;background:var(--bg-tertiary,#e5e5e7)}
+.vbtn{border:0;background:transparent;color:var(--text-primary,#1d1d1f);font:600 14px/1.2 system-ui,sans-serif;padding:10px 20px;border-radius:999px;cursor:pointer}
+.vbtn.on{background:var(--bg-secondary,#fff);box-shadow:0 1px 4px rgba(0,0,0,.14)}
+.vlive{border:1px solid var(--border,#d1d1d6);background:var(--bg-secondary,#fff);color:var(--text-primary,#1d1d1f);font:600 13px/1.2 system-ui,sans-serif;padding:10px 16px;border-radius:999px;cursor:pointer}
+.vlive.on{background:#D3FF52;border-color:#D3FF52;color:#0E1233}
+.stagewrap{display:flex;justify-content:center}
+.phone-shell{width:100%;display:flex;justify-content:center}
+.hgwrap{container-type:inline-size;container-name:page;width:100%;max-width:1240px}
+.sbar{display:none}
+.stagewrap.mobile .phone-shell{position:relative;width:414px;padding:12px;border-radius:58px;background:#0E1233;box-shadow:0 40px 90px rgba(14,18,51,.35),inset 0 0 0 2px #2b3060;flex-direction:column;align-items:center}
+.stagewrap.mobile .phone-shell::before{content:'';position:absolute;top:22px;left:50%;width:112px;height:32px;margin-left:-56px;border-radius:20px;background:#05060f;z-index:40}
+.stagewrap.mobile .sbar{display:flex;align-items:center;justify-content:space-between;width:390px;height:50px;padding:4px 30px 0 38px;background:#FFF9EB;border-radius:46px 46px 0 0;font:600 15px/1 system-ui,-apple-system,sans-serif;color:#0E1233}
+.sic{display:flex;gap:6px;align-items:center}
+.sig{width:18px;height:11px;background:#0E1233;clip-path:polygon(0 100%,100% 0,100% 100%)}
+.bat{position:relative;width:24px;height:12px;border:1.5px solid #0E1233;border-radius:4px}
+.bat::after{content:'';position:absolute;top:1.5px;bottom:1.5px;left:1.5px;right:5px;background:#0E1233;border-radius:2px}
+.stagewrap.mobile .hgwrap{width:390px;height:740px;overflow-y:auto;border-radius:0 0 46px 46px;scrollbar-width:none;overscroll-behavior:contain}
+.stagewrap.mobile .hgwrap::-webkit-scrollbar{display:none}
+.stagewrap.mobile .hg{border-radius:0;margin:0;box-shadow:none}
+
+.hglb{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(14,18,51,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.hglb[hidden]{display:none}
+.hglb-in{position:relative;height:min(86vh,860px);aspect-ratio:9/16;border-radius:24px;overflow:hidden;background:#000;box-shadow:0 40px 100px rgba(0,0,0,.45)}
+.hglb video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+.hglb-x{position:absolute;top:12px;right:12px;z-index:2;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,249,235,.92);color:#0E1233;font:600 22px/1 system-ui,sans-serif;cursor:pointer}
+.hglb-x:hover{background:#D3FF52}
+
+.hg{--bg:#FFF9EB;--ink:#0E1233;--ink2:#4A4F6A;--ink3:#6B6F88;--blue:#1C45F5;--lime:#D3FF52;--glass:rgba(255,255,255,.5);--gb:rgba(255,255,255,.85);--sh:0 10px 40px rgba(14,18,51,.08),0 2px 8px rgba(14,18,51,.04);
+  position:relative;margin:0 auto 2rem;background:var(--bg);color:var(--ink);border-radius:24px;overflow:clip;
+  font-family:'Montserrat',system-ui,sans-serif;font-size:16px;line-height:1.5;box-shadow:0 0 0 1px rgba(14,18,51,.08),0 30px 80px rgba(14,18,51,.12)}
+.hg::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:linear-gradient(to right,rgba(14,18,51,.06) 1px,transparent 1px),linear-gradient(to bottom,rgba(14,18,51,.06) 1px,transparent 1px);background-size:80px 80px}
+.hg *{box-sizing:border-box}
+.hg a{color:inherit;text-decoration:none}
+.hg .disp{font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:var(--ink);margin:0}
+.hg h2.disp{font-size:40px}
+.hg .sub{font-size:16px;color:var(--ink2);margin:14px 0 0;max-width:560px;line-height:1.65}
+.hg .sec{position:relative;padding:84px 56px}
+.hg .in{position:relative;z-index:2}
+.hg .tag{position:absolute;top:18px;left:20px;z-index:9;font:600 11px/1.3 'Montserrat',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#FFF9EB;background:var(--ink);padding:7px 11px;border-radius:999px}
+.hg .tag em{font-style:normal;text-transform:none;letter-spacing:.02em}
+.hg .tag.note{background:rgba(255,249,235,.92);color:var(--ink2);border:1px dashed rgba(14,18,51,.3);left:auto;right:20px;text-transform:none;letter-spacing:.01em;font-size:12px}
+.hg .tag.inline{position:relative;top:auto;left:auto;right:auto;display:inline-block;margin:0 8px 14px 0}
+.hg .glass{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);border:1px solid var(--gb);box-shadow:var(--sh),inset 0 1px 0 rgba(255,255,255,.9);border-radius:28px}
+.hg .blob{position:absolute;border-radius:50%;filter:blur(70px);pointer-events:none;z-index:0}
+.hg .blob.blue{background:rgba(28,69,245,.30)}
+.hg .blob.lime{background:rgba(211,255,82,.70)}
+
+.hg .c3d{position:absolute;display:block;pointer-events:none;filter:drop-shadow(0 22px 20px rgba(14,18,51,.22))}
+.hg .c3d.behind{filter:none}
+.hg .h-play{width:190px;height:190px;right:-100px;top:-96px;z-index:3}
+.hg .h-cam{width:250px;height:250px;left:-176px;bottom:-118px;z-index:3}
+.hg .h-pause{width:200px;height:200px;right:-150px;bottom:64px;z-index:0}
+.hg .w-reel{width:230px;height:230px;right:-30px;bottom:-124px;z-index:1}
+.hg .p-play{width:210px;height:210px;right:2%;top:24px;z-index:1}
+.hg .b-pause{width:190px;height:190px;right:6px;top:4px;z-index:1}
+.hg .f-cam{width:210px;height:210px;right:14px;top:-64px;z-index:3}
+
+.hg .btn{display:inline-flex;align-items:center;gap:10px;font:600 15px/1 'Montserrat',sans-serif;padding:17px 26px;border-radius:999px;background:var(--blue);color:#FFF9EB;cursor:pointer;transition:background .2s,color .2s,transform .2s,box-shadow .2s;box-shadow:0 10px 26px rgba(28,69,245,.28);white-space:nowrap}
+.hg .btn:hover{background:var(--lime);color:var(--ink);box-shadow:0 10px 26px rgba(150,190,20,.35);transform:translateY(-1px)}
+.hg .btn .arr{transition:transform .2s}
+.hg .btn:hover .arr{transform:translateX(3px)}
+.hg .btn.sm{padding:12px 18px;font-size:14px}
+.hg .btn.ghost{background:rgba(255,255,255,.6);color:var(--ink);box-shadow:inset 0 0 0 1.5px rgba(14,18,51,.16)}
+.hg .btn.ghost:hover{background:var(--lime);box-shadow:inset 0 0 0 1.5px var(--lime)}
+.hg .u{position:relative;z-index:0;padding:0 2px;transition:color .2s}
+.hg .u::after{content:'';position:absolute;left:0;right:0;bottom:.08em;height:.5em;border-radius:2px;background:var(--lime);transform:scaleX(0);transform-origin:left center;transition:transform .25s ease;z-index:-1}
+.hg .u:hover{color:var(--ink)}
+.hg .u:hover::after{transform:scaleX(1)}
+.hg .ck{flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--lime);display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink)}
+
+.hg .hero-sec{padding:58px 40px 92px}
+.hg .nav{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 10px 24px;border-radius:999px}
+.hg .logo{font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:900;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center}
+.hg .logo i{width:9px;height:9px;border-radius:50%;background:var(--blue);margin-left:3px;transform:translateY(5px)}
+.hg .logo-img{display:block;height:34px;width:auto}
+.hg .links{display:flex;gap:30px;font:500 14px 'Montserrat',sans-serif;color:var(--ink2)}
+.hg .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:40px;align-items:center;padding:64px 24px 0}
+.hg .eyebrow{display:inline-flex;align-items:center;gap:10px;padding:7px 16px 7px 12px;border-radius:999px;font:600 12px/1.3 'Montserrat',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.hg .eyebrow .dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(211,255,82,.45)}
+.hg h1.disp{font-size:76px;margin:26px 0 24px;line-height:.98}
+.hg .hl{background-image:linear-gradient(var(--lime),var(--lime));background-size:100% 36%;background-position:0 88%;background-repeat:no-repeat;padding:0 6px;margin:0 -2px}
+.hg .lead{font-size:18px;line-height:1.65;color:var(--ink2);max-width:520px;margin:0}
+.hg .ctas{display:flex;align-items:center;gap:24px;margin-top:34px;flex-wrap:wrap}
+.hg .ig{display:inline-flex;align-items:center;gap:8px;font:600 14px 'Montserrat',sans-serif;color:var(--ink)}
+.hg .chips{display:flex;gap:10px;margin-top:34px;flex-wrap:wrap}
+.hg .chip{display:inline-flex;align-items:center;gap:9px;padding:9px 15px 9px 9px;border-radius:999px;font:600 13px/1.2 'Montserrat',sans-serif}
+.hg .stage{position:relative;justify-self:center;width:300px;margin-right:30px}
+.hg .plate{position:absolute;inset:-30px -34px;border-radius:44px;z-index:1}
+.hg .vcard{position:relative;z-index:2;aspect-ratio:9/16;border-radius:28px;overflow:hidden;background:#0E1233;box-shadow:0 30px 60px rgba(14,18,51,.25);cursor:pointer}
+.hg .vcard .vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.hg .play{position:absolute;left:50%;top:50%;width:66px;height:66px;margin:-33px 0 0 -33px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.3);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.7);transition:background .2s,transform .2s}
+.hg .play::before{content:'';border-left:17px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px;transition:border-color .2s}
+.hg .vcard:hover .play,.hg .reel:hover .play{background:var(--lime);border-color:var(--lime);transform:scale(1.06)}
+.hg .vcard:hover .play::before,.hg .reel:hover .play::before{border-left-color:var(--ink)}
+.hg .vlabel{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;border-radius:14px;font:600 12px/1.2 'Montserrat',sans-serif;color:var(--ink);background:rgba(255,249,235,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.hg .float{position:absolute;z-index:4;left:-112px;top:17%;display:flex;align-items:center;gap:12px;padding:14px 18px 14px 14px;border-radius:18px}
+.hg .float .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--blue);color:#FFF9EB}
+.hg .float b{display:block;font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:800;font-size:18px;line-height:1.2}
+.hg .float small{font-size:12px;color:var(--ink2)}
+
+.hg .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:38px}
+.hg .sec-head.center{justify-content:center;text-align:center}
+.hg .row-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px}
+.hg .fmt{display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border-radius:999px;font:500 13px/1.3 'Montserrat',sans-serif;color:var(--ink2)}
+.hg .fmt b{font-weight:700;color:var(--ink)}
+.hg .arrows{display:flex;gap:8px}
+.hg .arw{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--gb);background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--ink);cursor:pointer;box-shadow:var(--sh);transition:background .2s,transform .2s}
+.hg .arw:hover{background:var(--lime);transform:translateY(-1px)}
+.hg .track{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none;padding:8px 2px 20px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 70px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 70px),transparent)}
+.hg .track::-webkit-scrollbar{display:none}
+.hg .reel{position:relative;aspect-ratio:9/16;border-radius:22px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 14px 30px rgba(14,18,51,.14);transition:transform .25s,box-shadow .25s;cursor:pointer}
+.hg .reel:hover{transform:translateY(-6px);box-shadow:0 0 0 3px var(--blue),0 22px 44px rgba(28,69,245,.25)}
+.hg .vtrack .reel{flex:0 0 calc((100% - 80px) / 6);scroll-snap-align:start}
+.hg .reel .play{width:48px;height:48px;margin:-24px 0 0 -24px}
+.hg .reel .play::before{border-left-width:13px;border-top-width:8px;border-bottom-width:8px;margin-left:4px}
+.hg .reel .vlabel{left:9px;right:9px;bottom:9px;padding:8px 10px;font-size:12px;border-radius:11px}
+.hg .hcard{position:relative;flex:0 0 calc((100% - 32px) / 2.35);aspect-ratio:16/9;border-radius:22px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 14px 30px rgba(14,18,51,.14);transition:transform .25s,box-shadow .25s;cursor:pointer;scroll-snap-align:start}
+.hg .hcard:hover{transform:translateY(-6px);box-shadow:0 0 0 3px var(--blue),0 22px 44px rgba(28,69,245,.25)}
+.hg .hcard:hover .play{background:var(--lime);border-color:var(--lime);transform:scale(1.06)}
+.hg .hcard:hover .play::before{border-left-color:var(--ink)}
+.hg .subblock{margin-top:52px}
+
+.hg .who{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.hg .wc{padding:30px 30px 28px}
+.hg .ic{display:inline-flex;color:var(--blue)}
+.hg .wc h3,.hg .step h3{font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:800;font-size:21px;letter-spacing:-.015em;margin:20px 0 10px;color:var(--ink)}
+.hg .wc h3{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.hg .wc p,.hg .step p{font-size:15px;line-height:1.6;color:var(--ink2);margin:0 0 22px}
+.hg .go{font:600 14px 'Montserrat',sans-serif;color:var(--blue)}
+.hg .steps{display:grid;grid-template-columns:repeat(3,1fr);padding:10px}
+.hg .step{padding:30px 30px 10px}
+.hg .step+.step{border-left:1px solid rgba(14,18,51,.08)}
+.hg .num{display:inline-block;font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:900;font-size:44px;line-height:1;color:var(--ink);background-image:linear-gradient(var(--lime),var(--lime));background-size:100% 38%;background-position:0 88%;background-repeat:no-repeat;padding:0 4px}
+
+.hg .ba-wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+.hg .ba{position:relative;width:300px;aspect-ratio:9/16;border-radius:28px;overflow:hidden;justify-self:center;box-shadow:0 30px 60px rgba(14,18,51,.22)}
+.hg .ba .img{position:absolute;inset:0;background-size:cover;background-position:center}
+.hg .ba .raw{filter:grayscale(.85) contrast(.78) brightness(1.1);clip-path:inset(0 50% 0 0)}
+.hg .ba .line{position:absolute;top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px;background:#fff}
+.hg .ba .knob{position:absolute;top:50%;left:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:var(--lime);display:grid;place-items:center;font-weight:700;color:var(--ink);box-shadow:0 8px 20px rgba(14,18,51,.25)}
+.hg .ba .lbl{position:absolute;top:14px;padding:6px 10px;border-radius:999px;font:600 12px/1.3 'Montserrat',sans-serif;background:rgba(255,249,235,.85);color:var(--ink)}
+
+.hg .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:920px;margin:0 auto}
+.hg .tcard{padding:12px 12px 10px;border-radius:28px}
+.hg .tcard .reel{border-radius:19px;box-shadow:none}
+.hg .tmeta{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 8px 6px;font-size:14px}
+.hg .tmeta b{font-weight:700}
+.hg .snd{font:600 12px 'Montserrat',sans-serif;color:var(--blue)}
+.hg .inbox{margin-top:80px;text-align:center}
+.hg .inbox h3.disp{font-size:30px}
+.hg .inbox .sub{margin:12px auto 0}
+.hg .mqwrap{margin:30px -56px 0}
+.hg .mq{position:relative;overflow:hidden;padding:14px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.hg .mq.front{z-index:2}
+.hg .mq.back{z-index:1;margin-top:-34px}
+.hg .mq.back .msg{height:180px;background:rgba(255,255,255,.62)}
+.hg .mq-track{display:flex;align-items:center;gap:18px;width:max-content;will-change:transform;animation:hg-left 56s linear infinite}
+.hg .mq.front .mq-track{animation-name:hg-right}
+.hg .mq:hover .mq-track{animation-play-state:paused}
+@keyframes hg-left{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 9px))}}
+@keyframes hg-right{from{transform:translateX(calc(-50% - 9px))}to{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){.hg .mq-track{animation:none}}
+.hg .msg{position:relative;flex:0 0 auto;width:300px;height:200px;padding:14px 16px;border-radius:22px;text-align:left;display:flex;flex-direction:column;gap:9px;background:rgba(255,255,255,.8);border:1px solid var(--gb);box-shadow:0 12px 30px rgba(14,18,51,.1)}
+.hg .msg.w2{width:340px}
+.hg .msg.w3{width:270px}
+.hg .mh{display:flex;align-items:center;gap:9px}
+.hg .av{width:28px;height:28px;flex:0 0 28px;border-radius:50%;background:linear-gradient(135deg,#c9d3ff,#e8ffb0)}
+.hg .nm{width:90px;height:9px;border-radius:5px;background:rgba(14,18,51,.18)}
+.hg .src{margin-left:auto;font:600 11px/1.3 'Montserrat',sans-serif;color:var(--ink3)}
+.hg .bub{display:grid;gap:6px;padding:10px 12px;border-radius:16px;max-width:84%}
+.hg .bub i{display:block;height:8px;border-radius:4px}
+.hg .bub.l{background:#EEF0F7;border-bottom-left-radius:6px;justify-self:start}
+.hg .bub.l i{background:rgba(14,18,51,.2)}
+.hg .bub.r{background:var(--blue);align-self:flex-end;border-bottom-right-radius:6px}
+.hg .bub.r i{background:rgba(255,249,235,.6)}
+.hg .ph{position:absolute;right:12px;bottom:10px;font:600 11px/1.3 'Montserrat',sans-serif;color:var(--ink2);background:rgba(255,249,235,.95);border:1px dashed rgba(14,18,51,.25);padding:4px 8px;border-radius:999px}
+
+.hg .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+.hg .plan{padding:30px;display:flex;flex-direction:column}
+.hg .plan.feature{background:rgba(255,255,255,.72);box-shadow:0 0 0 2px var(--blue),var(--sh)}
+.hg .pname{min-height:26px;display:flex;justify-content:space-between;align-items:center;font:700 13px 'Montserrat',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.hg .pill{font:700 11px/1.3 'Montserrat',sans-serif;letter-spacing:.08em;padding:6px 9px;border-radius:999px;background:var(--blue);color:#FFF9EB}
+.hg .price{font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:800;font-size:48px;letter-spacing:-.03em;margin:16px 0 4px;line-height:1.1}
+.hg .price small{font:500 15px 'Montserrat',sans-serif;color:var(--ink2);letter-spacing:0}
+.hg .terms{font-size:13px;color:var(--ink2);padding-bottom:20px;border-bottom:1px solid rgba(14,18,51,.08);margin-bottom:20px}
+.hg .feat{list-style:none;display:grid;gap:11px;font-size:14px;margin:0 0 28px;padding:0;flex:1;align-content:start}
+.hg .feat li{display:flex;gap:10px;align-items:flex-start;line-height:1.45}
+.hg .feat li::before{content:'✓';flex:0 0 20px;height:20px;border-radius:50%;background:rgba(211,255,82,.95);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink)}
+.hg .feat li.plus{color:var(--ink2);font-weight:600}
+.hg .feat li.plus::before{content:'+';background:rgba(28,69,245,.1);color:var(--blue)}
+.hg .plan .btn{justify-content:center}
+.hg .single{margin-top:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 20px 20px 30px;border-radius:22px;font-size:16px;color:var(--ink2)}
+.hg .single b{color:var(--ink);font-weight:700}
+.hg .freenote{margin:16px 0 0;font-size:13px;color:var(--ink2);text-align:center}
+
+.hg .book{display:grid;grid-template-columns:.9fr 1.1fr;gap:52px;padding:52px;border-radius:36px}
+.hg .book ul{list-style:none;display:grid;gap:14px;margin:28px 0 30px;padding:0}
+.hg .book li{display:flex;gap:12px;align-items:center;font-size:15px;color:var(--ink2)}
+.hg .fwrap{position:relative;padding-bottom:132px}
+.hg .form{position:relative;z-index:2;background:rgba(255,255,255,.82);border-radius:24px;padding:26px;box-shadow:var(--sh)}
+.hg .stepper{display:flex;gap:10px;align-items:center;font:600 12px 'Montserrat',sans-serif;color:var(--ink3);margin-bottom:20px}
+.hg .stepper .on{color:var(--ink)}
+.hg .stepper .n{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:var(--ink);color:#FFF9EB;font-size:11px;margin-right:7px}
+.hg .stepper .off .n{background:rgba(14,18,51,.1);color:var(--ink2)}
+.hg .fld{display:grid;gap:7px;margin-bottom:16px}
+.hg .fld label{font:600 12px 'Montserrat',sans-serif;color:var(--ink2)}
+.hg .fld label span{font-weight:500;color:var(--ink3)}
+.hg .inp{height:46px;border-radius:12px;border:1px solid rgba(14,18,51,.12);background:#fff;padding:0 14px;display:flex;align-items:center;font-size:14px;color:var(--ink3)}
+.hg .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hg .seg{display:flex;flex-wrap:wrap;gap:8px}
+.hg .seg span{padding:10px 14px;border-radius:999px;border:1px solid rgba(14,18,51,.14);font:600 13px/1.2 'Montserrat',sans-serif;color:var(--ink2);background:#fff;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.hg .seg span:hover{background:var(--lime);border-color:var(--lime);color:var(--ink)}
+.hg .seg span.sel{background:var(--ink);border-color:var(--ink);color:#FFF9EB}
+.hg .cal{position:absolute;z-index:3;right:-22px;bottom:0;width:250px;padding:16px;border-radius:20px}
+.hg .calh{font:700 12px 'Montserrat',sans-serif;letter-spacing:.04em;margin-bottom:12px}
+.hg .days{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.hg .days span{display:grid;justify-items:center;gap:2px;padding:8px 0;border-radius:12px;font:600 11px 'Montserrat',sans-serif;color:var(--ink3);background:rgba(255,255,255,.7)}
+.hg .days b{font-size:15px;color:var(--ink)}
+.hg .days .sel{background:var(--ink);color:#FFF9EB}
+.hg .days .sel b{color:#FFF9EB}
+.hg .slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hg .slots span{padding:9px 0;text-align:center;border-radius:10px;font:600 12px 'Montserrat',sans-serif;background:rgba(255,255,255,.75);border:1px solid rgba(14,18,51,.08)}
+.hg .slots .sel{background:var(--lime);border-color:var(--lime)}
+.hg .tz{font-size:12px;color:var(--ink3);margin-top:10px;text-align:center}
+
+.hg .faq{display:grid;gap:12px;max-width:820px;margin:0 auto}
+.hg .q{padding:20px 22px 20px 26px;border-radius:20px}
+.hg .qh{display:flex;justify-content:space-between;align-items:center;gap:16px;font:600 16px 'Montserrat',sans-serif}
+.hg .pm{flex:0 0 30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(28,69,245,.09);color:var(--blue);font-weight:700}
+.hg .q.open .pm{background:var(--lime);color:var(--ink)}
+.hg .q p{margin:12px 0 0;font-size:15px;color:var(--ink2);line-height:1.6;max-width:640px}
+
+.hg .final{text-align:center;padding:70px 40px;border-radius:36px;overflow:hidden}
+.hg .final h2.disp{font-size:46px}
+.hg .final .sub{margin:16px auto 0}
+.hg .foot{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:34px 8px 0;font-size:13px;color:var(--ink3)}
+.hg .flinks{display:flex;gap:22px}
+.hg .mbar{display:none}
+
+.hg .shot{position:relative;flex:0 0 auto;height:270px;margin:0;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 8px 18px rgba(14,18,51,.12),0 1px 3px rgba(14,18,51,.08)}
+.hg .shot img{display:block;height:100%;width:auto}
+.hg .mq.back .shot{height:236px}
+.hg .shot .smp{position:absolute;top:10px;left:10px;font:600 11px/1.3 'Montserrat',sans-serif;color:var(--ink);background:rgba(255,249,235,.94);border:1px dashed rgba(14,18,51,.3);padding:4px 8px;border-radius:999px}
+
+.hg .ba video.img{width:100%;height:100%;object-fit:cover;display:block}
+.hg .ba .lbl{transition:background .2s,color .2s}
+.hg .ba .lbl.on{background:var(--lime);color:var(--ink)}
+
+@container page (max-width:1060px){
+  .hg .hero,.hg .ba-wrap,.hg .book{grid-template-columns:1fr}
+  .hg .stage{margin:56px auto 0}
+  .hg .vtrack .reel{flex-basis:calc((100% - 32px) / 3)}
+  .hg .who,.hg .plans,.hg .steps,.hg .tgrid{grid-template-columns:1fr}
+  .hg .step+.step{border-left:0;border-top:1px solid rgba(14,18,51,.08)}
+  .hg .nav .links{display:none}
+  .hg h1.disp{font-size:60px}
+}
+@container page (max-width:640px){
+  .hg::before{display:none}
+  .hg .blob{opacity:.55;transform:scale(.7)}
+  .hg .tag{top:12px;left:12px}
+  .hg .tag.note{position:relative;top:auto;left:auto;right:auto;display:inline-block;margin:0 0 14px}
+  .hg .tag.inline{top:auto;left:auto}
+  .hg .hero-sec{padding:52px 14px 44px}
+  .hg .nav{padding:8px 8px 8px 16px}
+  .hg .logo{font-size:18px}
+  .hg .logo-img{height:28px}
+  .hg .btn.sm{padding:10px 14px;font-size:13px}
+  .hg .hero{padding:34px 2px 0;gap:0}
+  .hg .eyebrow{font-size:11px;padding:7px 12px 7px 10px}
+  .hg h1.disp{font-size:44px;margin:20px 0 16px}
+  .hg .lead{font-size:16px}
+  .hg .ctas{flex-direction:column;align-items:stretch;gap:16px;margin-top:26px}
+  .hg .ctas .btn,.hg .ctas .ig{justify-content:center}
+  .hg .chips{gap:8px;margin-top:22px}
+  .hg .chip{font-size:12px;padding:8px 12px 8px 8px}
+  .hg .stage{width:228px;margin:64px auto 12px}
+  .hg .plate{inset:-20px -22px;border-radius:34px}
+  .hg .float{left:-44px;top:14%;padding:10px 12px 10px 10px;gap:10px}
+  .hg .float .ico{width:30px;height:30px;border-radius:10px}
+  .hg .float b{font-size:15px}
+  .hg .float small{font-size:11px}
+  .hg .h-play{width:118px;height:118px;right:-56px;top:-60px}
+  .hg .h-cam{width:160px;height:160px;left:-100px;bottom:-76px}
+  .hg .h-pause{width:130px;height:130px;right:-80px;bottom:36px}
+  .hg .w-reel,.hg .p-play,.hg .f-cam{display:none}
+  .hg .b-pause{width:120px;height:120px;right:-14px;top:-4px}
+  .hg .sec{padding:60px 16px}
+  .hg h2.disp{font-size:30px}
+  .hg .sub{font-size:15px}
+  .hg .sec-head{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:24px}
+  .hg .sec-head.center{align-items:center}
+  .hg .arrows{display:none}
+  .hg .fmt{font-size:12px;padding:7px 12px}
+  .hg .track{margin:0 -16px;padding:8px 16px 18px;scroll-padding-left:16px;-webkit-mask-image:none;mask-image:none}
+  .hg .vtrack .reel{flex-basis:56%}
+  .hg .hcard{flex-basis:86%}
+  .hg .subblock{margin-top:36px}
+  .hg .tgrid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin:0 -16px;padding:6px 16px 16px;scrollbar-width:none;max-width:none}
+  .hg .tcard{flex:0 0 64%;scroll-snap-align:start}
+  .hg .tmeta{flex-direction:column;align-items:flex-start;gap:4px}
+  .hg .inbox{margin-top:52px}
+  .hg .inbox h3.disp{font-size:24px}
+  .hg .mqwrap{margin:22px -16px 0}
+  .hg .mq{padding:10px 0}
+  .hg .mq.back{margin-top:-24px}
+  .hg .shot{height:184px;border-radius:16px}
+  .hg .mq.back .shot{height:160px}
+  .hg .msg{width:236px;height:156px;padding:12px;gap:7px}
+  .hg .mq.back .msg{height:140px}
+  .hg .msg.w2{width:262px}
+  .hg .msg.w3{width:214px}
+  .hg .plans{grid-template-columns:1fr;gap:14px}
+  .hg .plan{padding:24px}
+  .hg .price{font-size:40px}
+  .hg .who{gap:12px}
+  .hg .wc{padding:22px}
+  .hg .step{padding:22px 20px 4px}
+  .hg .num{font-size:34px}
+  .hg .ba-wrap{gap:28px}
+  .hg .ba{width:236px}
+  .hg .single{flex-direction:column;align-items:stretch;padding:20px;gap:14px}
+  .hg .single .btn{justify-content:center}
+  .hg .book{padding:24px 16px;gap:24px;border-radius:28px}
+  .hg .row2{grid-template-columns:1fr;gap:0}
+  .hg .fwrap{padding-bottom:0}
+  .hg .form{padding:18px}
+  .hg .form .btn{width:100%;justify-content:center}
+  .hg .cal{position:relative;right:auto;bottom:auto;width:auto;margin-top:12px}
+  .hg .q{padding:16px 16px 16px 18px}
+  .hg .qh{font-size:15px}
+  .hg .final{padding:44px 18px}
+  .hg .final h2.disp{font-size:30px}
+  .hg .final .ctas{align-items:stretch}
+  .hg .foot{flex-direction:column;text-align:center;gap:12px;padding:26px 0 10px}
+  .hg .mbar{display:flex;align-items:center;gap:10px;position:sticky;bottom:0;z-index:30;padding:10px 12px 14px;background:rgba(255,249,235,.84);-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);border-top:1px solid rgba(14,18,51,.08)}
+  .hg .mbar .btn{flex:1;justify-content:center;padding:15px 16px;font-size:15px}
+  .hg .mbar .igb{flex:0 0 50px;height:50px;border-radius:50%;display:grid;place-items:center;background:#fff;box-shadow:inset 0 0 0 1.5px rgba(14,18,51,.14);color:var(--ink)}
+}
+</style>
+
+<div class="stagewrap" id="stagewrap"><div class="phone-shell"><div class="sbar"><span>9:41</span><span class="sic"><i class="sig"></i><i class="bat"></i></span></div><div class="hgwrap" id="hgwrap">
+<div class="hg">
+
+  <!-- 01 HERO -->
+  <section class="sec hero-sec" id="top">
+    <span class="tag">01 · Hero</span>
+    <div class="blob blue" style="width:540px;height:540px;right:-140px;top:60px"></div>
+    <div class="blob lime" style="width:440px;height:440px;left:-150px;bottom:-110px"></div>
+
+    <nav class="nav glass in">
+      <img class="logo-img" src="./logo.png" alt="HVGN">
+      <div class="links"><a class="u" href="#work">Work</a><a class="u" href="#how">How it works</a><a class="u" href="#plans">Plans</a><a class="u" href="#faq">FAQ</a></div>
+      <a class="btn sm" href="#book">Book a call <span class="arr">→</span></a>
+    </nav>
+
+    <div class="hero in">
+      <div>
+        <div class="eyebrow glass"><span class="dot"></span>White-label video editing for real estate</div>
+        <h1 class="disp">You shoot.<br>We edit.<br>Homes <span class="hl">sell.</span></h1>
+        <p class="lead">Send us raw footage from any listing. In 24–48 hours you get a polished, hook-first video, ready to post with your branding, never ours.</p>
+        <div class="ctas">
+          <a class="btn" href="#book">Book a call · first edit free <span class="arr">→</span></a>
+          <a class="ig u" href="#book"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Questions? Chat on Instagram</a>
+        </div>
+        <div class="chips">
+          <span class="chip glass"><span class="ck">✓</span>24–48h delivery</span>
+          <span class="chip glass"><span class="ck">✓</span>White-label</span>
+          <span class="chip glass"><span class="ck">✓</span>Plans from $60 / video</span>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas class="c3d behind h-pause" data-shape="pause" data-mat="lime" data-scale="1.05"></canvas>
+        <div class="plate glass"></div>
+        <div class="vcard" id="heroCard" role="button" aria-label="Watch the full portfolio reel with sound">
+          <video class="vid" src="./hero-loop.mp4" poster="./hero-poster.jpg" autoplay muted loop playsinline preload="auto"></video>
+          <span class="play"></span>
+          <span class="vlabel"><span>Portfolio reel · tap for sound</span><span>0:58</span></span>
+        </div>
+        <canvas class="c3d h-play" data-shape="play" data-mat="blue" data-scale="0.82"></canvas>
+        <canvas class="c3d h-cam" data-shape="camera" data-mat="navy" data-scale="0.82"></canvas>
+        <div class="float glass">
+          <span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <div><b>24–48h</b><small>from footage to final cut</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 RECENT EDITS: vertical + horizontal carousels -->
+  <section class="sec" id="work">
+    <span class="tag">02 · Recent edits</span>
+    <div class="in">
+      <div class="sec-head">
+        <div><h2 class="disp">Recent edits</h2><p class="sub">Vertical edits for Reels, TikTok and Shorts. Horizontal edits for YouTube, MLS and your website.</p></div>
+      </div>
+
+      <div class="row-head">
+        <span class="fmt glass"><b>Vertical</b> · 9:16 · Reels, TikTok, Shorts</span>
+        <div class="arrows">
+          <button type="button" class="arw" data-for="vtrack" data-dir="-1" aria-label="Previous vertical videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button type="button" class="arw" data-for="vtrack" data-dir="1" aria-label="Next vertical videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+      <div class="track vtrack" id="vtrack">
+        <div class="reel" style="background-image:url(./v-01.jpg)"><span class="play"></span><span class="vlabel"><span>Agent spotlight</span><span>1:09</span></span></div>
+        <div class="reel" style="background-image:url(./v-02.jpg)"><span class="play"></span><span class="vlabel"><span>Twilight exterior</span><span>1:07</span></span></div>
+        <div class="reel" style="background-image:url(./v-03.jpg)"><span class="play"></span><span class="vlabel"><span>Client reveal</span><span>1:14</span></span></div>
+        <div class="reel" style="background-image:url(./v-04.jpg)"><span class="play"></span><span class="vlabel"><span>Night-sky intro</span><span>1:04</span></span></div>
+        <div class="reel" style="background-image:url(./v-05.jpg)"><span class="play"></span><span class="vlabel"><span>Street hook</span><span>0:27</span></span></div>
+        <div class="reel" style="background-image:url(./v-06.jpg)"><span class="play"></span><span class="vlabel"><span>Lifestyle story</span><span>0:58</span></span></div>
+        <div class="reel" style="background-image:url(./v-07.jpg)"><span class="play"></span><span class="vlabel"><span>Luxury kitchen</span><span>1:27</span></span></div>
+        <div class="reel" style="background-image:url(./v-08.jpg)"><span class="play"></span><span class="vlabel"><span>Creative hook</span><span>1:22</span></span></div>
+        <div class="reel" style="background-image:url(./v-09.jpg)"><span class="play"></span><span class="vlabel"><span>Investor angle</span><span>1:27</span></span></div>
+        <div class="reel" style="background-image:url(./v-10.jpg)"><span class="play"></span><span class="vlabel"><span>Community tour</span><span>1:04</span></span></div>
+      </div>
+
+      <div class="subblock">
+        <span class="tag inline">02b · Horizontal edits</span>
+        <div class="row-head">
+          <span class="fmt glass"><b>Horizontal</b> · 16:9 · YouTube, MLS, your website</span>
+          <div class="arrows">
+            <button type="button" class="arw" data-for="htrack" data-dir="-1" aria-label="Previous horizontal videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button type="button" class="arw" data-for="htrack" data-dir="1" aria-label="Next horizontal videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="track htrack" id="htrack">
+          <div class="hcard" style="background-image:url(./h-01.jpg)"><span class="play"></span><span class="vlabel"><span>Modern villa · cinematic</span><span>2:05</span></span></div>
+          <div class="hcard" style="background-image:url(./h-02.jpg)"><span class="play"></span><span class="vlabel"><span>Country barn at golden hour</span><span>0:42</span></span></div>
+          <div class="hcard" style="background-image:url(./h-03.jpg)"><span class="play"></span><span class="vlabel"><span>Estate aerial tour</span><span>2:06</span></span></div>
+          <div class="hcard" style="background-image:url(./h-04.jpg)"><span class="play"></span><span class="vlabel"><span>Agent-led tour</span><span>1:39</span></span></div>
+          <div class="hcard" style="background-image:url(./h-05.jpg)"><span class="play"></span><span class="vlabel"><span>Family home walkthrough</span><span>2:09</span></span></div>
+          <div class="hcard" style="background-image:url(./h-06.jpg)"><span class="play"></span><span class="vlabel"><span>New build</span><span>1:05</span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 WHO IT'S FOR -->
+  <section class="sec">
+    <span class="tag">03 · Who it's for <em>(main version only)</em></span>
+    <div class="blob lime" style="width:380px;height:380px;left:36%;top:28%"></div>
+    <div class="blob blue" style="width:320px;height:320px;right:-60px;top:12%"></div>
+    <canvas class="c3d w-reel" data-shape="reel" data-mat="chrome" data-scale="0.9"></canvas>
+    <div class="in">
+      <div class="sec-head"><div><h2 class="disp">Built for the people<br>who film real estate</h2></div></div>
+      <div class="who">
+        <div class="wc glass">
+          <h3><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01"/></svg></span>Media agencies</h3>
+          <p>Hand us the editing and deliver more listings every week, under your own name.</p>
+          <a class="go u" href="#">For agencies →</a>
+        </div>
+        <div class="wc glass">
+          <h3><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg></span>Videographers</h3>
+          <p>Spend your days shooting, not editing. Take on more homes without the late nights.</p>
+          <a class="go u" href="#">For videographers →</a>
+        </div>
+        <div class="wc glass">
+          <h3><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>Agents</h3>
+          <p>Videos that sell the listing and build your name every time you post.</p>
+          <a class="go u" href="#">For agents →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 HOW IT WORKS -->
+  <section class="sec" id="how">
+    <span class="tag">04 · How it works</span>
+    <div class="blob blue" style="width:400px;height:400px;left:-110px;top:18%"></div>
+    <div class="in">
+      <div class="sec-head"><div><h2 class="disp">Three steps.<br>No editing on your side.</h2></div></div>
+      <div class="steps glass">
+        <div class="step"><div class="num">01</div><h3>Book a 15-minute call</h3><p>Tell us your style and how many videos you need. Your first edit is on us.</p></div>
+        <div class="step"><div class="num">02</div><h3>Send your raw footage</h3><p>Share a Google Drive, Dropbox or WeTransfer link. No special setup.</p></div>
+        <div class="step"><div class="num">03</div><h3>Get your video in 24–48h</h3><p>Hook, color, music and branding done. Revisions included.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 BEFORE / AFTER -->
+  <section class="sec" id="ba">
+    <span class="tag">05 · Before / after</span>
+    <span class="tag note">Sample from portrait video 1. Confirm the dusk shot was created in editing</span>
+    <div class="blob lime" style="width:360px;height:360px;right:14%;top:16%"></div>
+    <div class="in ba-wrap">
+      <div>
+        <h2 class="disp">Same home.<br>Different result.</h2>
+        <p class="sub">Watch a daylight shot turn into a twilight hero shot.</p>
+      </div>
+      <div class="ba">
+        <video class="img" id="baReveal" src="./ba-reveal.mp4" poster="./ba-reveal-poster.jpg" autoplay muted loop playsinline preload="auto" data-cut="1.5" aria-label="Daylight shot of a home cutting to the same home at dusk"></video>
+        <span class="lbl ba-before on" style="left:14px">Before · daylight</span>
+        <span class="lbl ba-after" style="right:14px">After · dusk</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 CLIENT VIDEOS + CLIENT MESSAGES -->
+  <section class="sec" id="clients">
+    <span class="tag">06 · Client videos</span>
+    <div class="blob blue" style="width:340px;height:340px;left:8%;top:30%"></div>
+    <div class="blob lime" style="width:420px;height:420px;right:6%;bottom:-60px"></div>
+    <div class="in">
+      <div class="sec-head center"><div><h2 class="disp">Hear it from our clients</h2><p class="sub" style="margin-left:auto;margin-right:auto">Clients we edit for, in their own words.</p></div></div>
+      <div class="tgrid">
+        <div class="tcard glass"><div class="reel" style="background-image:url(./t-1.jpg)"><span class="play"></span></div><div class="tmeta"><b>Listing agent</b><span class="snd">▶ Watch with sound</span></div></div>
+        <div class="tcard glass"><div class="reel" style="background-image:url(./t-2.jpg)"><span class="play"></span></div><div class="tmeta"><b>Real estate creator</b><span class="snd">▶ Watch with sound</span></div></div>
+        <div class="tcard glass"><div class="reel" style="background-image:url(./t-3.jpg)"><span class="play"></span></div><div class="tmeta"><b>Media agency owner</b><span class="snd">▶ Watch with sound</span></div></div>
+      </div>
+
+      <div class="inbox" id="inbox">
+        <span class="tag inline">06b · Client messages</span><span class="tag inline note">Sample screenshots (AI-generated): replace with real client messages before ads run</span>
+        <h3 class="disp">Straight from our inbox</h3>
+        <p class="sub">Messages clients sent us after their edits landed.</p>
+        <div class="mqwrap">
+          <div class="mq front">
+            <div class="mq-track">
+              <figure class="shot"><img src="./shot-01.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-02.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-03.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-04.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-05.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-06.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-01.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-02.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-03.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-04.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-05.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-06.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+            </div>
+          </div>
+          <div class="mq back">
+            <div class="mq-track">
+              <figure class="shot"><img src="./shot-07.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-08.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-09.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-10.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-11.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot"><img src="./shot-12.jpg" alt="Sample client message" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-07.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-08.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-09.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-10.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-11.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+              <figure class="shot" aria-hidden="true"><img src="./shot-12.jpg" alt="" loading="lazy"><span class="smp">Sample</span></figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 PLANS -->
+  <section class="sec" id="plans">
+    <span class="tag">07 · Plans</span>
+    <div class="blob lime" style="width:400px;height:400px;left:30%;top:22%"></div>
+    <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:8%"></div>
+    <canvas class="c3d p-play" data-shape="play" data-mat="chrome" data-scale="0.82"></canvas>
+    <div class="in">
+      <div class="sec-head"><div><h2 class="disp">Simple pricing</h2><p class="sub">Per-video prices on a monthly plan. We confirm your exact quote on the call.</p></div></div>
+      <div class="plans">
+        <div class="plan glass">
+          <div class="pname">Basic</div>
+          <div class="price">$60<small> / video</small></div>
+          <div class="terms">30+ videos a month · 1 revision</div>
+          <ul class="feat"><li>Tight cuts and pacing</li><li>Color correction</li><li>Music and clean titles</li><li>Your logo or your client's</li></ul>
+          <a class="btn ghost" href="#book">Book a call</a>
+        </div>
+        <div class="plan glass">
+          <div class="pname">Premium</div>
+          <div class="price">$100<small> / video</small></div>
+          <div class="terms">15+ videos a month · 2 revisions</div>
+          <ul class="feat"><li class="plus">Everything in Basic, plus</li><li>A hook in the first 3 seconds</li><li>Animated text and captions</li><li>Speed ramps and smooth transitions</li><li>Sound design</li></ul>
+          <a class="btn ghost" href="#book">Book a call</a>
+        </div>
+        <div class="plan glass feature">
+          <div class="pname">Advanced AI <span class="pill">AI + 3D</span></div>
+          <div class="price">$150<small> / video</small></div>
+          <div class="terms">10+ videos a month · 2 revisions</div>
+          <ul class="feat"><li class="plus">Everything in Premium, plus</li><li>3D text hooks pinned to the scene</li><li>Illustrated animations</li><li>Virtual staging of empty rooms</li><li>Day-to-dusk and sky replacement</li><li>Renovation previews and animated maps</li></ul>
+          <a class="btn" href="#book">Book a call</a>
+        </div>
+      </div>
+      <div class="single glass">
+        <div><b>Just need one video?</b> Single edits from <b>$90</b>, priced by complexity. No minimum.</div>
+        <a class="btn sm" href="#book">Book a call <span class="arr">→</span></a>
+      </div>
+      <p class="freenote">Your first edit is free. It comes with a small watermark; keep it and we remove the watermark at the normal price.</p>
+    </div>
+  </section>
+
+  <!-- 08 BOOK A CALL -->
+  <section class="sec" id="book">
+    <span class="tag">08 · Book a call <em>(every button scrolls here)</em></span>
+    <div class="blob lime" style="width:440px;height:440px;left:-90px;top:-20px"></div>
+    <div class="blob blue" style="width:440px;height:440px;right:-70px;bottom:-70px"></div>
+    <canvas class="c3d behind b-pause" data-shape="pause" data-mat="blue" data-scale="0.95"></canvas>
+    <div class="in book glass">
+      <div>
+        <h2 class="disp">Book your<br>15-minute call</h2>
+        <p class="sub">Pick a time that suits you. We'll go through your listings together, and your first edit is free.</p>
+        <ul>
+          <li><span class="ck">✓</span>See edits made for listings like yours</li>
+          <li><span class="ck">✓</span>Get an exact quote for your volume</li>
+          <li><span class="ck">✓</span>Start your free first edit right away</li>
+        </ul>
+        <a class="ig u" href="#book"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Prefer to chat? Message us on Instagram</a>
+      </div>
+      <div class="fwrap">
+        <div class="form">
+          <div class="stepper"><span class="on"><span class="n">1</span>Your details</span><span>→</span><span class="off"><span class="n">2</span>Pick a time</span></div>
+          <div class="row2">
+            <div class="fld"><label>Name</label><div class="inp">Jane Cooper</div></div>
+            <div class="fld"><label>Email</label><div class="inp">jane@youragency.com</div></div>
+          </div>
+          <div class="fld"><label>I am a…</label><div class="seg"><span class="sel">Media agency</span><span>Videographer</span><span>Agent</span></div></div>
+          <div class="fld"><label>Videos per month</label><div class="seg"><span>1–5</span><span>6–15</span><span class="sel">16–30</span><span>30+</span></div></div>
+          <div class="fld"><label>Raw footage link <span>(optional, for your free edit)</span></label><div class="inp">drive.google.com/…</div></div>
+          <a class="btn" href="#book">Next: pick a time <span class="arr">→</span></a>
+        </div>
+        <div class="cal glass">
+          <div class="calh">Step 2 · Pick a time</div>
+          <div class="days"><span>Thu<b>19</b></span><span class="sel">Fri<b>20</b></span><span>Mon<b>23</b></span><span>Tue<b>24</b></span></div>
+          <div class="slots"><span>9:00 am</span><span class="sel">9:30 am</span><span>10:00 am</span><span>11:30 am</span></div>
+          <div class="tz">Times shown in your time zone</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 FAQ -->
+  <section class="sec" id="faq">
+    <span class="tag">09 · FAQ</span>
+    <div class="in">
+      <div class="sec-head center"><div><h2 class="disp">Questions, answered</h2></div></div>
+      <div class="faq">
+        <div class="q glass open"><div class="qh">How fast will I get my video?<span class="pm">–</span></div><p>Usually within 24–48 hours of receiving your footage, depending on how complex the edit is. We confirm the timing before we start.</p></div>
+        <div class="q glass"><div class="qh">What do I need to send?<span class="pm">+</span></div></div>
+        <div class="q glass"><div class="qh">Is it really white-label?<span class="pm">+</span></div></div>
+        <div class="q glass"><div class="qh">What does Advanced AI add?<span class="pm">+</span></div></div>
+        <div class="q glass"><div class="qh">How does the free first edit work?<span class="pm">+</span></div></div>
+        <div class="q glass"><div class="qh">How many revisions do I get?<span class="pm">+</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 FINAL CTA + FOOTER -->
+  <section class="sec" id="final" style="padding-top:40px">
+    <span class="tag">10 · Final call to action + footer</span>
+    <canvas class="c3d f-cam" data-shape="camera" data-mat="navy" data-scale="0.72"></canvas>
+    <div class="in final glass">
+      <div class="blob lime" style="width:380px;height:380px;left:-90px;top:-140px"></div>
+      <div class="blob blue" style="width:380px;height:380px;right:-90px;bottom:-170px"></div>
+      <div class="in">
+        <h2 class="disp">Ready for listing videos<br>that <span class="hl">sell</span>?</h2>
+        <p class="sub">Book a 15-minute call. Your first edit is free.</p>
+        <div class="ctas" style="justify-content:center">
+          <a class="btn" href="#book">Book a call · first edit free <span class="arr">→</span></a>
+          <a class="ig u" href="#book">Chat on Instagram</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot in">
+      <img class="logo-img" src="./logo.png" alt="HVGN">
+      <div>© 2026 HiveGen LLC · White-label real estate video editing</div>
+      <div class="flinks"><a class="u" href="#">Instagram</a><a class="u" href="#">Email</a><a class="u" href="#">Privacy</a></div>
+    </div>
+  </section>
+
+  <div class="mbar">
+    <a class="btn" href="#book">Book a call · first edit free</a>
+    <a class="igb" href="#book" aria-label="Chat on Instagram"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+  </div>
+
+</div>
+</div></div></div>
+
+<div class="hglb" id="hglb" hidden>
+  <div class="hglb-in">
+    <button type="button" class="hglb-x" id="hglbx" aria-label="Close video">×</button>
+    <video id="hglbv" controls playsinline preload="none"></video>
+  </div>
+</div>
+
+<script>
+(function () {
+  var stage = document.getElementById('stagewrap');
+  var d = document.getElementById('vDesk'), m = document.getElementById('vMob'), live = document.getElementById('vLive');
+  function set(mode) {
+    var mob = mode === 'mobile';
+    stage.classList.toggle('mobile', mob);
+    d.classList.toggle('on', !mob);
+    m.classList.toggle('on', mob);
+    live.hidden = !mob;
+  }
+  d.addEventListener('click', function () { set('desktop'); });
+  m.addEventListener('click', function () { set('mobile'); });
+  live.addEventListener('click', function () {
+    var on = stage.dataset.live !== '1';
+    stage.dataset.live = on ? '1' : '0';
+    live.classList.toggle('on', on);
+    live.textContent = 'Live 3D on phones: ' + (on ? 'On' : 'Off');
+  });
+
+  document.querySelectorAll('.hg .arw').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var tr = document.getElementById(b.dataset.for), c = tr && tr.firstElementChild;
+      var step = c ? c.getBoundingClientRect().width + 16 : 300;
+      tr.scrollBy({ left: step * 2 * Number(b.dataset.dir), behavior: 'smooth' });
+    });
+  });
+
+  var lb = document.getElementById('hglb'), lbv = document.getElementById('hglbv');
+  function closeLb() { lbv.pause(); lb.hidden = true; }
+  document.getElementById('heroCard').addEventListener('click', function () {
+    if (!lbv.getAttribute('src')) lbv.setAttribute('src', './portfolio-720.mp4');
+    lb.hidden = false;
+    var p = lbv.play(); if (p && p.catch) p.catch(function () {});
+  });
+  document.getElementById('hglbx').addEventListener('click', closeLb);
+  lb.addEventListener('click', function (e) { if (e.target === lb) closeLb(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !lb.hidden) closeLb(); });
+
+  var rv = document.getElementById('baReveal');
+  if (rv) {
+    var cut = parseFloat(rv.dataset.cut || '0');
+    var lb4 = document.querySelector('.ba-before'), la4 = document.querySelector('.ba-after');
+    var tick = function () {
+      var after = rv.currentTime >= cut;
+      lb4.classList.toggle('on', !after);
+      la4.classList.toggle('on', after);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  var h = location.hash || '';
+  if (h.indexOf('#mobile') === 0) {
+    set('mobile');
+    var id = h.split('-')[1];
+    if (id) setTimeout(function () {
+      var el = document.getElementById(id), sc = document.getElementById('hgwrap');
+      if (el && sc) sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    }, 400);
+  } else if (h.length > 1) {
+    setTimeout(function () { var el = document.getElementById(h.slice(1)); if (el) el.scrollIntoView(); }, 400);
+  }
+})();
+</script>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const BLUE = 0x1C45F5, LIME = 0xD3FF52, CREAM = 0xFFF9EB, NAVY = 0x0E1233;
+const stage = document.getElementById('stagewrap');
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+window.addEventListener('pointermove', (e) => {
+  pointer.tx = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.ty = (e.clientY / window.innerHeight) * 2 - 1;
+}, { passive: true });
+
+const MAT = {
+  blue: () => new THREE.MeshPhysicalMaterial({ color: BLUE, metalness: 0.1, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.03 }),
+  lime: () => new THREE.MeshPhysicalMaterial({ color: LIME, metalness: 0.05, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.04 }),
+  cream: () => new THREE.MeshPhysicalMaterial({ color: CREAM, metalness: 0, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  navy: () => new THREE.MeshPhysicalMaterial({ color: NAVY, metalness: 0.35, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08 }),
+  chrome: () => new THREE.MeshPhysicalMaterial({ color: 0xf4f6fb, metalness: 1, roughness: 0.06 }),
+  lens: () => new THREE.MeshPhysicalMaterial({ color: 0x0a0f2e, metalness: 0.2, roughness: 0.04, clearcoat: 1 }),
+};
+
+function disc(r, t, mat) {
+  const pts = [new THREE.Vector2(0, -t / 2)], rr = t / 2, cx = r - rr;
+  for (let i = 0; i <= 18; i++) { const a = -Math.PI / 2 + Math.PI * i / 18; pts.push(new THREE.Vector2(cx + Math.cos(a) * rr, Math.sin(a) * rr)); }
+  pts.push(new THREE.Vector2(0, t / 2));
+  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 112), mat);
+  m.rotation.x = Math.PI / 2;
+  return m;
+}
+
+function playButton(variant) {
+  const g = new THREE.Group();
+  const discMat = variant === 'chrome' ? MAT.chrome() : MAT.blue();
+  const glyphMat = variant === 'chrome' ? MAT.lime() : MAT.cream();
+  g.add(disc(1, 0.32, discMat));
+  const s = new THREE.Shape();
+  s.moveTo(-0.27, 0.38); s.lineTo(-0.27, -0.38); s.lineTo(0.43, 0); s.lineTo(-0.27, 0.38);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 6, curveSegments: 8 });
+  geo.translate(-0.03, 0, 0);
+  const glyph = new THREE.Mesh(geo, glyphMat);
+  glyph.position.z = 0.14;
+  g.add(glyph);
+  return g;
+}
+
+function pauseButton(variant) {
+  const g = new THREE.Group();
+  const mat = variant === 'blue' ? MAT.blue() : MAT.lime();
+  const geo = new THREE.CapsuleGeometry(0.21, 0.78, 16, 48);
+  [-0.31, 0.31].forEach((x) => { const m = new THREE.Mesh(geo, mat); m.position.x = x; g.add(m); });
+  return g;
+}
+
+function camera() {
+  const g = new THREE.Group();
+  const chrome = MAT.chrome();
+  g.add(new THREE.Mesh(new RoundedBoxGeometry(1.7, 1.08, 0.78, 6, 0.17), MAT.navy()));
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.47, 0.5, 72), chrome);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0.12, -0.03, 0.62); g.add(barrel);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.055, 24, 72), MAT.blue());
+  ring.position.set(0.12, -0.03, 0.87); g.add(ring);
+  const glass = new THREE.Mesh(new THREE.CircleGeometry(0.37, 72), MAT.lens());
+  glass.position.set(0.12, -0.03, 0.872); g.add(glass);
+  const top = new THREE.Mesh(new RoundedBoxGeometry(0.52, 0.28, 0.52, 4, 0.08), chrome);
+  top.position.set(-0.46, 0.64, 0); g.add(top);
+  const rec = new THREE.Mesh(new THREE.SphereGeometry(0.1, 32, 24), MAT.lime());
+  rec.position.set(0.58, 0.58, 0.18); g.add(rec);
+  return g;
+}
+
+function reel() {
+  const s = new THREE.Shape(); s.absarc(0, 0, 1, 0, Math.PI * 2, false);
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * Math.PI * 2 + Math.PI / 2, h = new THREE.Path();
+    h.absarc(Math.cos(a) * 0.56, Math.sin(a) * 0.56, 0.22, 0, Math.PI * 2, true); s.holes.push(h);
+  }
+  const c = new THREE.Path(); c.absarc(0, 0, 0.11, 0, Math.PI * 2, true); s.holes.push(c);
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 4, curveSegments: 56 });
+  geo.center();
+  const g = new THREE.Group(); g.add(new THREE.Mesh(geo, MAT.chrome()));
+  return g;
+}
+
+function build(shape, mat) {
+  if (shape === 'play') return playButton(mat);
+  if (shape === 'pause') return pauseButton(mat);
+  if (shape === 'camera') return camera();
+  return reel();
+}
+
+const BASE = {
+  play: { rx: 0.12, ry: -0.5, rz: 0.06, spin: 0 },
+  pause: { rx: 0.18, ry: 0.55, rz: -0.14, spin: 0 },
+  camera: { rx: 0.24, ry: -0.62, rz: 0.04, spin: 0 },
+  reel: { rx: 0.55, ry: 0.35, rz: 0, spin: 0.6 },
+};
+
+const items = [];
+
+function draw(it, t) {
+  const b = it.b, p = it.phase;
+  it.obj.position.y = Math.sin(t * 0.9 + p) * 0.12;
+  it.obj.position.x = Math.cos(t * 0.6 + p) * 0.05;
+  it.obj.rotation.x = b.rx + Math.sin(t * 0.5 + p) * 0.12 + pointer.y * 0.18;
+  it.obj.rotation.y = b.ry + Math.sin(t * 0.4 + p) * 0.18 + pointer.x * 0.25;
+  it.obj.rotation.z = b.rz + t * b.spin + Math.sin(t * 0.35 + p) * 0.05;
+  it.renderer.render(it.scene, it.camera);
+}
+
+function mount(canvas, i) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  pmrem.dispose();
+  const camera3 = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera3.position.set(0, 0, 6.2);
+  const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(2.5, 3.5, 4); scene.add(key);
+  const pb = new THREE.PointLight(BLUE, 40); pb.position.set(-3, -1.5, 2.5); scene.add(pb);
+  const pl = new THREE.PointLight(LIME, 30); pl.position.set(3, -2.2, 1.6); scene.add(pl);
+  const shape = canvas.dataset.shape;
+  const obj = build(shape, canvas.dataset.mat);
+  obj.scale.setScalar(parseFloat(canvas.dataset.scale || '1'));
+  scene.add(obj);
+  const it = { canvas, renderer, scene, camera: camera3, obj, b: BASE[shape], phase: i * 1.37, visible: true, w: 0, h: 0 };
+  new ResizeObserver(() => {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    it.w = w; it.h = h;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera3.aspect = w / h;
+    camera3.updateProjectionMatrix();
+    draw(it, 0);
+  }).observe(canvas);
+  new IntersectionObserver((es) => { it.visible = es[0].isIntersecting; }, { rootMargin: '120px' }).observe(canvas);
+  items.push(it);
+}
+
+try {
+  document.querySelectorAll('canvas.c3d').forEach(mount);
+  if (!reduceMotion) {
+    const clock = new THREE.Clock();
+    const loop = () => {
+      const t = clock.getElapsedTime();
+      pointer.x += (pointer.tx - pointer.x) * 0.05;
+      pointer.y += (pointer.ty - pointer.y) * 0.05;
+      const still = stage.classList.contains('mobile') && stage.dataset.live !== '1';
+      if (!still) for (const it of items) if (it.visible && it.w && it.h) draw(it, t);
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
+} catch (err) {
+  document.querySelectorAll('canvas.c3d').forEach((c) => { c.style.display = 'none'; });
+  console.warn('3D disabled:', err);
+}
+</script>
+</div></body></html>
