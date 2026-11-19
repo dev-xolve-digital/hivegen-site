@@ -2,7 +2,7 @@ import { loadTurnstileSiteKey } from '../../lib/content/load';
 import { bookingConfigResponse } from '../booking-config';
 import type { RateLimiter } from '../booking/rate-limit';
 import type { ErrorCode, FieldCode, Interval, Result } from '../booking/types';
-import type { ServerContext } from '../context';
+import { getContext, type ServerContext } from '../context';
 import { clientIp } from './client-ip';
 
 /** One handler per route. `params` are the route's `[brackets]`; `socketIp` is the address the connection came from. */
@@ -17,26 +17,69 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 const fail = (error: ErrorCode, fields?: Record<string, FieldCode>) => json({ error, ...(fields && { fields }) }, STATUS[error]);
 const answer = <T>(result: Result<T>) => (result.ok ? json(result.value) : fail(result.error, result.fields));
 
-/**
- * Runs a handler's work; anything unexpected becomes a 500. The log names the route and the kind of error
- * (and its code, such as a database's), never its message: that could hold what the visitor typed.
- */
+/** The kind of an unexpected error, and its code (a database's, for one), never its message: that could hold what the visitor typed. */
+const kindOf = (e: unknown) => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return `${e instanceof Error ? e.name : 'unknown error'}${typeof code === 'string' ? ` ${code}` : ''}`;
+};
+
+/** Runs a handler's work; anything unexpected becomes a 500, logged by route and kind of error. */
 async function guarded(route: string, work: () => Promise<Response>): Promise<Response> {
   try {
     return await work();
   } catch (e) {
-    const code = (e as { code?: unknown } | null)?.code;
-    console.error(`api: ${route} failed (${e instanceof Error ? e.name : 'unknown error'}${typeof code === 'string' ? ` ${code}` : ''})`);
+    console.error(`api: ${route} failed (${kindOf(e)})`);
     return fail('server_error');
   }
 }
 
-/** The request body as JSON. `ok: false` for anything that is not valid JSON. */
+/** What a route file hands its handler: the parts of Astro's API context that handlers use. */
+export interface RouteEvent { request: Request; params: Record<string, string | undefined>; clientAddress: string }
+
+/**
+ * Turns a handler into an Astro route: gets the server's context first. Starting the context is built not to fail, but if it ever does,
+ * the answer is still the API's own JSON 500 (no-store), never Astro's bare error page.
+ */
+export function withContext(handler: Handler, load: () => Promise<ServerContext> = getContext) {
+  return async ({ request, params, clientAddress }: RouteEvent): Promise<Response> => {
+    let ctx: ServerContext;
+    try {
+      ctx = await load();
+    } catch (e) {
+      console.error(`api: the server could not start (${kindOf(e)})`);
+      return fail('server_error');
+    }
+    return handler(request, ctx, params, clientAddress);
+  };
+}
+
+/** The largest request body read: the biggest real one (a lead form) is a few KB. Anything bigger is refused before it fills memory. */
+export const MAX_BODY_BYTES = 32 * 1024;
+
+/**
+ * The request body as JSON. `ok: false` for anything that is not valid JSON, and for a body over MAX_BODY_BYTES: a declared
+ * length over the cap is refused at once, and a body with no declared length (chunked) is read only up to the cap.
+ */
 async function readJson(request: Request): Promise<{ ok: true; value: unknown } | { ok: false }> {
+  const declared = Number(request.headers.get('content-length'));
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: false };
   try {
-    return { ok: true, value: await request.json() };
+    if (declared > MAX_BODY_BYTES) return { ok: false };
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) return { ok: false };
+      chunks.push(value);
+    }
+    return { ok: true, value: JSON.parse(Buffer.concat(chunks).toString('utf8')) };
   } catch {
     return { ok: false };
+  } finally {
+    await reader.cancel().catch(() => {}); // stop reading whatever is left
   }
 }
 

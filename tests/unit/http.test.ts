@@ -9,9 +9,10 @@ import { readServerConfig } from '../../src/server/config';
 import { createContext, type ServerContext } from '../../src/server/context';
 import { clientIp } from '../../src/server/http/client-ip';
 import {
-  bookingsHandler, cancelHandler, configHandler, leadsHandler, rescheduleHandler, slotsHandler,
-  testCalendarHandler, testEventsHandler, testOutboxHandler, testResetHandler,
+  MAX_BODY_BYTES, bookingsHandler, cancelHandler, configHandler, leadsHandler, rescheduleHandler, slotsHandler,
+  testCalendarHandler, testEventsHandler, testOutboxHandler, testResetHandler, withContext,
 } from '../../src/server/http/handlers';
+import { removeTempContent, tempContent } from '../helpers/temp-content';
 
 const SITE = 'https://hivegen.co';
 const lead = { name: 'Zoë O’Brien', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
@@ -54,6 +55,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  delete process.env.CONTENT_DIR;
+  removeTempContent();
   for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -253,6 +256,113 @@ describe('where a lead came from (sourceUrl)', () => {
 
   it('is never empty', async () => {
     expect(await sourceOf({}, {})).toBe('http://localhost:4321');
+  });
+});
+
+describe('request bodies', () => {
+  const chunked = (chunks: string[], state = { pulled: 0, cancelled: false }) => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (state.pulled >= chunks.length) { controller.close(); return; }
+        controller.enqueue(encoder.encode(chunks[state.pulled]));
+        state.pulled += 1;
+      },
+      cancel() { state.cancelled = true; },
+    });
+    const request = new Request('http://localhost:4321/api/booking/leads', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body, duplex: 'half',
+    } as RequestInit & { duplex: 'half' });
+    return { request, state };
+  };
+
+  it('a body over the cap is 400 invalid, and is never given to the service', async () => {
+    const ctx = await fakesContext();
+    const res = await leadsHandler(post('/api/booking/leads', { ...lead, name: 'x'.repeat(MAX_BODY_BYTES) }), ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid' });
+    expect(ctx.fakes!.tracked).toEqual([]);
+  });
+
+  it('a length declared over the cap is refused whatever the body is', async () => {
+    const ctx = await fakesContext();
+    const res = await leadsHandler(post('/api/booking/leads', lead, { 'content-length': String(MAX_BODY_BYTES + 1) }), ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid' });
+    expect(ctx.fakes!.tracked).toEqual([]);
+  });
+
+  it('a chunked body (no length) is read only up to the cap, then refused', async () => {
+    const ctx = await fakesContext();
+    const { request, state } = chunked(Array.from({ length: 10_000 }, () => 'x'.repeat(1024)));
+    const res = await leadsHandler(request, ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid' });
+    expect(state.pulled).toBeLessThan(100); // a stream of 10 MB was left unread
+    expect(state.cancelled).toBe(true); // and the sender is told to stop
+  });
+
+  it('a chunked body under the cap is read whole', async () => {
+    const ctx = await fakesContext();
+    const text = JSON.stringify(lead);
+    const { request } = chunked([text.slice(0, 40), text.slice(40, 90), text.slice(90)]);
+    expect((await leadsHandler(request, ctx)).status).toBe(200);
+  });
+
+  it('a body just under the cap still reaches the service', async () => {
+    const ctx = await fakesContext();
+    const filler = ' '.repeat(MAX_BODY_BYTES - Buffer.byteLength(JSON.stringify(lead)));
+    const res = await leadsHandler(post('/api/booking/leads', JSON.stringify(lead) + filler), ctx);
+    expect(res.status).toBe(200);
+  });
+
+  it('the cap applies to bookings, reschedules and the test calendar too', async () => {
+    const ctx = await fakesContext();
+    const huge = JSON.stringify({ leadId: 'A'.repeat(22), start: '2030-01-01T00:00:00Z', filler: 'x'.repeat(MAX_BODY_BYTES) });
+    expect((await bookingsHandler(post('/api/booking/bookings', huge), ctx)).status).toBe(400);
+    const token = 'T'.repeat(43);
+    expect((await rescheduleHandler(post(`/api/booking/manage/${token}/reschedule`, huge), ctx, { token })).status).toBe(400);
+    expect((await testCalendarHandler(post('/api/test/calendar', huge), ctx)).status).toBe(400);
+  });
+});
+
+describe('withContext (the route wrapper)', () => {
+  it('gives the handler the context, the route parameters and the socket address', async () => {
+    const ctx = await fakesContext();
+    const handler = vi.fn(async () => new Response('ok'));
+    const request = get('/api/booking/slots');
+    const res = await withContext(handler, async () => ctx)({ request, params: { token: 't' }, clientAddress: '198.51.100.4' });
+    expect(await res.text()).toBe('ok');
+    expect(handler).toHaveBeenCalledWith(request, ctx, { token: 't' }, '198.51.100.4');
+  });
+
+  it('a context that could not be made → the API\'s own JSON 500, no-store, and the log names only the kind of error', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const handler = vi.fn();
+    const boom = Object.assign(new Error('connect to mysql://hguser:hgsecretpw@db failed'), { code: 'ECONNREFUSED' });
+    const res = await withContext(handler, async () => { throw boom; })({ request: get('/api/booking/slots'), params: {}, clientAddress: '198.51.100.4' });
+    expect(res.status).toBe(500);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toEqual({ error: 'server_error' });
+    expect(handler).not.toHaveBeenCalled();
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(errors.mock.calls.flat().join(' ')).toContain('ECONNREFUSED');
+    expect(errors.mock.calls.flat().join(' ')).not.toContain('hgsecretpw');
+  });
+
+  it('an unreadable content file does not take /api/booking/config down: production says "off"', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.CONTENT_DIR = tempContent({ 'site.yaml': () => 'brand: [' });
+    const live = readServerConfig({
+      NODE_ENV: 'production', DATABASE_URL: 'mysql://u:p@127.0.0.1:1/db', GOOGLE_CLIENT_ID: 'i', GOOGLE_CLIENT_SECRET: 's', GOOGLE_REFRESH_TOKEN: 'r',
+      TURNSTILE_SECRET: 't', CRON_SECRET: 'c', PUBLIC_SITE_URL: SITE, ...{ SMTP_HOST: 'h', SMTP_PORT: '465', SMTP_USER: 'u', SMTP_PASS: 'p', MAIL_FROM: 'a@b.test' },
+    });
+    expect(live.mode).toBe('live');
+    const res = await withContext(configHandler, () => createContext(live))({ request: get('/api/booking/config'), params: {}, clientAddress: '198.51.100.4' });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ mode: 'off' });
   });
 });
 

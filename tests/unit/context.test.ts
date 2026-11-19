@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { loadBookingSite, loadSection, loadSite } from '../../src/lib/content/load';
 import { clientMode, readServerConfig } from '../../src/server/config';
-import { createContext } from '../../src/server/context';
+import { RETRY_AFTER_MS, createContext, createContextProvider, type ServerContext } from '../../src/server/context';
+import { removeTempContent, tempContent } from '../helpers/temp-content';
 
 const tempDirs: string[] = [];
 function tempDir() {
@@ -30,6 +31,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  delete process.env.CONTENT_DIR;
+  removeTempContent();
   for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 const logged = (spy: MockInstance) => spy.mock.calls.flat().join(' ');
@@ -125,6 +128,42 @@ describe('createContext in live mode', () => {
     expect(ctx.config.missing.length).toBeGreaterThan(0);
     expect(error).toHaveBeenCalled();
     expect(logged(error)).toContain(missing);
+    expect(ctx.failedAt).toBeTypeOf('number');
+  });
+
+  it('a malformed DATABASE_URL is not connected too, not a rejection', async () => {
+    const ctx = await createContext(config({ ...full, ...smtp, DATABASE_URL: 'this is not a url', NODE_ENV: 'production' }));
+    expect(ctx.service).toBeNull();
+    expect(ctx.failedAt).toBeTypeOf('number');
+    expect(error).toHaveBeenCalledTimes(1);
+  });
+
+  it('a broken content file is not connected too (the file is named in the log), not a rejection', async () => {
+    process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': () => 'heading: [' });
+    const envs: Array<Record<string, string>> = [{ ...full, ...smtp, NODE_ENV: 'production' }, { HIVEGEN_FAKES: '1', NODE_ENV: 'test' }];
+    for (const env of envs) {
+      error.mockClear();
+      const ctx = await createContext(config(env), { outboxDir: tempDir() });
+      expect(ctx.service).toBeNull();
+      expect(ctx.fakes).toBeUndefined();
+      expect(ctx.failedAt).toBeTypeOf('number');
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(logged(error)).toContain('booking.yaml');
+    }
+  });
+
+  it('a new try after a failure logs one warning line, not the loud error, and no startup warnings', async () => {
+    const ctx = await createContext(config({ ...full, ...smtp, NODE_ENV: 'test' }), { retry: true, migrationsDir: path.join(tempDir(), 'nowhere') });
+    expect(ctx.service).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(logged(warn)).toContain('still not connected');
+  });
+
+  it('a start that works has no failedAt', async () => {
+    const ctx = await createContext(config({ HIVEGEN_FAKES: '1', NODE_ENV: 'test' }), { outboxDir: tempDir() });
+    expect(ctx.failedAt).toBeUndefined();
+    expect((await createContext(config({ NODE_ENV: 'production' }))).failedAt).toBeUndefined(); // missing settings: nothing to retry
   });
 
   it('looks for db/migrations in the working directory', async () => {
@@ -141,6 +180,7 @@ describe('createContext in live mode', () => {
     expect(ctx.fakes).toBeUndefined();
     expect(ctx.config.mode).toBe('not_connected');
     expect(clientMode(ctx.config)).toBe('off');
+    expect(ctx.failedAt).toBeTypeOf('number');
     expect(error).toHaveBeenCalledTimes(1);
     expect(logged(error)).toMatch(/database|migrat/i);
     for (const secret of ['hgsecretpw', 'gsecret', 'grefresh', 'tsecret', 'csecret']) expect(logged(error)).not.toContain(secret);
@@ -200,19 +240,107 @@ describe('getContext', () => {
     expect(ctx.config.mode).toBe('fakes'); // the setting came from "the .env file"
     vi.doUnmock('../../src/server/env');
   });
+});
 
-  it('a context that could not be made is tried again on the next call', async () => {
-    vi.resetModules();
-    vi.stubEnv('HIVEGEN_FAKES', '1');
-    vi.stubEnv('NODE_ENV', 'test');
-    const dir = tempDir();
-    vi.stubEnv('CONTENT_DIR', dir); // an empty folder: the content files are missing
-    const { getContext } = await import('../../src/server/context');
-    await expect(getContext()).rejects.toThrow(/site\.yaml|booking\.yaml/);
-    vi.unstubAllEnvs();
-    vi.stubEnv('HIVEGEN_FAKES', '1');
-    vi.stubEnv('NODE_ENV', 'test');
-    await expect(getContext()).resolves.toMatchObject({ config: { mode: 'fakes' } });
+describe('createContextProvider', () => {
+  let t = 0;
+  const now = () => t;
+  const ctxOf = (failedAt?: number) => ({ config: config({}), service: null, limits: undefined as never, ...(failedAt === undefined ? {} : { failedAt }) }) as ServerContext;
+  /** A create() that answers from a list, and records how it was called. */
+  function creator(answers: Array<() => Promise<ServerContext>>) {
+    const calls: boolean[] = [];
+    const create = (retry: boolean) => { calls.push(retry); return (answers[calls.length - 1] ?? answers[answers.length - 1])(); };
+    return { create, calls };
+  }
+  const deferred = () => {
+    let resolve!: (c: ServerContext) => void;
+    const promise = new Promise<ServerContext>((r) => { resolve = r; });
+    return { promise, resolve };
+  };
+  beforeEach(() => { t = 0; });
+
+  it('makes the context once and gives the same one to everyone', async () => {
+    const healthy = ctxOf();
+    const { create, calls } = creator([async () => healthy]);
+    const provider = createContextProvider(create, now);
+    const [a, b] = await Promise.all([provider.get(), provider.get()]);
+    expect(a).toBe(healthy);
+    expect(b).toBe(healthy);
+    expect(await provider.get()).toBe(healthy);
+    expect(calls).toEqual([false]);
+    t = 10 * RETRY_AFTER_MS;
+    await provider.get();
+    expect(calls).toEqual([false]); // nothing failed: nothing to retry
+  });
+
+  it('after a failed start: 503 for a minute, then one background try; requests never wait for it', async () => {
+    const down = ctxOf(0);
+    const healthy = ctxOf();
+    const retry = deferred();
+    const { create, calls } = creator([async () => down, () => retry.promise]);
+    const provider = createContextProvider(create, now);
+    expect(await provider.get()).toBe(down);
+
+    t = RETRY_AFTER_MS - 1;
+    expect(await provider.get()).toBe(down);
+    expect(calls).toEqual([false]); // not yet
+
+    t = RETRY_AFTER_MS;
+    // The request that crosses the line is answered at once, with the not-connected context, while the new try runs.
+    expect(await provider.get()).toBe(down);
+    expect(calls).toEqual([false, true]);
+    // Others arriving while it runs share that one try.
+    await Promise.all([provider.get(), provider.get(), provider.get()]);
+    expect(calls).toEqual([false, true]);
+    expect(await provider.get()).toBe(down);
+
+    retry.resolve(healthy);
+    await vi.waitFor(async () => expect(await provider.get()).toBe(healthy));
+    expect(calls).toEqual([false, true]);
+    t = 100 * RETRY_AFTER_MS;
+    await provider.get();
+    expect(calls).toEqual([false, true]); // connected: never retried again
+    expect(info.mock.calls.flat().filter((m) => String(m).includes('connected'))).toHaveLength(1);
+  });
+
+  it('a try that fails again starts the wait over', async () => {
+    const { create, calls } = creator([async () => ctxOf(0), async () => ctxOf(RETRY_AFTER_MS), async () => ctxOf()]);
+    const provider = createContextProvider(create, now);
+    await provider.get();
+    t = RETRY_AFTER_MS;
+    await provider.get();
+    await vi.waitFor(() => expect(calls).toEqual([false, true]));
+    await vi.waitFor(async () => expect((await provider.get()).failedAt).toBe(RETRY_AFTER_MS));
+
+    t = 2 * RETRY_AFTER_MS - 1;
+    await provider.get();
+    expect(calls).toEqual([false, true]);
+    t = 2 * RETRY_AFTER_MS;
+    await provider.get();
+    expect(calls).toEqual([false, true, true]);
+    await vi.waitFor(async () => expect((await provider.get()).failedAt).toBeUndefined());
+  });
+
+  it('a try that throws is logged and the wait starts over; requests are not affected', async () => {
+    const { create, calls } = creator([async () => ctxOf(0), async () => { throw new Error('boom'); }, async () => ctxOf()]);
+    const provider = createContextProvider(create, now);
+    const down = await provider.get();
+    t = RETRY_AFTER_MS;
+    expect(await provider.get()).toBe(down);
+    await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(down.failedAt).toBe(RETRY_AFTER_MS);
+    t = 2 * RETRY_AFTER_MS - 1;
+    await provider.get();
+    expect(calls).toEqual([false, true]);
+  });
+
+  it('a context that could not be made at all is not kept: the next call tries again', async () => {
+    const healthy = ctxOf();
+    const { create, calls } = creator([async () => { throw new Error('bug'); }, async () => healthy]);
+    const provider = createContextProvider(create, now);
+    await expect(provider.get()).rejects.toThrow('bug');
+    expect(await provider.get()).toBe(healthy);
+    expect(calls).toEqual([false, false]);
   });
 });
 

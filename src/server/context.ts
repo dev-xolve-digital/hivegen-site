@@ -11,6 +11,7 @@ import { readServerConfig, type ServerConfig } from './config';
 import { loadDotEnv } from './env';
 import { createOutboxMailer, createSmtpMailer, type Mailer } from './mail/mailer';
 import { createNotifier } from './mail/notifier';
+import type { Pool } from 'mysql2/promise';
 import { runMigrations } from './store/migrate';
 import { createMemoryStore } from './store/memory';
 import { createMysqlStore, createPool } from './store/mysql';
@@ -28,11 +29,13 @@ const createLimits = (): RateLimits => ({
 export type OutboxMailer = ReturnType<typeof createOutboxMailer>;
 
 export interface ServerContext {
-  /** What the server runs as. Differs from the settings when a live setup fails at startup: then it says not_connected. */
+  /** What the server runs as. Differs from the settings when starting the services failed: then it says not_connected. */
   config: ServerConfig;
   /** Null when booking is not connected: the booking routes answer 503. */
   service: BookingService | null;
   limits: RateLimits;
+  /** Set (as a time in ms) when starting the services failed: getContext tries again once RETRY_AFTER_MS have passed. Never set otherwise. */
+  failedAt?: number;
   /** Only in fakes mode: the test services, for the test-only routes. Never set in any other mode. */
   fakes?: { calendar: FakeCalendar; mailer: OutboxMailer; tracked: ServerEvent[]; reset(): void };
 }
@@ -42,7 +45,12 @@ export interface ContextOptions {
   outboxDir?: string;
   /** Where the SQL migrations are. Default `db/migrations` in the working directory (the app is started from the repository root). */
   migrationsDir?: string;
+  /** This is a new try after a failed start: the failure is logged as a one-line warning and the startup warnings are not repeated. */
+  retry?: boolean;
 }
+
+/** After a failed start, the services are tried again once this much time has passed. */
+export const RETRY_AFTER_MS = 60_000;
 
 const clock = { now: () => new Date() };
 /** The test server's stand-in for Hassan's inbox: the test services never mail the real one. */
@@ -96,52 +104,51 @@ function fakesContext(config: ServerConfig, outboxDir: string): ServerContext {
   return ctx;
 }
 
-/** The short reason a startup step failed: what kind of error, never anything from the settings or the data. */
+/** The short reason a startup step failed: the kind of error and its message, never anything from the settings or the data. */
 const reasonOf = (e: unknown) => {
   if (!(e instanceof Error)) return 'unknown error';
   const code = (e as { code?: unknown }).code;
-  return `${e.name}${typeof code === 'string' ? ` ${code}` : ''}: ${e.message}`.slice(0, 300);
+  const label = [e.name !== 'Error' ? e.name : '', typeof code === 'string' ? code : ''].filter(Boolean).join(' ');
+  return `${label ? `${label}: ` : ''}${e.message}`.slice(0, 300);
 };
 
-/** The real services. When the database cannot be used the server does not crash: booking is not connected until the app is restarted. */
+/** The real services. Throws when they cannot be set up (a broken content file, no migrations, a database that does not answer). */
 async function liveContext(config: ServerConfig, options: ContextOptions): Promise<ServerContext> {
   const content = loadServiceContent();
 
   // The app is started from the repository root, so the folder is looked up from the working directory.
   const migrationsDir = options.migrationsDir ?? path.resolve(process.cwd(), 'db', 'migrations');
-  if (!fs.existsSync(migrationsDir)) {
-    console.error(`booking: NOT CONNECTED. The migrations folder was not found at ${migrationsDir}. Start the app from the repository root. The site shows the offline booking card until then.`);
-    return notConnected(config, ['db/migrations (folder not found)']);
-  }
-  const pool = createPool(config.databaseUrl!); // live means every required setting is there
-  try {
-    const applied = await runMigrations(pool, migrationsDir); // once per process: this is the one place that makes the context
-    if (applied.length > 0) console.info(`booking: database migrations applied: ${applied.join(', ')}`);
-  } catch (e) {
-    console.error(`booking: NOT CONNECTED. The database could not be used (${reasonOf(e)}). The site shows the offline booking card until this is fixed and the app is restarted.`);
-    await pool.end().catch(() => {});
-    return notConnected(config, ['DATABASE_URL (the database could not be reached or migrated)']);
-  }
+  if (!fs.existsSync(migrationsDir)) throw new Error(`the migrations folder was not found at ${migrationsDir}; start the app from the repository root`);
 
-  let mailer: Mailer;
-  if (config.smtp) {
-    mailer = createSmtpMailer(config.smtp);
-  } else { // development without a mailbox
-    const dir = options.outboxDir ?? '.outbox';
-    mailer = createOutboxMailer(dir);
-    logOutbox(dir);
+  let pool: Pool | undefined;
+  try {
+    pool = createPool(config.databaseUrl!); // live means every required setting is there
+    const applied = await runMigrations(pool, migrationsDir); // one pool per process, and migrations once: only a successful start gets here
+    if (applied.length > 0) console.info(`booking: database migrations applied: ${applied.join(', ')}`);
+
+    let mailer: Mailer;
+    if (config.smtp) {
+      mailer = createSmtpMailer(config.smtp);
+    } else { // development without a mailbox
+      const dir = options.outboxDir ?? '.outbox';
+      mailer = createOutboxMailer(dir);
+      logOutbox(dir);
+    }
+    const secret = config.turnstileSecret!;
+    return {
+      config, limits: createLimits(),
+      service: createBookingService({
+        store: createMysqlStore(pool), calendar: createGoogleCalendar(config.google!),
+        notifier: createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone }),
+        tracker: { send: async () => {} }, // the Meta Conversions API arrives with tracking
+        clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
+        verifyBot: (token, ip) => verifyTurnstile(token, ip, secret),
+      }),
+    };
+  } catch (e) {
+    await pool?.end().catch(() => {});
+    throw new Error(`the database could not be used (${reasonOf(e)})`, { cause: e });
   }
-  const secret = config.turnstileSecret!;
-  return {
-    config, limits: createLimits(),
-    service: createBookingService({
-      store: createMysqlStore(pool), calendar: createGoogleCalendar(config.google!),
-      notifier: createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone }),
-      tracker: { send: async () => {} }, // the Meta Conversions API arrives with tracking
-      clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
-      verifyBot: (token, ip) => verifyTurnstile(token, ip, secret),
-    }),
-  };
 }
 
 /** Warns when the settings look like a real site that would show the demo booking (NODE_ENV forgotten). */
@@ -156,31 +163,68 @@ function warnAboutPublicSite(config: ServerConfig): void {
   if (!LOCAL_HOSTS.has(host)) console.warn('booking: NODE_ENV is not production on a public site — the demo booking would show');
 }
 
-/** Wires the server for `config`'s mode and says at startup what needs attention. Called once per process, by getContext. */
+/**
+ * Wires the server for `config`'s mode and says at startup what needs attention. Starting the services can fail (a broken content file,
+ * no database): the server does not crash and no request breaks. It runs as not connected, with `failedAt` set, and the failure is logged.
+ */
 export async function createContext(config: ServerConfig, options: ContextOptions = {}): Promise<ServerContext> {
-  warnAboutPublicSite(config);
-  if (config.mode === 'fakes') return fakesContext(config, options.outboxDir ?? path.join('.outbox', 'test'));
-  if (config.mode === 'live') return liveContext(config, options);
-  if (config.production) {
-    console.error(`booking: NOT CONNECTED in production. Missing settings: ${config.missing.join(', ')}. The site shows the offline booking card (Instagram and the backup link) until they are set.`);
+  if (!options.retry) warnAboutPublicSite(config);
+  if (config.mode === 'not_connected') {
+    if (config.production) {
+      console.error(`booking: NOT CONNECTED in production. Missing settings: ${config.missing.join(', ')}. The site shows the offline booking card (Instagram and the backup link) until they are set.`);
+    }
+    return notConnected(config, config.missing);
   }
-  return notConnected(config, config.missing);
+  try {
+    return config.mode === 'fakes' ? fakesContext(config, options.outboxDir ?? path.join('.outbox', 'test')) : await liveContext(config, options);
+  } catch (e) {
+    const reason = reasonOf(e);
+    if (options.retry) console.warn(`booking: still not connected (${reason})`);
+    else console.error(`booking: NOT CONNECTED. Starting booking failed (${reason}). The site shows the offline booking card; it is tried again every ${RETRY_AFTER_MS / 1000} seconds.`);
+    return { ...notConnected(config, ['booking could not start (see the log)']), failedAt: Date.now() };
+  }
 }
-
-let cached: Promise<ServerContext> | undefined;
 
 /**
- * The server's one context: the settings (the `.env` file is read first, once) and the services wired for their mode.
- * Made on first use and kept. One that could not be made (a broken content file) is forgotten, so the next request tries again.
+ * Keeps one context. A context that is not connected because starting failed is tried again once `retryAfterMs` have passed:
+ * in the background, by one attempt at a time, while requests keep getting the not-connected context (503), so no request waits
+ * for a database that is still down. A context that could not be made at all (a bug) is not kept: the next call tries again.
  */
-export function getContext(): Promise<ServerContext> {
-  if (!cached) {
-    const made = (async () => {
-      loadDotEnv();
-      return createContext(readServerConfig(process.env));
-    })();
-    cached = made;
-    made.catch(() => { if (cached === made) cached = undefined; });
-  }
-  return cached;
+export function createContextProvider(create: (retry: boolean) => Promise<ServerContext>, now: () => number = Date.now, retryAfterMs = RETRY_AFTER_MS) {
+  let current: ServerContext | undefined;
+  let first: Promise<ServerContext> | undefined;
+  let retrying = false;
+
+  const retry = () => {
+    retrying = true;
+    create(true).then((next) => {
+      if (next.failedAt === undefined) console.info('booking: connected');
+      current = next; // a new failure restarts the wait
+    }, (e) => {
+      console.error(`booking: trying again failed (${reasonOf(e)})`);
+      if (current) current.failedAt = now();
+    }).finally(() => { retrying = false; });
+  };
+
+  return {
+    get(): Promise<ServerContext> {
+      if (current) {
+        if (current.failedAt !== undefined && !retrying && now() - current.failedAt >= retryAfterMs) retry();
+        return Promise.resolve(current);
+      }
+      first ??= create(false).then(
+        (made) => { current = made; return made; },
+        (e: unknown) => { first = undefined; throw e; },
+      );
+      return first;
+    },
+  };
 }
+
+const provider = createContextProvider((retry) => {
+  if (!retry) loadDotEnv(); // the .env file is read once; a new try runs on the same settings
+  return createContext(readServerConfig(process.env), { retry });
+});
+
+/** The server's one context: the settings (the `.env` file is read first, once) and the services wired for their mode. */
+export const getContext = (): Promise<ServerContext> => provider.get();

@@ -105,3 +105,11 @@ test('a failed bot check is 403 and a bad form is 400 with its fields', async ({
   const notJson = await request.post('/api/booking/leads', { data: 'not json', headers: { 'content-type': 'application/json' } });
   expect(notJson.status()).toBe(400);
 });
+
+test('a body over 32 KB is refused with 400 invalid before it is read into memory', async ({ request }) => {
+  const res = await request.post('/api/booking/leads', { data: { ...goodLead, name: 'x'.repeat(40_000) } });
+  expect(res.status()).toBe(400);
+  expect(res.headers()['cache-control']).toBe('no-store');
+  expect(await res.json()).toEqual({ error: 'invalid' });
+  expect((await trackedEvents(request))).toEqual([]);
+});
