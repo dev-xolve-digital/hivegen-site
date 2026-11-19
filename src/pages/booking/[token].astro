@@ -37,7 +37,7 @@ if (!ctx?.service) {
   }
 }
 ---
-<BaseLayout seo={{ title: mg.title, description: mg.heading, noindex: true }}>
+<BaseLayout seo={{ title: mg.title, description: mg.heading, noindex: true }} tracking={false}>
   <section class="sec hero-sec legal">
     <Nav base="/" />
     <ManageBooking state={state} />

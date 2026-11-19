@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadBookingSite, loadSection } from '../lib/content/load';
+import { loadBookingSite, loadMetaPixelId, loadSection } from '../lib/content/load';
 import { createBookingService, type BookingService } from './booking/service';
 import { createRateLimiter, type RateLimiter } from './booking/rate-limit';
 import { verifyTurnstile } from './booking/turnstile';
-import type { ServerEvent } from './booking/types';
+import type { ServerEvent, Store, Tracker, TrackingRecord } from './booking/types';
 import { createFakeCalendar, type FakeCalendar } from './calendar/fake';
 import { createGoogleCalendar } from './calendar/google';
 import { readServerConfig, type ServerConfig } from './config';
@@ -16,15 +16,17 @@ import type { Pool } from 'mysql2/promise';
 import { runMigrations } from './store/migrate';
 import { createMemoryStore } from './store/memory';
 import { createMysqlStore, createPool } from './store/mysql';
+import { createMetaTracker } from './tracking/meta';
 
 const HOUR = 3_600_000;
 
-/** The server's rate limits, each per client address: lead posts, booking and manage posts, and reads (slots; video and event requests later). */
-export interface RateLimits { leads: RateLimiter; writes: RateLimiter; reads: RateLimiter }
+/** The server's rate limits, each per client address: lead posts, booking and manage posts, reads (slots; video requests later) and tracking events. */
+export interface RateLimits { leads: RateLimiter; writes: RateLimiter; reads: RateLimiter; events: RateLimiter }
 const createLimits = (): RateLimits => ({
   leads: createRateLimiter({ limit: 10, windowMs: HOUR }),
   writes: createRateLimiter({ limit: 10, windowMs: HOUR }),
   reads: createRateLimiter({ limit: 120, windowMs: HOUR }),
+  events: createRateLimiter({ limit: 120, windowMs: HOUR }),
 });
 
 export type OutboxMailer = ReturnType<typeof createOutboxMailer>;
@@ -36,6 +38,8 @@ export interface ServerContext {
   service: BookingService | null;
   /** One pass of the scheduled work (POST /api/cron/run), on the same store and notifier as `service`. Null exactly when `service` is. */
   runScheduled: (() => Promise<ScheduledSummary>) | null;
+  /** Sends tracking events to Meta (POST /api/events, and the booking service's own). Sends nothing when Meta is not set up, and is there in every mode. */
+  tracker: Tracker;
   limits: RateLimits;
   /** Set (as a time in ms) when starting the services failed: getContext tries again once RETRY_AFTER_MS have passed. Never set otherwise. */
   failedAt?: number;
@@ -56,8 +60,28 @@ export interface ContextOptions {
 export const RETRY_AFTER_MS = 60_000;
 
 const clock = { now: () => new Date() };
-/** Sends a failed tracking event again. Task 11 replaces this with the Meta tracker's `resend`, which only sends: cron records the attempt. */
-const retryTracking = async () => false;
+/** A tracker for a server with no Meta to send to: events are dropped, and there is nothing to send again. */
+const NO_TRACKER: Tracker & { resend(r: TrackingRecord): Promise<boolean> } = { send: async () => {}, resend: async () => false };
+
+/**
+ * What sends the server's tracking events: Meta's Conversions API when both the access token (the environment) and the site's pixel id
+ * (site.yaml) are set, else a tracker that sends nothing. `resend` is what cron uses for a failed event: it only sends, cron records it.
+ */
+export function chooseTracker(meta: ServerConfig['meta'], pixelId: string | undefined, store: Store, fetchFn?: typeof fetch): Tracker & { resend(r: TrackingRecord): Promise<boolean> } {
+  if (!meta || !pixelId) return NO_TRACKER;
+  return createMetaTracker({ pixelId, token: meta.capiToken, testEventCode: meta.testEventCode, store, fetchFn });
+}
+
+/** The pixel id from site.yaml. A file that cannot be read is no pixel (said in the log): tracking never keeps booking from starting. */
+export function readPixelId(): string | undefined {
+  try {
+    return loadMetaPixelId();
+  } catch (e) {
+    console.error(`tracking: could not read the Meta Pixel id from site.yaml, so events are not sent to Meta (${reasonOf(e)})`);
+    return undefined;
+  }
+}
+
 /** The test server's stand-in for Hassan's inbox: the test services never mail the real one. */
 const FAKE_HASSAN_EMAIL = 'hassan@example.test';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -72,7 +96,7 @@ function loadServiceContent() {
 const logOutbox = (dir: string) => console.info(`booking: emails are written to ${path.resolve(dir)} instead of being sent`);
 
 function notConnected(config: ServerConfig, missing: string[]): ServerContext {
-  return { config: { ...config, mode: 'not_connected', missing }, service: null, runScheduled: null, limits: createLimits() };
+  return { config: { ...config, mode: 'not_connected', missing }, service: null, runScheduled: null, tracker: NO_TRACKER, limits: createLimits() };
 }
 
 /** Everything in memory: the services the Playwright server runs on, which never touch a real service whatever `.env` holds. */
@@ -82,6 +106,7 @@ function fakesContext(config: ServerConfig, outboxDir: string): ServerContext {
   const mailer = createOutboxMailer(outboxDir);
   logOutbox(outboxDir);
   const tracked: ServerEvent[] = [];
+  const tracker: Tracker = { send: async (event) => { tracked.push(event); } };
   const notifier = createNotifier({ mailer, hassanEmail: FAKE_HASSAN_EMAIL, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
   /** The service and the scheduled work on one new, empty store. */
   const build = () => {
@@ -90,15 +115,15 @@ function fakesContext(config: ServerConfig, outboxDir: string): ServerContext {
       service: createBookingService({
         store, calendar, notifier, clock, rules: content.rules, siteUrl: config.siteUrl,
         calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
-        tracker: { send: async (event) => { tracked.push(event); } },
+        tracker,
         verifyBot: async (token) => token !== 'fail',
       }),
-      runScheduled: () => runScheduledWork({ store, notifier, retryTracking, clock }),
+      runScheduled: () => runScheduledWork({ store, notifier, retryTracking: async () => false, clock }), // nothing is sent anywhere, so nothing is sent again
     };
   };
   const limits = createLimits();
   const ctx: ServerContext = {
-    config, ...build(), limits,
+    config, ...build(), tracker, limits,
     fakes: {
       calendar, mailer, tracked,
       reset() {
@@ -149,15 +174,15 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
     const secret = config.turnstileSecret!;
     const store = createMysqlStore(pool);
     const notifier = createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
+    const tracker = chooseTracker(config.meta, readPixelId(), store);
     return {
-      config, limits: createLimits(),
+      config, tracker, limits: createLimits(),
       service: createBookingService({
-        store, calendar: createGoogleCalendar(config.google!), notifier,
-        tracker: { send: async () => {} }, // the Meta Conversions API arrives with tracking
+        store, calendar: createGoogleCalendar(config.google!), notifier, tracker,
         clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
         verifyBot: (token, ip) => verifyTurnstile(token, ip, secret),
       }),
-      runScheduled: () => runScheduledWork({ store, notifier, retryTracking, clock }),
+      runScheduled: () => runScheduledWork({ store, notifier, retryTracking: (r) => tracker.resend(r), clock }),
     };
   } catch (e) {
     await pool?.end().catch(() => {});

@@ -104,7 +104,9 @@ const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
 <script>
   import { bootBooking } from '../scripts/booking-boot';
   import { browserStorage, captureAttribution } from '../scripts/attribution';
+  import { trackLead, trackSchedule } from '../scripts/tracking';
   // Keep this visit's ad tags (the first touch wins for 30 days), then start the form. It asks the server and loads Cloudflare's bot check later.
   captureAttribution(new URL(location.href), browserStorage(window), Date.now());
-  document.querySelectorAll<HTMLElement>('[data-booking]').forEach((root) => bootBooking(root));
+  // The form tells the trackers when a lead is saved and a call is booked, with the event ids the server made (the Pixel and the Conversions API share them).
+  document.querySelectorAll<HTMLElement>('[data-booking]').forEach((root) => bootBooking(root, { hooks: { onLead: trackLead, onSchedule: trackSchedule } }));
 </script>

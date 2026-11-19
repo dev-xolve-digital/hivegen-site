@@ -35,3 +35,11 @@ settings:
     videoId: v-portfolio-reel
     start: 13                 # seconds into the source video
     duration: 14
+
+# Ad tracking. These ids are public (they are in the page's source anyway). Leave one empty to switch that tracker off:
+# with all of them empty the site loads no Meta or Google script at all.
+tracking:
+  metaPixelId: ""             # Meta Pixel id, digits only (Events Manager > Data sources). Also switches on the server-side Conversions API (needs META_CAPI_TOKEN)
+  googleTagId: ""             # Google tag / GA4 measurement id, e.g. G-ABC123XYZ4
+  googleAdsId: ""             # Google Ads account id, e.g. AW-123456789
+  googleAdsScheduleLabel: ""  # the label of the "booked call" conversion in Google Ads, e.g. AbC-D_efG-h

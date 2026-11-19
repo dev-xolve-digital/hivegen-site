@@ -1,3 +1,5 @@
+import { trackViewContent } from './tracking';
+
 export interface LightboxItem { kind: 'file' | 'stream'; src: string; orientation: 'vertical' | 'horizontal'; title: string }
 
 let opener: HTMLElement | null = null;
@@ -41,6 +43,7 @@ export function openLightbox(item: LightboxItem): void {
   const page = document.querySelector<HTMLElement>('.page');
   if (page) page.inert = true; // keeps keyboard focus inside the pop-up
   lb.querySelector<HTMLElement>('.hglb-x')?.focus();
+  trackViewContent(item.title);
 }
 
 export function closeLightbox(): void {

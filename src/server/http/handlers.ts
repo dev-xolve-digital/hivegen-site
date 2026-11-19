@@ -4,6 +4,7 @@ import { bookingConfigResponse } from '../booking-config';
 import type { RateLimiter } from '../booking/rate-limit';
 import type { ErrorCode, FieldCode, Interval, Result } from '../booking/types';
 import { getContext, type ServerContext } from '../context';
+import { parsePageView } from '../booking/validate';
 import { clientIp } from './client-ip';
 
 /** One handler per route. `params` are the route's `[brackets]`; `socketIp` is the address the connection came from. */
@@ -86,17 +87,22 @@ async function readJson(request: Request): Promise<{ ok: true; value: unknown } 
   }
 }
 
-/** The page a visitor came from, for tracking: the Referer when it is a web page of this site, else the site's own address. Never empty. */
-function sourceUrlOf(request: Request, siteUrl: string): string {
-  const referer = request.headers.get('referer');
-  if (!referer) return siteUrl;
+/** The longest page address Meta takes as an event's source (event_source_url). */
+const MAX_SOURCE_URL = 2000;
+
+/** `candidate` when it is a web page of this site that Meta can take, else the site's own address. Never empty. */
+function pageUrlOf(candidate: string | null | undefined, siteUrl: string): string {
+  if (!candidate || candidate.length > MAX_SOURCE_URL) return siteUrl;
   try {
-    const from = new URL(referer);
-    return (from.protocol === 'http:' || from.protocol === 'https:') && from.origin === new URL(siteUrl).origin ? referer : siteUrl;
+    const from = new URL(candidate);
+    return (from.protocol === 'http:' || from.protocol === 'https:') && from.origin === new URL(siteUrl).origin ? candidate : siteUrl;
   } catch {
     return siteUrl;
   }
 }
+
+/** The page a visitor came from, for tracking: the Referer when it is a usable web page of this site, else the site's own address. */
+const sourceUrlOf = (request: Request, siteUrl: string) => pageUrlOf(request.headers.get('referer'), siteUrl);
 
 /** What the service is told about a request. */
 const metaOf = (request: Request, ctx: ServerContext, ip: string | undefined) => ({
@@ -165,6 +171,25 @@ export const rescheduleHandler: Handler = (request, ctx, params, socketIp) => gu
   const body = await readJson(request);
   if (!body.ok) return fail('invalid');
   return answer(await ctx.service.reschedule(token, body.value));
+});
+
+/**
+ * POST /api/events: the server's half of a PageView the browser reported with sendBeacon, which goes to Meta's Conversions API under
+ * the same event id as the Pixel's (so Meta counts it once). Answers 204 whatever becomes of it; when Meta is not set up it is dropped.
+ */
+export const eventsHandler: Handler = (request, ctx, _params, socketIp) => guarded('events', async () => {
+  const ip = clientIp(request, socketIp);
+  if (!allowed(ctx.limits.events, ip)) return fail('rate_limited');
+  const body = await readJson(request);
+  const view = body.ok ? parsePageView(body.value) : null;
+  if (!view) return fail('invalid');
+  const meta = metaOf(request, ctx, ip);
+  await ctx.tracker.send({
+    name: 'PageView', eventId: view.eventId, time: new Date(),
+    sourceUrl: view.url === undefined ? meta.sourceUrl : pageUrlOf(view.url, ctx.config.siteUrl),
+    user: { ip: meta.ip, userAgent: meta.userAgent, fbp: view.fbp, fbc: view.fbc },
+  });
+  return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
 });
 
 /** The secrets are hashed first: the comparison then takes the same time whatever their lengths, and never stops at the first difference. */

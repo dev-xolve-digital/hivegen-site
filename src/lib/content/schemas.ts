@@ -21,6 +21,23 @@ export const bookingSchema = z.strictObject({
   backupUrl: z.union([z.literal(''), z.url({ protocol: /^https?$/ })]).transform((v) => v || undefined).optional(),
 });
 
+/** One public tracking id: empty means that tracker is off. The shape is checked so a pasted snippet never reaches a page or an address. */
+const trackingId = (shape: RegExp, example: string) => z.string().trim()
+  .refine((v) => v === '' || shape.test(v), `must look like ${example}, or be empty to switch it off`)
+  .transform((v) => v || undefined).optional();
+
+/** The ad trackers' public ids from site.yaml. The access token for Meta's Conversions API is a secret, so it is not here (META_CAPI_TOKEN). */
+export const trackingSchema = z.strictObject({
+  /** The Meta Pixel (Events Manager > Data sources): digits. Also what switches the server-side Conversions API on. */
+  metaPixelId: trackingId(/^\d{6,20}$/, '1234567890123456'),
+  /** The Google tag / GA4 measurement id. */
+  googleTagId: trackingId(/^(G|GT)-[A-Za-z0-9]{4,}$/, 'G-ABC123XYZ4'),
+  /** The Google Ads account id. */
+  googleAdsId: trackingId(/^AW-\d{6,}$/, 'AW-123456789'),
+  /** The label of the Google Ads conversion for a booked call (with the account id it makes the "send_to"). */
+  googleAdsScheduleLabel: trackingId(/^[A-Za-z0-9_-]{4,}$/, 'AbC-D_efG-h'),
+});
+
 export const siteSchema = z.strictObject({
   brand: z.strictObject({ name: text, logo: text }),
   contact: z.strictObject({ notificationEmail: z.email(), replyTo: z.email(), instagramHandle: text, instagramUrl: z.url() }),
@@ -36,6 +53,7 @@ export const siteSchema = z.strictObject({
   }).refine((s) => s.videoSource !== 'stream' || !!s.streamCustomerCode, {
     message: 'is needed when videoSource is stream', path: ['streamCustomerCode'],
   }),
+  tracking: trackingSchema.optional(),
 });
 
 /** Just the site.yaml values an email needs. The rest of the file is not looked at. */
@@ -49,6 +67,9 @@ export const bookingSiteSchema = z.looseObject({
   booking: bookingSchema,
   contact: z.looseObject({ notificationEmail: siteSchema.shape.contact.shape.notificationEmail }),
 });
+
+/** Just the site.yaml values the booking server needs for tracking: whether there is a Meta Pixel. The rest of the file is not looked at. */
+export const trackingSiteSchema = z.looseObject({ tracking: trackingSchema.optional() });
 
 export const pageSchema = z.strictObject({
   slug: z.enum(['', 'agencies', 'videographers', 'agents']),

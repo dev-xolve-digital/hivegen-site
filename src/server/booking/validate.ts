@@ -90,3 +90,18 @@ export function parseInput<S extends z.ZodType>(schema: S, raw: unknown):
   }
   return { ok: false, fields };
 }
+
+const EVENT_ID = /^[A-Za-z0-9-]{8,64}$/; // a UUID; never a "lead." or "schedule." id (they have a dot)
+const FACEBOOK_COOKIE = /^fb\.\d\.\d+\.[A-Za-z0-9_-]+$/;
+
+/**
+ * What the browser reports of a page view (POST /api/events), or null when it is not one. Only the name and the event id are checked
+ * hard: a PageView is not worth refusing for its other fields, so an fbp or fbc that does not look like Facebook's is simply left out.
+ */
+export function parsePageView(raw: unknown): { eventId: string; url?: string; fbp?: string; fbc?: string } | null {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const { name, eventId, url, fbp, fbc } = raw as Record<string, unknown>;
+  if (name !== 'PageView' || typeof eventId !== 'string' || !EVENT_ID.test(eventId)) return null;
+  const cookie = (v: unknown) => (typeof v === 'string' && v.length <= 200 && FACEBOOK_COOKIE.test(v) ? v : undefined);
+  return { eventId, url: typeof url === 'string' ? url : undefined, fbp: cookie(fbp), fbc: cookie(fbc) };
+}

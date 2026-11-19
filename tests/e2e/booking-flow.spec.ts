@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 import { loadSection } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime, groupByLocalDay } from '../../src/lib/booking/format';
 import { fillPlaceholders } from '../../src/lib/text';
-import { book, bookNewLead, createLead, getSlots, goodLead, outbox, resetServer, setCalendar, trackedEvents, type Slot } from './helpers';
+import { book, bookNewLead, createLead, enableTracking, getSlots, goodLead, outbox, resetServer, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
 
 const b = loadSection('booking');
 const mg = loadSection('manage-booking');
@@ -246,6 +246,51 @@ test('the visitor\'s ad tags reach the lead', async ({ page, request }) => {
   expect(hassan.text).toContain('Page: agents');
   const lead = (await trackedEvents(request)).find((e) => e.name === 'Lead')!;
   expect(lead.user.fbc).toMatch(/^fb\.1\.\d+\.x$/); // built from the fbclid the visitor arrived with
+});
+
+// Tracking in a real browser, on the real API: the page's own tracking code runs, with the Meta and Google scripts stubbed (nothing reaches either).
+
+const SITE = 'http://127.0.0.1:4322'; // the test server's PUBLIC_SITE_URL: an address on it is a usable source for an event
+
+test('a page view reaches the server with the event id the Pixel got, the page, and the visitor browser', async ({ page, request }) => {
+  await enableTracking(page);
+  await page.goto(`${SITE}/agents?utm_source=facebook&fbclid=AbC123`);
+  await expect.poll(async () => (await trackedEvents(request)).some((e) => e.name === 'PageView')).toBe(true);
+  const { fbq } = await trackerCalls(page);
+  const eventID = (fbq.find((c) => c[0] === 'track' && c[1] === 'PageView')![3] as { eventID: string }).eventID;
+  const [view] = (await trackedEvents(request)).filter((e) => e.name === 'PageView');
+  expect(view.eventId).toBe(eventID);
+  expect(view.sourceUrl).toBe(`${SITE}/agents?utm_source=facebook&fbclid=AbC123`);
+  expect(view.user.fbc).toMatch(/^fb\.1\.\d+\.AbC123$/);
+  expect(view.user.userAgent).toMatch(/Chrome/);
+  expect(view.user.ip).toBeTruthy();
+  expect(view.user.email).toBeUndefined(); // nothing personal in a PageView
+});
+
+test('the Pixel Lead and Schedule events carry the event ids the server sent to Meta, and Google gets the conversion with the email', async ({ page, request }) => {
+  await enableTracking(page);
+  await page.goto(`${SITE}/#book`);
+  await toConfirm(page, { email: 'zoe+ui@example.com' });
+  await page.getByRole('button', { name: b.confirmLabel }).click();
+  await expect(page.getByTestId('booking-done').getByRole('heading', { name: b.confirmation.heading })).toBeVisible();
+  await expect.poll(async () => (await trackedEvents(request)).some((e) => e.name === 'PageView')).toBe(true); // the page's own beacon, so it does not land in a later test
+
+  const server = await trackedEvents(request);
+  const lead = server.find((e) => e.name === 'Lead')!;
+  const schedule = server.find((e) => e.name === 'Schedule')!;
+  expect(lead.eventId).toMatch(/^lead\.[A-Za-z0-9_-]{22}$/);
+  expect(schedule.eventId).toBe(lead.eventId.replace('lead.', 'schedule.'));
+
+  const { fbq, gtag } = await trackerCalls(page);
+  expect(fbq).toContainEqual(['track', 'Lead', {}, { eventID: lead.eventId }]); // the same id on both sides: Meta counts each once
+  expect(fbq).toContainEqual(['track', 'Schedule', {}, { eventID: schedule.eventId }]);
+  expect(gtag.filter((c) => c[0] === 'set' || (c[0] === 'event' && c[1] !== 'video_play'))).toEqual([
+    ['event', 'generate_lead'],
+    ['set', 'user_data', { email: 'zoe+ui@example.com' }],
+    ['event', 'conversion', { send_to: `${TRACKING_IDS.googleAdsId}/${TRACKING_IDS.googleAdsScheduleLabel}` }],
+    ['event', 'book_call'],
+  ]);
+  expect(JSON.stringify(fbq)).not.toContain('zoe'); // the Pixel never sees the visitor email
 });
 
 // The manage page (/booking/<token>) in a real browser: each booking is made through the HTTP API, as an email link would lead to it.

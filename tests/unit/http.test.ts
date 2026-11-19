@@ -9,7 +9,7 @@ import { readServerConfig } from '../../src/server/config';
 import { createContext, type ServerContext } from '../../src/server/context';
 import { clientIp } from '../../src/server/http/client-ip';
 import {
-  MAX_BODY_BYTES, bookingsHandler, cancelHandler, configHandler, leadsHandler, rescheduleHandler, slotsHandler,
+  MAX_BODY_BYTES, bookingsHandler, cancelHandler, configHandler, eventsHandler, leadsHandler, rescheduleHandler, slotsHandler,
   testCalendarHandler, testEventsHandler, testOutboxHandler, testResetHandler, withContext,
 } from '../../src/server/http/handlers';
 import { removeTempContent, tempContent } from '../helpers/temp-content';
@@ -256,6 +256,108 @@ describe('where a lead came from (sourceUrl)', () => {
 
   it('is never empty', async () => {
     expect(await sourceOf({}, {})).toBe('http://localhost:4321');
+  });
+
+  it('is never longer than the 2000 characters Meta takes: a longer Referer is replaced by the site address', async () => {
+    const atLimit = `${SITE}/agents?x=${'a'.repeat(2000 - `${SITE}/agents?x=`.length)}`;
+    expect(atLimit).toHaveLength(2000);
+    expect(await sourceOf({ referer: atLimit })).toBe(atLimit);
+    expect(await sourceOf({ referer: `${atLimit}a` })).toBe(SITE);
+  });
+});
+
+describe('events (POST /api/events: the server half of a PageView)', () => {
+  const EVENT_ID = '3f8c1c1e-2b7a-4c53-9d0e-6a1f5b7d9e21';
+  const view = (over: Record<string, unknown> = {}) => ({ name: 'PageView', eventId: EVENT_ID, url: `${SITE}/agents?utm_source=facebook`, fbp: 'fb.1.1700000000000.111', fbc: 'fb.1.1700000000000.AbC-1_x', ...over });
+  const siteCtx = () => fakesContext({ PUBLIC_SITE_URL: SITE });
+
+  it('answers 204 with nothing in the body, no-store, and tells the tracker the event with the visitor\'s address and browser', async () => {
+    const ctx = await siteCtx();
+    const res = await eventsHandler(post('/api/events', view(), { 'cf-connecting-ip': '203.0.113.7', 'user-agent': 'Mozilla/5.0 (Test)' }), ctx);
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(ctx.fakes!.tracked).toHaveLength(1);
+    expect(ctx.fakes!.tracked[0]).toMatchObject({
+      name: 'PageView', eventId: EVENT_ID, sourceUrl: `${SITE}/agents?utm_source=facebook`,
+      user: { ip: '203.0.113.7', userAgent: 'Mozilla/5.0 (Test)', fbp: 'fb.1.1700000000000.111', fbc: 'fb.1.1700000000000.AbC-1_x' },
+    });
+    expect(ctx.fakes!.tracked[0].time).toBeInstanceOf(Date);
+    expect(ctx.fakes!.tracked[0].user.email).toBeUndefined(); // a PageView knows no personal details
+  });
+
+  it('only fbp, fbc and url are optional; the page falls back to the Referer, then to the site address', async () => {
+    const ctx = await siteCtx();
+    await eventsHandler(post('/api/events', { name: 'PageView', eventId: EVENT_ID }, { referer: `${SITE}/videographers` }), ctx);
+    await eventsHandler(post('/api/events', { name: 'PageView', eventId: `${EVENT_ID}x` }), ctx);
+    expect(ctx.fakes!.tracked.map((e) => [e.sourceUrl, e.user.fbp, e.user.fbc])).toEqual([[`${SITE}/videographers`, undefined, undefined], [SITE, undefined, undefined]]);
+  });
+
+  it('a page address that is another site, too long or not an address is replaced by the site address', async () => {
+    const ctx = await siteCtx();
+    const tooLong = `${SITE}/?x=${'a'.repeat(2000)}`;
+    for (const url of ['https://evil.example/', 'javascript:alert(1)', 'not a url', tooLong, 42]) {
+      await eventsHandler(post('/api/events', view({ url })), ctx);
+    }
+    expect(ctx.fakes!.tracked.map((e) => e.sourceUrl)).toEqual([SITE, SITE, SITE, SITE, SITE]);
+  });
+
+  it('an fbp or fbc that does not look like Facebook\'s is dropped, and the event is still taken', async () => {
+    const ctx = await siteCtx();
+    expect((await eventsHandler(post('/api/events', view({ fbp: '<script>', fbc: 'x'.repeat(500) })), ctx)).status).toBe(204);
+    expect(ctx.fakes!.tracked[0].user).toMatchObject({ fbp: undefined, fbc: undefined });
+  });
+
+  it('anything else is 400 invalid and tracks nothing: another event name, a missing or odd event id, a body that is not an object', async () => {
+    const ctx = await siteCtx();
+    const bad: unknown[] = [
+      view({ name: 'Lead' }), view({ name: undefined }), view({ eventId: undefined }), view({ eventId: '' }), view({ eventId: 'lead.abc12345' }),
+      view({ eventId: 'short' }), view({ eventId: 'x'.repeat(65) }), view({ eventId: 12345678 }), view({ eventId: 'a b c d e f g h' }), [], null, 'text', '{',
+    ];
+    for (const body of bad) {
+      const res = await eventsHandler(post('/api/events', body), ctx);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      expect(await res.json()).toEqual({ error: 'invalid' });
+    }
+    expect(ctx.fakes!.tracked).toEqual([]);
+  });
+
+  it('a body over the cap is 400 invalid', async () => {
+    const ctx = await siteCtx();
+    expect((await eventsHandler(post('/api/events', view({ url: `${SITE}/${'a'.repeat(MAX_BODY_BYTES)}` })), ctx)).status).toBe(400);
+    expect(ctx.fakes!.tracked).toEqual([]);
+  });
+
+  it('120 an hour per address: the 121st is 429, another address is fine, and slots and leads have their own allowances', async () => {
+    const ctx = await siteCtx();
+    const ip = { 'cf-connecting-ip': '203.0.113.20' };
+    for (let i = 0; i < 120; i += 1) await slotsHandler(get('/api/booking/slots', ip), ctx); // reads do not use up the events' allowance
+    for (let i = 1; i <= 120; i += 1) expect((await eventsHandler(post('/api/events', view(), ip), ctx)).status, `event ${i}`).toBe(204);
+    const blocked = await eventsHandler(post('/api/events', view(), ip), ctx);
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toEqual({ error: 'rate_limited' });
+    expect(blocked.headers.get('cache-control')).toBe('no-store');
+    expect((await eventsHandler(post('/api/events', view(), { 'cf-connecting-ip': '203.0.113.21' }), ctx)).status).toBe(204);
+    expect((await leadsHandler(post('/api/booking/leads', lead, ip), ctx)).status).toBe(200);
+    expect(ctx.fakes!.tracked.filter((e) => e.name === 'PageView')).toHaveLength(121);
+    ctx.fakes!.reset();
+    expect((await eventsHandler(post('/api/events', view(), ip), ctx)).status).toBe(204); // a reset starts the count again
+  });
+
+  it('works when booking is not connected: the event is dropped (there is no Meta to send it to) and the answer is 204', async () => {
+    const ctx = await notConnectedContext();
+    expect(ctx.service).toBeNull();
+    const res = await eventsHandler(post('/api/events', view()), ctx);
+    expect(res.status).toBe(204);
+    expect(await ctx.tracker.send({ name: 'PageView', eventId: EVENT_ID, time: new Date(), sourceUrl: SITE, user: {} })).toBeUndefined();
+  });
+
+  it('a tracker that breaks is a 500 server_error, logged by kind only', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ctx = { ...(await siteCtx()), tracker: { send: async () => { throw new Error('boom 203.0.113.7'); } } };
+    const res = await eventsHandler(post('/api/events', view()), ctx);
+    expect(res.status).toBe(500);
+    expect(errors.mock.calls.flat().join(' ')).not.toContain('203.0.113.7');
   });
 });
 

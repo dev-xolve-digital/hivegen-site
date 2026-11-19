@@ -7,7 +7,7 @@ import { ContentError } from './errors';
 import type { EmailKind } from '../../server/booking/types';
 import { allowedPlaceholders, splitPlaceholders } from './placeholders';
 import {
-  siteSchema, emailSiteSchema, bookingSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
+  siteSchema, emailSiteSchema, bookingSiteSchema, trackingSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
   type Site, type BookingRules, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
 } from './schemas';
 
@@ -142,6 +142,14 @@ export function loadEmailSite(): { brandName: string; logo: string; replyTo: str
 export function loadBookingSite(): { rules: BookingRules; hassanEmail: string } {
   const { booking, contact } = parse(bookingSiteSchema, 'site.yaml');
   return { rules: booking, hassanEmail: contact.notificationEmail };
+}
+
+/**
+ * The Meta Pixel id from site.yaml (none when empty), for the running server: one small file read, with none of loadSite()'s
+ * build-time checks. The server sends events to Meta's Conversions API only when there is one.
+ */
+export function loadMetaPixelId(): string | undefined {
+  return parse(trackingSiteSchema, 'site.yaml').tracking?.metaPixelId;
 }
 
 /** The name shown in messages for an email's wording file, e.g. "content/emails/reminder-1h.yaml". */

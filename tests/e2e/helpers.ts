@@ -87,3 +87,38 @@ export async function stubTurnstile(page: Page): Promise<void> {
 export async function pretendMode(page: Page, mode: 'live' | 'demo' | 'off'): Promise<void> {
   await page.route('**/api/booking/config', (route) => route.fulfill({ json: mode === 'live' ? { mode, turnstileSiteKey: '1x00000000000000000000AA' } : { mode } }));
 }
+
+/** Tracking ids as a real site would have them (the site's content has none yet). */
+export const TRACKING_IDS = { metaPixelId: '123456789012345', googleTagId: 'G-ABC123XYZ4', googleAdsId: 'AW-987654321', googleAdsScheduleLabel: 'AbC-D_efG-h' };
+
+/**
+ * Gives the site's pages tracking ids (they are added to each page as it is fetched) and answers the Meta and Google scripts with empty
+ * stubs, so the page's own tracking code runs for real while nothing reaches Meta or Google. tests/e2e/fixtures.ts fails a test that does.
+ */
+export async function enableTracking(page: Page, ids: Partial<typeof TRACKING_IDS> = TRACKING_IDS): Promise<void> {
+  const element = `<script type="application/json" data-tracking>${JSON.stringify(ids)}</script>`;
+  // Only the site's own pages (not the Stream pop-up's frame, nor a call that is still open when the test ends).
+  await page.route((url) => url.hostname === 'localhost' || url.hostname === '127.0.0.1', async (route) => {
+    if (!route.request().isNavigationRequest() || route.request().frame() !== page.mainFrame()) return route.fallback();
+    try {
+      const response = await route.fetch();
+      const body = (await response.text()).replace('</body>', `${element}</body>`);
+      const { 'content-encoding': _encoding, ...headers } = response.headers();
+      await route.fulfill({ response, body, headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) } });
+    } catch {
+      // the page was closed while this was being fetched: nothing is waiting for the answer
+    }
+  });
+  const stub = (name: string) => (route: { fulfill(o: { contentType: string; body: string }): Promise<void> }) =>
+    route.fulfill({ contentType: 'application/javascript', body: `window.__${name}Loaded = true;` });
+  await page.route('https://connect.facebook.net/**', stub('facebook'));
+  await page.route('https://www.googletagmanager.com/**', stub('google'));
+}
+
+/** What the page's trackers were asked: the Pixel's calls (`fbq`) and Google's (`dataLayer`), each as the list of its arguments. */
+export async function trackerCalls(page: Page): Promise<{ fbq: unknown[][]; gtag: unknown[][] }> {
+  return page.evaluate(() => {
+    const w = window as unknown as { fbq?: { queue: ArrayLike<unknown>[] }; dataLayer?: ArrayLike<unknown>[] };
+    return { fbq: (w.fbq?.queue ?? []).map((a) => Array.from(a)), gtag: (w.dataLayer ?? []).map((a) => Array.from(a)) };
+  });
+}

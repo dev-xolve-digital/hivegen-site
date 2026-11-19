@@ -9,7 +9,7 @@ export const bookingEmailKinds = (status: ActiveStatus): [toVisitor: EmailKind, 
   status === 'booked' ? ['booking-confirmed', 'hassan-new-booking'] : ['booking-requested', 'hassan-confirm-by-hand'];
 
 /** One short line for the server log. It names what failed and the kind of error, never the error's message or anything about the visitor. */
-export const logFailure = (area: 'booking' | 'cron', what: string, e: unknown) =>
+export const logFailure = (area: 'booking' | 'cron' | 'tracking', what: string, e: unknown) =>
   console.warn(`${area}: ${what} (${e instanceof Error ? e.name : 'unknown error'})`);
 
 /**

@@ -4,7 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { loadBookingSite, loadSection, loadSite } from '../../src/lib/content/load';
 import { clientMode, readServerConfig } from '../../src/server/config';
-import { RETRY_AFTER_MS, createContext, createContextProvider, type ServerContext } from '../../src/server/context';
+import { RETRY_AFTER_MS, chooseTracker, createContext, createContextProvider, readPixelId, type ServerContext } from '../../src/server/context';
+import { createMemoryStore } from '../../src/server/store/memory';
+import { META_GRAPH_VERSION } from '../../src/server/tracking/meta';
 import { removeTempContent, tempContent } from '../helpers/temp-content';
 
 const tempDirs: string[] = [];
@@ -245,7 +247,7 @@ describe('getContext', () => {
 describe('createContextProvider', () => {
   let t = 0;
   const now = () => t;
-  const ctxOf = (failedAt?: number) => ({ config: config({}), service: null, runScheduled: null, limits: undefined as never, ...(failedAt === undefined ? {} : { failedAt }) }) as ServerContext;
+  const ctxOf = (failedAt?: number) => ({ config: config({}), service: null, runScheduled: null, tracker: undefined as never, limits: undefined as never, ...(failedAt === undefined ? {} : { failedAt }) }) as ServerContext;
   /** A create() that answers from a list, and records how it was called. */
   function creator(answers: Array<() => Promise<ServerContext>>) {
     const calls: boolean[] = [];
@@ -348,5 +350,59 @@ describe('loadBookingSite', () => {
   it('gives the call rules and where Hassan\'s emails go, from site.yaml alone', () => {
     const site = loadSite();
     expect(loadBookingSite()).toEqual({ rules: site.booking, hassanEmail: site.contact.notificationEmail });
+  });
+});
+
+describe('the tracker', () => {
+  const event = { name: 'PageView' as const, eventId: '3f8c1c1e-2b7a-4c53-9d0e-6a1f5b7d9e21', time: new Date('2026-12-01T10:00:00Z'), sourceUrl: 'https://hivegen.co/', user: { ip: '203.0.113.7' } };
+  const meta = { capiToken: 'EAAB-secret', testEventCode: 'TEST123' };
+  const answer = () => vi.fn(async () => new Response('{}', { status: 200 }));
+
+  it('fakes and not-connected contexts both have one: the test server records, the other sends nothing', async () => {
+    const fakes = await createContext(config({ HIVEGEN_FAKES: '1', NODE_ENV: 'test' }), { outboxDir: tempDir() });
+    await fakes.tracker.send(event);
+    expect(fakes.fakes!.tracked).toEqual([event]);
+    fakes.fakes!.reset();
+    await fakes.tracker.send(event); // still the same recording tracker after a reset
+    expect(fakes.fakes!.tracked).toEqual([event]);
+
+    const down = await createContext(config({ NODE_ENV: 'test' }));
+    expect(down.tracker).toBeDefined();
+    await expect(down.tracker.send(event)).resolves.toBeUndefined();
+  });
+
+  it('the Meta Conversions API is used when the token and the pixel id are both set', async () => {
+    const fetchFn = answer();
+    const store = createMemoryStore();
+    const tracker = chooseTracker(meta, '123456789012345', store, fetchFn as unknown as typeof fetch);
+    await tracker.send(event);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toBe(`https://graph.facebook.com/${META_GRAPH_VERSION}/123456789012345/events`);
+    expect(JSON.parse((fetchFn.mock.calls[0] as unknown as [string, { body: string }])[1].body)).toMatchObject({ test_event_code: 'TEST123', access_token: 'EAAB-secret' });
+    expect((await store.trackingEventsByStatus('sent')).map((r) => r.eventId)).toEqual([event.eventId]);
+    expect(await tracker.resend((await store.trackingEventsByStatus('sent'))[0])).toBe(true); // cron's retry uses the same tracker
+  });
+
+  it('without the token, or without the pixel id, nothing is sent, recorded or retried', async () => {
+    for (const [m, pixel] of [[undefined, '123456789012345'], [meta, undefined], [undefined, undefined]] as const) {
+      const fetchFn = answer();
+      const store = createMemoryStore();
+      const tracker = chooseTracker(m, pixel, store, fetchFn as unknown as typeof fetch);
+      await tracker.send(event);
+      expect(await tracker.resend({ eventId: 'x', name: 'Lead', payload: { data: [] }, status: 'failed', attempts: 1 })).toBe(false);
+      expect(fetchFn).not.toHaveBeenCalled();
+      for (const status of ['pending', 'sent', 'failed', 'skipped'] as const) expect(await store.trackingEventsByStatus(status)).toEqual([]);
+    }
+  });
+
+  it('the pixel id comes from site.yaml; an unreadable file means none, said once in the log without anything from the file', () => {
+    expect(readPixelId()).toBeUndefined(); // the real content has none yet
+    process.env.CONTENT_DIR = tempContent({ 'site.yaml': (t) => t.replace('metaPixelId: ""', 'metaPixelId: "123456789012345"') });
+    expect(readPixelId()).toBe('123456789012345');
+    process.env.CONTENT_DIR = tempContent({ 'site.yaml': (t) => t.replace('metaPixelId: ""', 'metaPixelId: "not-a-pixel"') });
+    expect(readPixelId()).toBeUndefined();
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(logged(error)).toContain('site.yaml');
+    expect(logged(error)).toContain('Meta');
   });
 });

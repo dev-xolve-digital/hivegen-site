@@ -6,6 +6,7 @@ import { formatSlotLong } from '../lib/booking/format';
 import { fillPlaceholders } from '../lib/text';
 import type { Slot } from '../lib/booking/slots';
 import { browserStorage, readAttribution } from './attribution';
+import { cookie } from './cookie';
 import { renderSlotPicker } from './slot-picker';
 
 /** The wording the page hands the script (from booking.yaml, as JSON in the page). */
@@ -36,8 +37,6 @@ const FIELD_OF_SERVER: Record<string, Field | undefined> = { name: 'name', email
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const gcalDate = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-/** The server's own tags cannot be longer than this; the Facebook cookies are cut to fit. */
-const cookie = (doc: Document, name: string) => doc.cookie.split('; ').find((c) => c.startsWith(`${name}=`))?.slice(name.length + 1).slice(0, 200) || undefined;
 /** A link from the server is used only when it is a web address (or this page's own #book). */
 const safeLink = (url: string) => (url.startsWith('#') || /^https?:\/\//i.test(url) ? url : '#book');
 /** A tracking hook must never be able to break booking. */
