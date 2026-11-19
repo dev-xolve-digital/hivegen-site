@@ -17,6 +17,8 @@ export const bookingSchema = z.strictObject({
   bufferMinutes: z.number().int().min(0),
   minNoticeMinutes: z.number().int().min(0),
   horizonDays: z.number().int().positive(),
+  /** Hassan's own appointment page: offered when the calendar cannot be checked, and when booking is offline. Empty or left out means none. */
+  backupUrl: z.union([z.literal(''), z.url({ protocol: /^https?$/ })]).transform((v) => v || undefined).optional(),
 });
 
 export const siteSchema = z.strictObject({
@@ -144,8 +146,19 @@ export const sectionSchemas = {
     timeHeading: text,
     timeNote: text,
     noSlots: text,
-    confirmation: z.strictObject({ heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, calendarTitle: text, instagramLabel: text }),
-    errors: z.strictObject({ name: text, email: text, slotTaken: text, unreachable: text }),
+    /** Shown above the times when the calendar could not be checked. {backupLink} becomes a link with the words of backupLabel. */
+    calendarNote: text.refine((s) => s.includes('{backupLink}'), 'must keep the {backupLink} placeholder'),
+    backupLabel: text,
+    confirmation: z.strictObject({
+      heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, manageLabel: text, calendarTitle: text, instagramLabel: text,
+    }),
+    requested: z.strictObject({ heading: text, text: text }),
+    offline: z.strictObject({ heading: text, text: text }),
+    honeypotLabel: text,
+    errors: z.strictObject({
+      name: text, email: text, buyer: text, volume: text, phone: text, footage: text,
+      slotTaken: text, unreachable: text, network: text, botCheck: text, rateLimited: text,
+    }),
     calendarEvent: z.strictObject({ title: text, description: text }),
     demoNote: text,
   }),

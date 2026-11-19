@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 /** Helpers for the browser tests that change server state (tests/e2e/booking-flow.spec.ts), over the test server's HTTP API. */
 
@@ -63,4 +63,27 @@ export async function trackedEvents(request: APIRequestContext): Promise<Array<{
   const res = await request.get('/api/test/events');
   expect(res.status(), 'GET /api/test/events').toBe(200);
   return res.json();
+}
+
+/** What Cloudflare's Turnstile script does for the form, in a few lines: a widget that hands out the token "test-token" (and a fresh one after reset). */
+const TURNSTILE_STUB = `(function () {
+  var callbacks = {};
+  var count = 0;
+  var later = function (callback) { setTimeout(function () { callback('test-token'); }, 0); };
+  window.turnstile = {
+    render: function (el, opts) { count += 1; var id = 'widget-' + count; callbacks[id] = opts.callback; later(opts.callback); return id; },
+    getResponse: function () { return 'test-token'; },
+    reset: function (id) { if (callbacks[id]) later(callbacks[id]); },
+    remove: function () {}
+  };
+})();`;
+
+/** Answers Cloudflare's Turnstile script with the stub above, so no browser test ever reaches Cloudflare. Every test that submits step 1 calls this. */
+export async function stubTurnstile(page: Page): Promise<void> {
+  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', (route) => route.fulfill({ contentType: 'application/javascript', body: TURNSTILE_STUB }));
+}
+
+/** Makes the page believe the booking server is in `mode` (the test server itself always says "live"). Nothing on the server changes. */
+export async function pretendMode(page: Page, mode: 'live' | 'demo' | 'off'): Promise<void> {
+  await page.route('**/api/booking/config', (route) => route.fulfill({ json: mode === 'live' ? { mode, turnstileSiteKey: '1x00000000000000000000AA' } : { mode } }));
 }

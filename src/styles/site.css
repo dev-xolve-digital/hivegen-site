@@ -400,6 +400,14 @@ input.inp[aria-invalid="true"]{border-color:#B42318}
 .nw{white-space:nowrap}
 .book>*,.fwrap,.form{min-width:0}
 .days button span{display:inline;padding:0;background:none;border-radius:0;color:inherit;font:inherit}
+.book [hidden]{display:none!important}
+/* The honeypot: kept in the layout for robots, and out of sight and reach for people */
+.hp{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+.calnote{margin:0 0 12px;font-size:13px;line-height:1.5;color:var(--ink2)}
+.calnote a{font-weight:600;color:var(--ink)}
+.done .time-actions a.u{font:600 14px var(--font-body);color:var(--ink)}
+.offline h3.disp{font-size:26px;margin:0 0 10px}
+.offline p{color:var(--ink2);margin:0 0 16px}
 
 /* 3D: live canvases only when the loader switched them on; stills on phones and tablets */
 canvas.c3d{display:none}

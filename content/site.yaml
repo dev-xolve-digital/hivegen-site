@@ -21,6 +21,8 @@ booking:
   bufferMinutes: 5
   minNoticeMinutes: 60
   horizonDays: 14
+  # Hassan's own appointment page. Visitors are offered it when the calendar cannot be checked, and when booking is offline. Leave empty for none.
+  backupUrl: ""
 
 settings:
   videoSource: stream         # stream = Cloudflare Stream; local = files from `npm run media`
