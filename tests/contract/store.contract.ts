@@ -76,6 +76,8 @@ export function storeContract(make: Make): void {
   it('moving onto a taken start throws and leaves the booking unchanged', () => withStore(make, async (store) => {
     const a = await store.createLead(lead(1), T0);
     const b = await store.createLead(lead(2), T0);
+    const c = await store.createLead(lead(3), T0);
+    const d = await store.createLead(lead(4), T0);
     await store.insertBooking(booking(a.id, 1), T0);
     const mine = await store.insertBooking(booking(b.id, 2), T0);
 
@@ -85,12 +87,49 @@ export function storeContract(make: Make): void {
     // Moving to a free start works, and frees the old one.
     const moved = await store.updateBooking(mine.id, { start: slot(3), end: slotEnd(3) }, at(6));
     expect(moved).toMatchObject({ start: slot(3), end: slotEnd(3), updatedAt: at(6) });
-    await store.insertBooking(booking(a.id, 2, { status: 'requested' }), at(7));
+    await store.insertBooking(booking(c.id, 2, { status: 'requested' }), at(7));
 
     // Re-activating a cancelled booking onto a taken start is refused too, and it stays cancelled.
-    const old = await store.insertBooking(booking(b.id, 1, { status: 'cancelled' }), at(8));
+    // Lead d holds nothing else, so only the start can be the reason.
+    const old = await store.insertBooking(booking(d.id, 1, { status: 'cancelled' }), at(8));
     await expect(store.updateBooking(old.id, { status: 'booked' }, at(9))).rejects.toBeInstanceOf(SlotConflictError);
     expect(await store.getBookingByToken(old.manageToken)).toMatchObject({ status: 'cancelled', start: slot(1) });
+  }));
+
+  it('a lead cannot hold two active bookings; cancelling the first lets it book again', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1), T0);
+    const b = await store.createLead(lead(2), T0);
+    const first = await store.insertBooking(booking(a.id, 1), T0);
+
+    // Another start does not help: booked and requested both count as active.
+    await expect(store.insertBooking(booking(a.id, 2, { status: 'requested' }), at(1))).rejects.toBeInstanceOf(SlotConflictError);
+    await expect(store.insertBooking(booking(a.id, 3), at(1))).rejects.toBeInstanceOf(SlotConflictError);
+    // A refused insert leaves nothing behind: its start is still free for another lead.
+    const other = await store.insertBooking(booking(b.id, 2), at(2));
+    expect(await store.getActiveBookingForLead(a.id)).toEqual(first);
+
+    // A cancelled booking holds nothing, but it cannot be brought back while the lead has an active one.
+    const old = await store.insertBooking(booking(a.id, 4, { status: 'cancelled' }), at(3));
+    await expect(store.updateBooking(old.id, { status: 'requested' }, at(4))).rejects.toBeInstanceOf(SlotConflictError);
+    expect(await store.getBookingByToken(old.manageToken)).toEqual(old);
+    // Changing the active booking itself is not blocked by the rule.
+    await store.updateBooking(first.id, { visitorTz: 'UTC', googleEventId: 'ev-1' }, at(4));
+
+    // Cancelling the first lets the lead book again, in any slot the first one freed or another.
+    await store.updateBooking(first.id, { status: 'cancelled' }, at(5));
+    const again = await store.insertBooking(booking(a.id, 1, { status: 'requested' }), at(6));
+    expect(await store.getActiveBookingForLead(a.id)).toEqual(again);
+    expect(await store.getActiveBookingForLead(b.id)).toEqual(other);
+  }));
+
+  it('two simultaneous inserts for one lead at different starts: exactly one wins', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1), T0);
+    const results = await Promise.allSettled([store.insertBooking(booking(a.id, 5), T0), store.insertBooking(booking(a.id, 6), T0)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(lost).toHaveLength(1);
+    expect(lost[0].reason).toBeInstanceOf(SlotConflictError);
+    expect(await store.getActiveBookingForLead(a.id)).not.toBeNull();
   }));
 
   it('finds a booking by token and the active booking for a lead', () => withStore(make, async (store) => {
@@ -149,6 +188,58 @@ export function storeContract(make: Make): void {
     // @ts-expect-error start, end and status are not clearable
     const notAllowed: BookingPatch = { status: null };
     void notAllowed;
+  }));
+
+  it('matches tokens and public ids exactly: letters of a different case are a different value', () => withStore(make, async (store) => {
+    const upper = await store.createLead(lead(1, { publicId: 'AbCdEfGh' }), T0);
+    expect(await store.getLeadByPublicId('AbCdEfGh')).toEqual(upper);
+    expect(await store.getLeadByPublicId('abcdefgh')).toBeNull();
+    expect(await store.getLeadByPublicId('ABCDEFGH')).toBeNull();
+
+    const made = await store.insertBooking(booking(upper.id, 1, { manageToken: 'Tok-AbC_123' }), T0);
+    expect(await store.getBookingByToken('Tok-AbC_123')).toEqual(made);
+    expect(await store.getBookingByToken('tok-abc_123')).toBeNull();
+    // Two ids that differ only in case are two leads.
+    const lower = await store.createLead(lead(2, { publicId: 'abcdefgh' }), T0);
+    expect(lower.id).not.toBe(upper.id);
+    expect(await store.getLeadByPublicId('abcdefgh')).toEqual(lower);
+  }));
+
+  it('getActiveBookingForLead returns the newest active booking, not the newest booking', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1), T0);
+    const first = await store.insertBooking(booking(a.id, 1), at(1));
+    await store.updateBooking(first.id, { status: 'cancelled' }, at(2));
+    const second = await store.insertBooking(booking(a.id, 2, { status: 'requested' }), at(3));
+    await store.updateBooking(second.id, { status: 'cancelled' }, at(4));
+    const third = await store.insertBooking(booking(a.id, 3), at(5));
+    // A newer booking that is cancelled does not hide the active one.
+    await store.insertBooking(booking(a.id, 4, { status: 'cancelled' }), at(6));
+
+    expect(await store.getActiveBookingForLead(a.id)).toEqual(third);
+    await store.updateBooking(third.id, { status: 'cancelled' }, at(7));
+    expect(await store.getActiveBookingForLead(a.id)).toBeNull();
+  }));
+
+  it('updating an unknown booking throws; updating an unknown lead or tracking event does nothing', () => withStore(make, async (store) => {
+    await expect(store.updateBooking(9999, { status: 'cancelled' }, T0)).rejects.toThrow(/not found/);
+    await expect(store.updateBooking(9999, { status: 'cancelled' }, T0)).rejects.not.toBeInstanceOf(SlotConflictError);
+    await expect(store.updateLead(9999, { status: 'booked' }, T0)).resolves.toBeUndefined();
+    await expect(store.updateTrackingEvent('no.such.event', { status: 'sent', attempts: 1 }, T0)).resolves.toBeUndefined();
+    // Nothing was created by the attempts.
+    expect(await store.getLead(9999)).toBeNull();
+    expect(await store.trackingEventsByStatus('sent')).toEqual([]);
+  }));
+
+  it('a lead or tracking patch: undefined keeps the stored value', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1), T0);
+    await store.updateLead(a.id, { status: 'booked', newLeadNotifiedAt: at(3) }, at(3));
+    await store.updateLead(a.id, { status: undefined, newLeadNotifiedAt: undefined }, at(4));
+    expect(await store.getLead(a.id)).toMatchObject({ status: 'booked', newLeadNotifiedAt: at(3) });
+
+    await store.recordTrackingEvent(tracking('keep.one'), T0);
+    await store.updateTrackingEvent('keep.one', { status: 'failed', attempts: 2, error: 'timeout' }, at(1));
+    await store.updateTrackingEvent('keep.one', { status: undefined, attempts: undefined, error: undefined }, at(2));
+    expect(await store.trackingEventsByStatus('failed')).toEqual([expect.objectContaining({ eventId: 'keep.one', attempts: 2, error: 'timeout' })]);
   }));
 
   it('lists bookings starting in a range and leads created in a range', () => withStore(make, async (store) => {
