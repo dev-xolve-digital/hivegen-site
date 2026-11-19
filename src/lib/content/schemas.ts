@@ -134,6 +134,7 @@ export const sectionSchemas = {
     noSlots: text,
     confirmation: z.strictObject({ heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, calendarTitle: text, instagramLabel: text }),
     errors: z.strictObject({ name: text, email: text, slotTaken: text, unreachable: text }),
+    calendarEvent: z.strictObject({ title: text, description: text }),
     demoNote: text,
   }),
   faq: z.strictObject({ heading: text, items: z.array(z.strictObject({ q: text, a: text })) }),

@@ -51,4 +51,9 @@ errors:
   slotTaken: That time was just taken. Please pick another one.
   # [confirm: how fast Hassan replies]
   unreachable: Your details are saved. We'll confirm your time by email shortly.
+# The calendar invite the visitor receives. {name} and {manageUrl} are filled in by the site.
+# Keep personal details (phone, volume, ads) out of the description: the visitor sees it in their calendar.
+calendarEvent:
+  title: "HiveGen call · {name}"
+  description: "Your 15-minute call with HiveGen. Join with the Google Meet link in this invite. To reschedule or cancel: {manageUrl}"
 demoNote: "Demo booking: no real call is booked yet. Real calendar booking arrives in the next phase."
