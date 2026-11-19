@@ -26,3 +26,9 @@ it('a section 05 mode without its clips says to run npm run media', () => {
   });
   expect(() => loadSection('before-after')).toThrow(/before-after\.yaml: public\/media\/clips\/ba-reveal\.mp4 is missing; run npm run media \(field reveal\)/);
 });
+it('the manage-booking words: the rescheduled text must keep {when}, and a missing word is named with its field', () => {
+  process.env.CONTENT_DIR = tempContent({ 'sections/manage-booking.yaml': (s) => s.replace(/^(rescheduledText:.*)\{when\}/m, '$1then') });
+  expect(() => loadSection('manage-booking')).toThrow(/manage-booking\.yaml: "rescheduledText" must keep the \{when\} placeholder \(field rescheduledText\)/);
+  process.env.CONTENT_DIR = tempContent({ 'sections/manage-booking.yaml': (s) => s.replace(/^tooLateText:.*\n/m, '') });
+  expect(() => loadSection('manage-booking')).toThrow(/manage-booking\.yaml: "tooLateText" is missing \(field tooLateText\)/);
+});

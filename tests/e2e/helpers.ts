@@ -36,10 +36,10 @@ export const book = (request: APIRequestContext, leadId: string, start: string, 
   request.post('/api/booking/bookings', { data: { leadId, start, visitorTz } });
 
 /** A new lead books the offered time at `slotIndex`; gives the booking and the manage token from its link. */
-export async function bookNewLead(request: APIRequestContext, slotIndex = 5): Promise<{ booked: Booked; token: string; slots: Slot[] }> {
+export async function bookNewLead(request: APIRequestContext, slotIndex = 5, visitorTz?: string): Promise<{ booked: Booked; token: string; slots: Slot[] }> {
   const leadId = await createLead(request);
   const { slots } = await getSlots(request);
-  const res = await book(request, leadId, slots[slotIndex].start);
+  const res = await book(request, leadId, slots[slotIndex].start, visitorTz);
   expect(res.status(), 'POST /api/booking/bookings').toBe(200);
   const booked = (await res.json()) as Booked;
   return { booked, token: booked.manageUrl.split('/').pop()!, slots };

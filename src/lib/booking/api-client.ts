@@ -19,7 +19,14 @@ export interface BookingApi {
   confirm(leadId: string, slot: Slot, visitorTz: string): Promise<Booked>;
 }
 
-/** Thrown by confirm() when someone else booked the time first. */
+/** What the manage page does with one booking (the token is the link's own): the offered times, cancelling, and moving the call. */
+export interface ManageApi {
+  getSlots: BookingApi['getSlots'];
+  cancel(): Promise<void>;
+  reschedule(slot: Slot): Promise<{ status: 'booked' | 'requested'; start: string; end: string }>;
+}
+
+/** Thrown by confirm() and reschedule() when someone else booked the time first. */
 export class SlotTakenError extends Error { constructor() { super('slot_taken'); this.name = 'SlotTakenError'; } }
 /** The server refused the form; `fields` names each bad field with a code ('required', 'invalid', 'too_long'). */
 export class FieldsError extends Error {
@@ -29,6 +36,8 @@ export class FieldsError extends Error {
 /** The bot check failed (or its token never came). */
 export class BotCheckError extends Error { constructor() { super('bot_check_failed'); this.name = 'BotCheckError'; } }
 export class RateLimitedError extends Error { constructor() { super('rate_limited'); this.name = 'RateLimitedError'; } }
+/** The change came too late: the call is too close (rescheduling) or has started (cancelling). */
+export class TooLateError extends Error { constructor() { super('too_late'); this.name = 'TooLateError'; } }
 /** The server could not be reached, or answered something the page cannot use. */
 export class NetworkError extends Error { constructor() { super('network'); this.name = 'NetworkError'; } }
 
@@ -41,9 +50,12 @@ const CALL_TIMEOUT_MS = 15_000;
 /** A signal that aborts after `ms`. A browser too old to have AbortSignal.timeout simply waits, as it did before. */
 export const timeoutSignal = (ms: number): AbortSignal | undefined => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(ms) : undefined);
 
-/** The booking server's own API (`/api/booking/*`). Every failure, a call that takes too long included, becomes one of the errors above. */
-export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): BookingApi {
-  async function call(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
+/**
+ * One call to the booking server over `fetchFn`, with the time limit. Every failure becomes one of the errors above: a call that takes too long,
+ * a connection that fails and an answer the page cannot use are a NetworkError. A 409 is a TooLateError or a SlotTakenError, as the answer says.
+ */
+function caller(fetchFn: typeof fetch, timeoutMs: number) {
+  return async function call(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
     let res: Response;
     try {
       res = await fetchFn(path, { ...init, signal: timeoutSignal(timeoutMs) });
@@ -59,30 +71,56 @@ export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_
     }
     if (res.status === 400) throw new FieldsError(isObject(body) && isObject(body.fields) ? (body.fields as Record<string, string>) : {});
     if (res.status === 403) throw new BotCheckError();
-    if (res.status === 409) throw new SlotTakenError();
+    if (res.status === 409) throw isObject(body) && body.error === 'too_late' ? new TooLateError() : new SlotTakenError();
     if (res.status === 429) throw new RateLimitedError();
     throw new NetworkError();
-  }
-  const post = (path: string, data: unknown) => call(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+  };
+}
+const postJson = (call: ReturnType<typeof caller>, path: string, data?: unknown) =>
+  call(path, { method: 'POST', ...(data !== undefined && { headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }) });
 
+/** The offered times, as the booking form and the manage page both read them. */
+async function readSlots(call: ReturnType<typeof caller>): Promise<{ slots: Slot[]; calendarChecked: boolean }> {
+  const out = await call('/api/booking/slots', { cache: 'no-store' });
+  if (!Array.isArray(out.slots) || !out.slots.every(isSlot) || typeof out.calendarChecked !== 'boolean') throw new NetworkError();
+  return { slots: out.slots, calendarChecked: out.calendarChecked };
+}
+
+/** The booking server's own API (`/api/booking/*`). Every failure, a call that takes too long included, becomes one of the errors above. */
+export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): BookingApi {
+  const call = caller(fetchFn, timeoutMs);
   return {
     async createLead(input) {
-      const out = await post('/api/booking/leads', input);
+      const out = await postJson(call, '/api/booking/leads', input);
       if (typeof out.leadId !== 'string' || typeof out.eventId !== 'string') throw new NetworkError();
       return { leadId: out.leadId, eventId: out.eventId };
     },
-    async getSlots() {
-      const out = await call('/api/booking/slots', { cache: 'no-store' });
-      if (!Array.isArray(out.slots) || !out.slots.every(isSlot) || typeof out.calendarChecked !== 'boolean') throw new NetworkError();
-      return { slots: out.slots, calendarChecked: out.calendarChecked };
-    },
+    getSlots: () => readSlots(call),
     async confirm(leadId, slot, visitorTz) {
-      const out = await post('/api/booking/bookings', { leadId, start: slot.start, visitorTz });
+      const out = await postJson(call, '/api/booking/bookings', { leadId, start: slot.start, visitorTz });
       const { status, start, end, meetUrl, manageUrl, eventId } = out;
       if ((status !== 'booked' && status !== 'requested') || typeof start !== 'string' || typeof end !== 'string' || typeof manageUrl !== 'string' || typeof eventId !== 'string') {
         throw new NetworkError();
       }
       return { status, start, end, manageUrl, eventId, ...(typeof meetUrl === 'string' && { meetUrl }) };
+    },
+  };
+}
+
+/** The manage routes of one booking (`/api/booking/manage/<token>/*`), with the same limits and errors as httpApi. */
+export function httpManageApi(token: string, fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): ManageApi {
+  const call = caller(fetchFn, timeoutMs);
+  const route = (action: 'cancel' | 'reschedule') => `/api/booking/manage/${encodeURIComponent(token)}/${action}`;
+  return {
+    getSlots: () => readSlots(call),
+    async cancel() {
+      const out = await postJson(call, route('cancel'));
+      if (out.status !== 'cancelled') throw new NetworkError();
+    },
+    async reschedule(slot) {
+      const { status, start, end } = await postJson(call, route('reschedule'), { start: slot.start });
+      if ((status !== 'booked' && status !== 'requested') || typeof start !== 'string' || typeof end !== 'string') throw new NetworkError();
+      return { status, start, end };
     },
   };
 }

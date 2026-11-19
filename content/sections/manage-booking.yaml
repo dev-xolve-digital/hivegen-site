@@ -1,0 +1,20 @@
+# The page a visitor reaches from "Reschedule or cancel" in their email or on the booking confirmation.
+# Words in {curly braces} are filled in by the site; keep them as they are. {when} is a call time, in the visitor's own time zone,
+# e.g. "Monday, December 7, 9:00 AM EST". rescheduledText must keep {when}.
+title: Your HiveGen call
+heading: Your call with HiveGen
+whenLabel: When
+meetLabel: Google Meet link
+rescheduleLabel: Reschedule
+rescheduleHeading: Pick a new time
+confirmRescheduleLabel: Confirm new time
+cancelLabel: Cancel call
+cancelConfirmText: Are you sure you want to cancel this call?
+cancelConfirmLabel: Yes, cancel it
+keepLabel: Keep my call
+cancelledText: Your call on {when} is cancelled. You can book a new time on our site whenever you like.
+rescheduledText: Done. Your call is now on {when}.
+# Shown when a change is no longer possible online: rescheduling closes an hour before the call, and cancelling when it starts.
+tooLateText: It's too close to the call time to do that here. Message us on Instagram and we'll sort it out.
+notFoundText: We couldn't find that booking. The link may be old or mistyped.
+errorText: Something went wrong on our side. Please try again in a moment, or message us on Instagram.

@@ -37,7 +37,7 @@ export function renderSlotPicker(
     const b = doc.createElement('button');
     b.type = 'button';
     const [weekday, ...rest] = g.label.split(', ');
-    b.innerHTML = '<span></span><b></b>';
+    b.innerHTML = '<span></span> <b></b>'; // the space keeps the shown words apart for assistive technology
     b.querySelector('span')!.textContent = weekday;
     b.querySelector('b')!.textContent = rest.join(', ');
     b.setAttribute('aria-label', g.label);

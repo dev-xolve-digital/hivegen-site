@@ -3,6 +3,7 @@ import {
   type Booked, type BookingApi, type BuyerType, type LeadInput,
 } from '../lib/booking/api-client';
 import { formatSlotLong } from '../lib/booking/format';
+import { fillPlaceholders } from '../lib/text';
 import type { Slot } from '../lib/booking/slots';
 import { browserStorage, readAttribution } from './attribution';
 import { renderSlotPicker } from './slot-picker';
@@ -34,7 +35,6 @@ const FIELDS: Field[] = ['name', 'email', 'phone', 'buyer', 'volume', 'footage']
 const FIELD_OF_SERVER: Record<string, Field | undefined> = { name: 'name', email: 'email', phone: 'phone', buyerType: 'buyer', volume: 'volume', footageUrl: 'footage' };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const fill = (s: string, vars: Record<string, string>) => s.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 const gcalDate = (iso: string) => iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 /** The server's own tags cannot be longer than this; the Facebook cookies are cut to fit. */
 const cookie = (doc: Document, name: string) => doc.cookie.split('; ').find((c) => c.startsWith(`${name}=`))?.slice(name.length + 1).slice(0, 200) || undefined;
@@ -182,11 +182,11 @@ export function initBooking(root: HTMLElement, api: BookingApi, opts: BookingOpt
     const requested = booked.status === 'requested';
     // A request is not a booking: its wording never promises one, and the calendar button and next steps wait for the confirmation.
     $('[data-done-heading]').textContent = requested ? copy.requested.heading : copy.confirmation.heading;
-    $('[data-done-text]').textContent = fill(requested ? copy.requested.text : copy.confirmation.text, { email, when });
+    $('[data-done-text]').textContent = fillPlaceholders(requested ? copy.requested.text : copy.confirmation.text, { email, when });
     $('[data-done-next]').hidden = requested;
     $('[data-done-steps]').replaceChildren(...copy.confirmation.nextSteps.map((s) => {
       const li = doc.createElement('li');
-      li.textContent = fill(s, { when });
+      li.textContent = fillPlaceholders(s, { when });
       return li;
     }));
     const calendar = $<HTMLAnchorElement>('[data-calendar]');
@@ -225,6 +225,6 @@ export function initBooking(root: HTMLElement, api: BookingApi, opts: BookingOpt
     showDone(booked);
   });
 
-  $('[data-time-note]').textContent = fill(copy.timeNote, { timezone: tz.replace(/_/g, ' ') });
+  $('[data-time-note]').textContent = fillPlaceholders(copy.timeNote, { timezone: tz.replace(/_/g, ' ') });
   showStep(1);
 }

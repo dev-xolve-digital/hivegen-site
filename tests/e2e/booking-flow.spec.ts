@@ -1,10 +1,13 @@
 import { type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures';
 import { loadSection } from '../../src/lib/content/load';
-import { groupByLocalDay } from '../../src/lib/booking/format';
-import { book, bookNewLead, createLead, getSlots, goodLead, outbox, resetServer, setCalendar, trackedEvents } from './helpers';
+import { formatSlotLong, formatSlotTime, groupByLocalDay } from '../../src/lib/booking/format';
+import { fillPlaceholders } from '../../src/lib/text';
+import { book, bookNewLead, createLead, getSlots, goodLead, outbox, resetServer, setCalendar, trackedEvents, type Slot } from './helpers';
 
 const b = loadSection('booking');
+const mg = loadSection('manage-booking');
 
 // Every browser test that changes server state lives in this file. They share the test server's memory, so they run one at a time,
 // on the desktop project only, and each starts from an empty server. Other spec files must not change server state.
@@ -17,8 +20,11 @@ test.beforeEach(async ({ request }) => { await resetServer(request); });
 async function fillDetails(page: Page, who: { name?: string; email?: string; buyer?: string; volume?: string } = {}): Promise<void> {
   await page.getByLabel(b.fields.name).fill(who.name ?? 'Zoë O’Brien');
   await page.getByLabel(b.fields.email).fill(who.email ?? 'zoe+ui@example.com');
-  await page.getByRole('radio', { name: who.buyer ?? 'Agent', exact: true }).check({ force: true });
-  await page.getByRole('radio', { name: who.volume ?? b.volumeOptions[1], exact: true }).check({ force: true });
+  // The radio itself is hidden and its pill is the control: click the pill, which waits for the page to settle (a forced check on the
+  // hidden radio could miss it when the layout was still moving).
+  const choose = (name: string) => page.locator('label').filter({ has: page.getByRole('radio', { name, exact: true }) }).click();
+  await choose(who.buyer ?? 'Agent');
+  await choose(who.volume ?? b.volumeOptions[1]);
 }
 
 /** Step 1, then the first offered time picked, ready to confirm. */
@@ -240,4 +246,237 @@ test('the visitor\'s ad tags reach the lead', async ({ page, request }) => {
   expect(hassan.text).toContain('Page: agents');
   const lead = (await trackedEvents(request)).find((e) => e.name === 'Lead')!;
   expect(lead.user.fbc).toMatch(/^fb\.1\.\d+\.x$/); // built from the fbclid the visitor arrived with
+});
+
+// The manage page (/booking/<token>) in a real browser: each booking is made through the HTTP API, as an email link would lead to it.
+
+const TZ = 'America/New_York';
+const manageNotice = (page: Page) => page.getByTestId('manage-notice');
+const manageWhen = (page: Page) => page.getByTestId('manage-when');
+const outboxKinds = async (request: Parameters<typeof outbox>[0]) => (await outbox(request)).map((m) => m.kind);
+
+/** In the reschedule picker: the day of `target`, then its time. */
+async function pickTime(page: Page, slots: Slot[], target: Slot): Promise<void> {
+  const day = groupByLocalDay(slots, TZ).findIndex((g) => g.slots.some((s) => s.start === target.start));
+  await page.locator('[data-days] button').nth(day).click();
+  await page.getByRole('button', { name: formatSlotTime(target, TZ), exact: true }).click();
+}
+
+test('the manage page shows the call time and the Meet link', async ({ page, request }) => {
+  const { booked, token, slots } = await bookNewLead(request, 5);
+  await page.goto(`/booking/${token}`);
+
+  await expect(page).toHaveTitle(mg.title);
+  await expect(page.getByRole('heading', { level: 1, name: mg.heading })).toBeVisible();
+  await expect(page.getByText(mg.whenLabel, { exact: true })).toBeVisible();
+  await expect(manageWhen(page)).toHaveText(formatSlotLong(slots[5], TZ));
+  await expect(page.getByText(mg.meetLabel, { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: booked.meetUrl!.replace(/^https:\/\//, '') })).toHaveAttribute('href', booked.meetUrl!);
+  await expect(page.getByRole('button', { name: mg.rescheduleLabel })).toBeVisible();
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeVisible();
+  // Nothing the visitor typed (name, email, phone) is in the page: only their own call.
+  const html = await page.content();
+  for (const secret of ['zoe+ads@example.com', 'O’Brien', '555) 010-2000', 'drive.google.com']) expect(html).not.toContain(secret);
+});
+
+test('the time is shown, with its zone, in the zone the visitor booked in, whatever the browser\'s zone is', async ({ page, request }) => {
+  const { token, slots } = await bookNewLead(request, 5, 'Asia/Tokyo');
+  await page.goto(`/booking/${token}`); // this browser is in New York
+  await expect(manageWhen(page)).toHaveText(formatSlotLong(slots[5], 'Asia/Tokyo'));
+  await expect(manageWhen(page)).toContainText('GMT+9');
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await expect(page.getByText(fillPlaceholders(b.timeNote, { timezone: 'Asia/Tokyo' }))).toBeVisible();
+});
+
+test('rescheduling moves the call and sends the "rescheduled" emails', async ({ page, request }) => {
+  const { token, slots } = await bookNewLead(request, 5);
+  const target = slots[9];
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await expect(page.getByRole('heading', { name: mg.rescheduleHeading })).toBeVisible();
+  const confirm = page.getByRole('button', { name: mg.confirmRescheduleLabel });
+  await expect(confirm).toBeDisabled(); // until a time is picked
+  await pickTime(page, slots, target);
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+
+  const when = formatSlotLong(target, TZ);
+  await expect(manageNotice(page)).toHaveText(fillPlaceholders(mg.rescheduledText, { when }));
+  await expect(manageWhen(page)).toHaveText(when);
+  await expect(page.getByRole('heading', { name: mg.rescheduleHeading })).toBeHidden();
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking', 'booking-rescheduled', 'hassan-booking-changed']);
+  const offered = (await getSlots(request)).slots.map((s) => s.start);
+  expect(offered).toContain(slots[5].start); // the old time is free again
+  expect(offered).not.toContain(target.start);
+
+  await page.reload();
+  await expect(manageWhen(page)).toHaveText(when);
+});
+
+test('a time taken meanwhile shows the message and fresh times, and nothing moves', async ({ page, request }) => {
+  const { token, slots } = await bookNewLead(request, 5);
+  const target = slots[9];
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await pickTime(page, slots, target);
+  await setCalendar(request, { busy: [target] }); // someone else gets that time first
+  await page.getByRole('button', { name: mg.confirmRescheduleLabel }).click();
+
+  await expect(page.getByText(b.errors.slotTaken)).toBeVisible();
+  await expect(page.getByRole('button', { name: mg.confirmRescheduleLabel })).toBeDisabled(); // pick again
+  await expect(page.getByRole('button', { name: formatSlotTime(target, TZ), exact: true })).toHaveCount(0); // fresh times, without it
+  await expect(manageWhen(page)).toHaveText(formatSlotLong(slots[5], TZ));
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking']);
+
+  await setCalendar(request, { busy: [] });
+  await pickTime(page, slots, slots[10]);
+  await page.getByRole('button', { name: mg.confirmRescheduleLabel }).click();
+  await expect(manageNotice(page)).toHaveText(fillPlaceholders(mg.rescheduledText, { when: formatSlotLong(slots[10], TZ) }));
+});
+
+test('cancelling asks first, then cancels and sends the "cancelled" emails', async ({ page, request }) => {
+  const { token, slots } = await bookNewLead(request, 5);
+  await page.goto(`/booking/${token}`);
+  await expect(page.getByText(mg.cancelConfirmText)).toBeHidden();
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await expect(page.getByText(mg.cancelConfirmText)).toBeVisible();
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking']); // asking is not cancelling
+
+  await page.getByRole('button', { name: mg.keepLabel }).click();
+  await expect(page.getByText(mg.cancelConfirmText)).toBeHidden();
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking']);
+
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await page.getByRole('button', { name: mg.cancelConfirmLabel }).click();
+  const when = formatSlotLong(slots[5], TZ);
+  await expect(manageNotice(page)).toHaveText(fillPlaceholders(mg.cancelledText, { when }));
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeHidden();
+  await expect(page.getByRole('button', { name: mg.rescheduleLabel })).toBeHidden();
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking', 'booking-cancelled', 'hassan-booking-changed']);
+  expect((await getSlots(request)).slots.map((s) => s.start)).toContain(slots[5].start); // the time is free again
+
+  // The same link later: still cancelled, nothing left to press.
+  await page.reload();
+  await expect(manageNotice(page)).toHaveText(fillPlaceholders(mg.cancelledText, { when }));
+  await expect(page.getByRole('button')).toHaveCount(0);
+});
+
+test('a booking that is only requested can be cancelled but not rescheduled, and has no Meet link', async ({ page, request }) => {
+  await setCalendar(request, { down: true });
+  const { booked, token } = await bookNewLead(request, 5);
+  expect(booked.status).toBe('requested');
+  await page.goto(`/booking/${token}`);
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeVisible();
+  await expect(page.getByRole('button', { name: mg.rescheduleLabel })).toHaveCount(0);
+  await expect(page.getByText(mg.meetLabel, { exact: true })).toHaveCount(0);
+  await expect(manageNotice(page)).toBeHidden(); // cancelling is still possible: nothing to explain
+
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await page.getByRole('button', { name: mg.cancelConfirmLabel }).click();
+  await expect(manageNotice(page)).toContainText(mg.cancelledText.split('{when}')[0].trim());
+});
+
+test('an unknown link shows the not-found text with status 404', async ({ page }) => {
+  const res = await page.goto(`/booking/${'x'.repeat(43)}`);
+  expect(res!.status()).toBe(404);
+  expect(res!.headers()['cache-control']).toBe('no-store');
+  await expect(page.getByText(mg.notFoundText)).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  await expect(page.getByRole('button')).toHaveCount(0); // nothing to press, and no time or link to see
+});
+
+test('the manage page is not indexed and not cached', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  const res = await page.goto(`/booking/${token}`);
+  expect(res!.status()).toBe(200);
+  expect(res!.headers()['cache-control']).toBe('no-store');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+});
+
+test('a "too late" answer hides the action and says so; the other action stays', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  await page.route('**/api/booking/manage/*/reschedule', (route) => route.fulfill({ status: 409, json: { error: 'too_late' } }));
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await page.getByTestId('slot').first().click();
+  await page.getByRole('button', { name: mg.confirmRescheduleLabel }).click();
+
+  await expect(manageNotice(page)).toHaveText(mg.tooLateText);
+  await expect(page.getByRole('button', { name: mg.rescheduleLabel })).toBeHidden();
+  await expect(page.getByRole('button', { name: mg.confirmRescheduleLabel })).toBeHidden();
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeVisible();
+
+  await page.route('**/api/booking/manage/*/cancel', (route) => route.fulfill({ status: 409, json: { error: 'too_late' } }));
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await page.getByRole('button', { name: mg.cancelConfirmLabel }).click();
+  await expect(manageNotice(page)).toHaveText(mg.tooLateText);
+  await expect(page.getByRole('button')).toHaveCount(0); // too late for both
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking']);
+});
+
+test('a failed request shows the error text, nothing changes, and trying again works', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  await page.route('**/api/booking/manage/*/cancel', (route) => route.abort());
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await page.getByRole('button', { name: mg.cancelConfirmLabel }).click();
+
+  await expect(page.getByText(mg.errorText)).toBeVisible();
+  await expect(page.getByRole('button', { name: mg.cancelConfirmLabel })).toBeEnabled();
+  await expect(page.getByRole('button', { name: mg.cancelConfirmLabel })).toBeFocused(); // a keyboard user is still where they were
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeEnabled();
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking']);
+
+  await page.unroute('**/api/booking/manage/*/cancel');
+  await page.getByRole('button', { name: mg.cancelConfirmLabel }).click();
+  await expect(manageNotice(page)).toContainText(mg.cancelledText.split('{when}')[0].trim());
+  await expect(page.getByText(mg.errorText)).toBeHidden();
+});
+
+test('a double click on Confirm cancel sends one request, and the buttons are disabled while it is in flight', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  const posts: string[] = [];
+  await page.route('**/api/booking/manage/*/cancel', async (route) => {
+    posts.push(route.request().url());
+    await new Promise((resolve) => setTimeout(resolve, 400)); // a slow answer
+    await route.continue();
+  });
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  const confirm = page.getByRole('button', { name: mg.cancelConfirmLabel });
+  await confirm.dblclick();
+  await expect(confirm).toBeDisabled();
+  await expect(page.getByRole('button', { name: mg.cancelLabel })).toBeDisabled();
+  await expect(manageNotice(page)).toContainText(mg.cancelledText.split('{when}')[0].trim());
+  expect(posts).toHaveLength(1);
+  expect(await outboxKinds(request)).toEqual(['booking-confirmed', 'hassan-new-booking', 'booking-cancelled', 'hassan-booking-changed']);
+});
+
+test('a double click on Confirm reschedule sends one request', async ({ page, request }) => {
+  const { token, slots } = await bookNewLead(request, 5);
+  const posts: string[] = [];
+  await page.route('**/api/booking/manage/*/reschedule', async (route) => {
+    posts.push(route.request().url());
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.continue();
+  });
+  await page.goto(`/booking/${token}`);
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await pickTime(page, slots, slots[9]);
+  await page.getByRole('button', { name: mg.confirmRescheduleLabel }).dblclick();
+  await expect(manageNotice(page)).toContainText(mg.rescheduledText.split('{when}')[0].trim());
+  expect(posts).toHaveLength(1);
+  expect((await outboxKinds(request)).filter((k) => k === 'booking-rescheduled')).toHaveLength(1);
+});
+
+test('axe: the manage page, with its panels open, has no serious or critical issues', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  await page.goto(`/booking/${token}`);
+  const serious = async () => (await new AxeBuilder({ page }).analyze()).violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  expect(await serious()).toEqual([]);
+  await page.getByRole('button', { name: mg.rescheduleLabel }).click();
+  await page.getByTestId('slot').first().click();
+  await page.getByRole('button', { name: mg.cancelLabel }).click();
+  await expect(page.getByText(mg.cancelConfirmText)).toBeVisible();
+  expect(await serious()).toEqual([]);
 });

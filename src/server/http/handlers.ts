@@ -18,7 +18,7 @@ const fail = (error: ErrorCode, fields?: Record<string, FieldCode>) => json({ er
 const answer = <T>(result: Result<T>) => (result.ok ? json(result.value) : fail(result.error, result.fields));
 
 /** The kind of an unexpected error, and its code (a database's, for one), never its message: that could hold what the visitor typed. */
-const kindOf = (e: unknown) => {
+export const kindOf = (e: unknown) => {
   const code = (e as { code?: unknown } | null)?.code;
   return `${e instanceof Error ? e.name : 'unknown error'}${typeof code === 'string' ? ` ${code}` : ''}`;
 };

@@ -166,6 +166,15 @@ export const sectionSchemas = {
   'final-cta': z.strictObject({ headingLines: z.array(text).min(1), highlight: text, subline: text, ctaLabel: text, instagramLabel: text }),
   footer: z.strictObject({ copyright: text, tagline: text, links: z.array(link) }),
   'not-found': z.strictObject({ title: text, heading: text, text: text }),
+  /** The reschedule/cancel page. {when} in the two result texts is the call time; the rescheduled text must show it. */
+  'manage-booking': z.strictObject({
+    title: text, heading: text, whenLabel: text, meetLabel: text,
+    rescheduleLabel: text, rescheduleHeading: text, confirmRescheduleLabel: text,
+    cancelLabel: text, cancelConfirmText: text, cancelConfirmLabel: text, keepLabel: text,
+    cancelledText: text,
+    rescheduledText: text.refine((s) => s.includes('{when}'), 'must keep the {when} placeholder'),
+    tooLateText: text, notFoundText: text, errorText: text,
+  }),
 };
 
 /** One email: a subject, a body and optionally one button. Words in {curly braces} are filled in when it is sent. */

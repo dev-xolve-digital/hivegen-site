@@ -14,3 +14,8 @@ export function fillTerms(template: string, min: number, revisions: number): str
 export function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
+
+/** Fills {name} placeholders from `values` in one pass, so a value is never read as a placeholder. One that is not in `values` stays as written. */
+export function fillPlaceholders(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key: string) => values[key] ?? whole);
+}

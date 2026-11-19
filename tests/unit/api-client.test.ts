@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  BotCheckError, FieldsError, NetworkError, RateLimitedError, SlotTakenError, demoApi, httpApi, type BookingApi,
+  BotCheckError, FieldsError, NetworkError, RateLimitedError, SlotTakenError, TooLateError, demoApi, httpApi, httpManageApi, type BookingApi,
 } from '../../src/lib/booking/api-client';
 import { loadSite } from '../../src/lib/content/load';
 
@@ -108,6 +108,81 @@ describe('httpApi: a stalled connection', () => {
       return Promise.resolve(new Response(body, { status: 200 }));
     });
     await expect(httpApi(stalledBody, 30).createLead(lead)).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+describe('httpManageApi', () => {
+  const TOKEN = 'T'.repeat(43);
+  const manageApiAnswering = (answer: () => Response | Promise<Response>) => {
+    const fetchFn = vi.fn<typeof fetch>(async () => answer());
+    return { api: httpManageApi(TOKEN, fetchFn), fetchFn };
+  };
+
+  it('cancel posts to the cancel route of its own booking', async () => {
+    const { api, fetchFn } = manageApiAnswering(() => reply({ status: 'cancelled' }));
+    await expect(api.cancel()).resolves.toBeUndefined();
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe(`/api/booking/manage/${TOKEN}/cancel`);
+    expect(init?.method).toBe('POST');
+  });
+
+  it('reschedule posts the chosen start and gives back the moved call', async () => {
+    const moved = { status: 'booked', start: slot.start, end: slot.end };
+    const { api, fetchFn } = manageApiAnswering(() => reply(moved));
+    expect(await api.reschedule(slot)).toEqual(moved);
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe(`/api/booking/manage/${TOKEN}/reschedule`);
+    expect(JSON.parse(String(init?.body))).toEqual({ start: slot.start });
+    expect(new Headers(init?.headers).get('content-type')).toBe('application/json');
+  });
+
+  it('getSlots is the same call the booking form makes', async () => {
+    const { api, fetchFn } = manageApiAnswering(() => reply({ slots: [slot], calendarChecked: true }));
+    expect(await api.getSlots()).toEqual({ slots: [slot], calendarChecked: true });
+    expect(fetchFn.mock.calls[0][0]).toBe('/api/booking/slots');
+  });
+
+  it('a token with unusual characters cannot change the route', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => reply({ status: 'cancelled' }));
+    await httpManageApi('a/b?c#d', fetchFn).cancel();
+    expect(fetchFn.mock.calls[0][0]).toBe('/api/booking/manage/a%2Fb%3Fc%23d/cancel');
+  });
+
+  it('409 too_late is a TooLateError and 409 slot_taken a SlotTakenError (the same status, told apart by the answer)', async () => {
+    const tooLate = manageApiAnswering(() => reply({ error: 'too_late' }, 409)).api;
+    await expect(tooLate.cancel()).rejects.toBeInstanceOf(TooLateError);
+    await expect(tooLate.reschedule(slot)).rejects.toBeInstanceOf(TooLateError);
+    const taken = manageApiAnswering(() => reply({ error: 'slot_taken' }, 409)).api;
+    await expect(taken.reschedule(slot)).rejects.toBeInstanceOf(SlotTakenError);
+    await expect(manageApiAnswering(() => reply({}, 409)).api.reschedule(slot)).rejects.toBeInstanceOf(SlotTakenError);
+  });
+
+  it('429 is a RateLimitedError; 404, 500 and 503 are NetworkErrors; a 400 is the server calling the request invalid', async () => {
+    await expect(manageApiAnswering(() => reply({ error: 'rate_limited' }, 429)).api.cancel()).rejects.toBeInstanceOf(RateLimitedError);
+    for (const status of [404, 500, 503]) {
+      await expect(manageApiAnswering(() => reply({ error: 'x' }, status)).api.cancel(), String(status)).rejects.toBeInstanceOf(NetworkError);
+    }
+    await expect(manageApiAnswering(() => reply({ error: 'invalid' }, 400)).api.reschedule(slot)).rejects.toBeInstanceOf(FieldsError);
+  });
+
+  it('an answer of the wrong shape is a NetworkError, so the page never claims a change that was not confirmed', async () => {
+    await expect(manageApiAnswering(() => reply({ status: 'booked' })).api.cancel()).rejects.toBeInstanceOf(NetworkError);
+    await expect(manageApiAnswering(() => reply({})).api.reschedule(slot)).rejects.toBeInstanceOf(NetworkError);
+    await expect(manageApiAnswering(() => new Response('<html></html>')).api.cancel()).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it('a fetch that fails, or stalls past the timeout (15 seconds by default), is a NetworkError', async () => {
+    const failing = httpManageApi(TOKEN, vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); }));
+    await expect(failing.cancel()).rejects.toBeInstanceOf(NetworkError);
+
+    const stalled = httpManageApi(TOKEN, stalledFetch(), 30);
+    await expect(stalled.cancel()).rejects.toBeInstanceOf(NetworkError);
+    await expect(stalled.reschedule(slot)).rejects.toBeInstanceOf(NetworkError);
+    await expect(stalled.getSlots()).rejects.toBeInstanceOf(NetworkError);
+
+    const seen: Array<AbortSignal | null | undefined> = [];
+    await httpManageApi(TOKEN, vi.fn<typeof fetch>(async (_input, init) => { seen.push(init?.signal); return reply({ status: 'cancelled' }); })).cancel();
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
   });
 });
 

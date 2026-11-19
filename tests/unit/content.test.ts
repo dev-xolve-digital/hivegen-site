@@ -5,7 +5,7 @@ beforeEach(() => { delete process.env.CONTENT_DIR; });
 it('loads every real content file', () => {
   expect(listPages().map((p) => p.slug)).toEqual(['', 'agencies', 'videographers', 'agents']);
   for (const s of ['nav', 'hero', 'recent-edits', 'who-its-for', 'how-it-works', 'before-after',
-    'plans', 'booking', 'faq', 'final-cta', 'footer'] as const) expect(() => loadSection(s)).not.toThrow();
+    'plans', 'booking', 'faq', 'final-cta', 'footer', 'not-found', 'manage-booking'] as const) expect(() => loadSection(s)).not.toThrow();
 });
 it('headlines match the copy deck', () => {
   expect(loadPage('').hero.headline).toEqual(['You shoot.', 'We edit.', 'Homes sell.']);
