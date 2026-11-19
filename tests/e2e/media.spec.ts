@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 const CF = /^https:\/\/imagedelivery\.net\/[\w-]+\/[\w-]+\/public$/;
 
 test('card images, the hero poster, 3D stills and message screenshots come from Cloudflare Images', async ({ page }) => {

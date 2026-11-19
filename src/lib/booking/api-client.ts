@@ -35,15 +35,22 @@ export class NetworkError extends Error { constructor() { super('network'); this
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isSlot = (v: unknown): v is Slot => isObject(v) && typeof v.start === 'string' && typeof v.end === 'string';
 
-/** The booking server's own API (`/api/booking/*`). Every failure becomes one of the errors above. */
-export function httpApi(fetchFn: typeof fetch = fetch): BookingApi {
+/** How long a call to the booking server may take before the page gives up on it (a stalled phone connection would otherwise wait for minutes). */
+const CALL_TIMEOUT_MS = 15_000;
+
+/** A signal that aborts after `ms`. A browser too old to have AbortSignal.timeout simply waits, as it did before. */
+export const timeoutSignal = (ms: number): AbortSignal | undefined => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(ms) : undefined);
+
+/** The booking server's own API (`/api/booking/*`). Every failure, a call that takes too long included, becomes one of the errors above. */
+export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): BookingApi {
   async function call(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
     let res: Response;
     try {
-      res = await fetchFn(path, init);
+      res = await fetchFn(path, { ...init, signal: timeoutSignal(timeoutMs) });
     } catch {
       throw new NetworkError();
     }
+    // The same signal also ends a body that stalls after the headers: it fails the read below, and that is a NetworkError too.
     let body: unknown = null;
     try { body = await res.json(); } catch { /* not JSON: handled below */ }
     if (res.ok) {

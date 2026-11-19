@@ -1,4 +1,4 @@
-import { demoApi, httpApi, type BookingApi } from '../lib/booking/api-client';
+import { demoApi, httpApi, timeoutSignal, type BookingApi } from '../lib/booking/api-client';
 import { initBooking, type BookingOptions } from './booking-ui';
 import { loadTurnstile } from './turnstile';
 
@@ -25,17 +25,27 @@ export function whenNear(el: Element, win: Win): Promise<void> {
   });
 }
 
-/** What the server says about booking. Anything unreadable is "off": the safe answer, which never shows a booking that is not real. */
-async function readConfig(fetchFn: typeof fetch): Promise<{ mode: Mode; siteKey?: string }> {
-  try {
-    const res = await fetchFn('/api/booking/config', { cache: 'no-store' });
-    if (!res.ok) return { mode: 'off' };
-    const body = (await res.json()) as { mode?: unknown; turnstileSiteKey?: unknown };
-    const mode = body.mode === 'live' || body.mode === 'demo' ? body.mode : 'off';
-    return { mode, siteKey: typeof body.turnstileSiteKey === 'string' && body.turnstileSiteKey ? body.turnstileSiteKey : undefined };
-  } catch {
-    return { mode: 'off' };
+/** How long one try at the config may take, and how many tries there are, before the page settles on "off". */
+const CONFIG_TIMEOUT_MS = 10_000;
+const CONFIG_TRIES = 2;
+
+/**
+ * What the server says about booking. A try that fails or stalls is made once more; anything still unreadable is "off":
+ * the safe answer, which never shows a booking that is not real (and never leaves a held submit waiting for good).
+ */
+async function readConfig(fetchFn: typeof fetch, timeoutMs: number): Promise<{ mode: Mode; siteKey?: string }> {
+  for (let attempt = 0; attempt < CONFIG_TRIES; attempt += 1) {
+    try {
+      const res = await fetchFn('/api/booking/config', { cache: 'no-store', signal: timeoutSignal(timeoutMs) });
+      if (!res.ok) continue;
+      const body = (await res.json()) as { mode?: unknown; turnstileSiteKey?: unknown };
+      const mode = body.mode === 'live' || body.mode === 'demo' ? body.mode : 'off';
+      return { mode, siteKey: typeof body.turnstileSiteKey === 'string' && body.turnstileSiteKey ? body.turnstileSiteKey : undefined };
+    } catch {
+      // the connection failed or stalled: try again
+    }
   }
+  return { mode: 'off' };
 }
 
 export interface BootEnv {
@@ -43,6 +53,8 @@ export interface BootEnv {
   loaded?: Promise<void>;
   near?: Promise<void>;
   fetchFn?: typeof fetch;
+  /** How long one try at the config may take. */
+  configTimeoutMs?: number;
   loadTurnstile?: typeof loadTurnstile;
   /** Tracking hooks, handed to the form. */
   hooks?: Pick<BookingOptions, 'onLead' | 'onSchedule'>;
@@ -72,7 +84,7 @@ export function bootBooking(root: HTMLElement, env: BootEnv = {}): void {
   const loaded = env.loaded ?? whenLoaded(win);
   const near = env.near ?? whenNear(root, win);
   void Promise.all([loaded, Promise.race([near, submitted])]).then(async () => {
-    const { mode, siteKey } = await readConfig(fetchFn);
+    const { mode, siteKey } = await readConfig(fetchFn, env.configTimeoutMs ?? CONFIG_TIMEOUT_MS);
     let api: BookingApi = httpApi(fetchFn);
     let getBotToken: BookingOptions['getBotToken'];
     if (mode === 'demo') {

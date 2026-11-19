@@ -69,10 +69,13 @@ errors:
   phone: Please check the phone number. Use digits, spaces, + ( ) or -.
   footage: Please paste the full link, starting with https://.
   slotTaken: That time was just taken. Please pick another one.
+  # Shown only when the details were saved but the times could not be loaded. Do not promise a time: Hassan follows up on every saved lead.
   # [confirm: how fast Hassan replies]
-  unreachable: Your details are saved. We'll confirm your time by email shortly.
+  unreachable: Your details are saved, but we couldn't load the times just now. Please try again in a moment, or we'll be in touch by email.
   network: We couldn't send your details. Please check your connection and try again, or message us on Instagram.
-  botCheck: We couldn't check that you're a person. Please try again in a moment.
+  # Shown when the booking itself failed: nothing is booked and nobody has been told yet, so never say the details are handled.
+  confirm: We couldn't confirm your booking just now. Please try again, or message us on Instagram.
+  botCheck: We couldn't check that you're a person. Please try again in a moment, or message us on Instagram.
   rateLimited: Too many tries from this connection. Please wait a little and try again, or message us on Instagram.
 # The calendar invite the visitor receives. {name} and {manageUrl} are filled in by the site.
 # Keep personal details (phone, volume, ads) out of the description: the visitor sees it in their calendar.

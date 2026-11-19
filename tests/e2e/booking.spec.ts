@@ -1,15 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { loadSection, loadSite } from '../../src/lib/content/load';
-import { pretendMode, stubTurnstile } from './helpers';
+import { pretendMode } from './helpers';
 
 // This file runs on both devices, in parallel, against one test server: so every test here leaves the server's state alone.
 // (Demo and offline are the page being told another mode; real bookings are in booking-flow.spec.ts.)
 const b = loadSection('booking');
 test.use({ timezoneId: 'America/New_York' });
-test.beforeEach(async ({ page }) => {
-  await stubTurnstile(page); // the booking section loads Turnstile when it comes near; no test reaches Cloudflare
-  await page.clock.setFixedTime(new Date('2026-11-23T13:00:00Z'));
-});
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-11-23T13:00:00Z')); });
 
 test('an empty submit shows the messages from content, and focus goes to the first field to fix', async ({ page }) => {
   await page.goto('/#book');

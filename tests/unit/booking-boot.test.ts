@@ -120,6 +120,57 @@ describe('bootBooking: loading on demand', () => {
   });
 });
 
+describe('bootBooking: a config that does not come', () => {
+  /** A fetch that answers the config with the given replies in turn (a Response, or "stall" for a request that never answers). */
+  function configSequence(...replies: Array<Response | 'stall' | 'fail'>) {
+    let n = 0;
+    return vi.fn<typeof fetch>((_input, init) => {
+      const next = replies[Math.min(n, replies.length - 1)];
+      n += 1;
+      if (next === 'fail') return Promise.reject(new TypeError('Failed to fetch'));
+      if (next === 'stall') return new Promise<Response>((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'TimeoutError'))); });
+      return Promise.resolve(next);
+    });
+  }
+
+  it('is asked for once more: one failed try does not turn booking off', async () => {
+    const m = mount(await mainHtml());
+    const fetchFn = configSequence('fail', reply({ mode: 'live', turnstileSiteKey: '0xKEY' }));
+    const loadTurnstile = turnstileStub();
+    bootBooking(m.root, { fetchFn, loadTurnstile, loaded: Promise.resolve(), near: Promise.resolve() });
+    await vi.waitFor(() => expect(loadTurnstile).toHaveBeenCalledWith('0xKEY', m.$('[data-turnstile]')));
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(m.$('[data-offline]').hidden).toBe(true);
+  });
+
+  it('is given up on after two tries: the offline card, and a held submit is not stranded', async () => {
+    const m = mount(await mainHtml());
+    const fetchFn = configSequence('stall');
+    bootBooking(m.root, { fetchFn, loaded: Promise.resolve(), near: new Promise(() => {}), configTimeoutMs: 30 });
+    m.$<HTMLButtonElement>('[data-submit]').click(); // held, and waiting for a config that never comes
+    expect(m.$<HTMLButtonElement>('[data-submit]').disabled).toBe(true);
+    await vi.waitFor(() => expect(m.$('[data-offline]').hidden).toBe(false));
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(m.$('[data-flow]').hidden).toBe(true);
+  });
+
+  it('two failed answers in a row are off as well', async () => {
+    const m = mount(await mainHtml());
+    const fetchFn = configSequence(new Response('<html>Bad gateway</html>', { status: 502 }), new Response('nope', { status: 503 }));
+    bootBooking(m.root, { fetchFn, loaded: Promise.resolve(), near: Promise.resolve() });
+    await vi.waitFor(() => expect(m.$('[data-offline]').hidden).toBe(false));
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('an answer of "off" is an answer: it is not asked again', async () => {
+    const m = mount(await mainHtml());
+    const fetchFn = configSequence(reply({ mode: 'off' }));
+    bootBooking(m.root, { fetchFn, loaded: Promise.resolve(), near: Promise.resolve() });
+    await vi.waitFor(() => expect(m.$('[data-offline]').hidden).toBe(false));
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('bootBooking: a submit before everything is ready', () => {
   it('is held, wakes the loading (once the page has loaded), and then runs as a normal submit', async () => {
     const m = mount(await mainHtml());

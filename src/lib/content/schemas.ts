@@ -157,7 +157,7 @@ export const sectionSchemas = {
     honeypotLabel: text,
     errors: z.strictObject({
       name: text, email: text, buyer: text, volume: text, phone: text, footage: text,
-      slotTaken: text, unreachable: text, network: text, botCheck: text, rateLimited: text,
+      slotTaken: text, unreachable: text, network: text, confirm: text, botCheck: text, rateLimited: text,
     }),
     calendarEvent: z.strictObject({ title: text, description: text }),
     demoNote: text,

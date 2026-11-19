@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { loadTestimonials, getVideo } from '../../src/lib/content/load';
 const t = loadTestimonials();
 test('client video cards come from testimonials.yaml, carry no Sample tag, and show a frame from Stream', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { loadSection, getVideo } from '../../src/lib/content/load';
 test('who-it\'s-for appears on the main version only and links to the three versions', async ({ page }) => {
   await page.goto('/');

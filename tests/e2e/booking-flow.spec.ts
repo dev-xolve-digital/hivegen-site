@@ -1,7 +1,8 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { loadSection } from '../../src/lib/content/load';
 import { groupByLocalDay } from '../../src/lib/booking/format';
-import { book, bookNewLead, createLead, getSlots, goodLead, outbox, resetServer, setCalendar, stubTurnstile, trackedEvents } from './helpers';
+import { book, bookNewLead, createLead, getSlots, goodLead, outbox, resetServer, setCalendar, trackedEvents } from './helpers';
 
 const b = loadSection('booking');
 
@@ -138,7 +139,6 @@ test('a body over 32 KB is refused with 400 invalid before it is read into memor
 // The booking form in a real browser, on the real API (the test server's fake Google, mailbox and bot check).
 
 test('books a real call: confirmation, manage link, both emails sent, and a double click does it only once', async ({ page, request }) => {
-  await stubTurnstile(page);
   const posts: string[] = [];
   page.on('request', (r) => { if (r.method() === 'POST') posts.push(new URL(r.url()).pathname); });
   await page.goto('/#book');
@@ -164,7 +164,6 @@ test('books a real call: confirmation, manage link, both emails sent, and a doub
 });
 
 test('when Google is down the visitor sees the requested panel, never "You\'re booked."', async ({ page, request }) => {
-  await stubTurnstile(page);
   await page.goto('/#book');
   await toConfirm(page); // the times were offered while Google was up...
   await setCalendar(request, { down: true }); // ...and it goes down before the visitor confirms
@@ -181,7 +180,6 @@ test('when Google is down the visitor sees the requested panel, never "You\'re b
 
 test('with Google down from the start, the note says so and the booking is only requested', async ({ page, request }) => {
   await setCalendar(request, { down: true });
-  await stubTurnstile(page);
   await page.goto('/#book');
   await toConfirm(page);
   await expect(page.getByText(b.calendarNote.split('{backupLink}')[0].trim())).toBeVisible();
@@ -190,7 +188,6 @@ test('with Google down from the start, the note says so and the booking is only 
 });
 
 test('a slot taken meanwhile shows the message and fresh times', async ({ page, request }) => {
-  await stubTurnstile(page);
   await page.goto('/#book');
   await fillDetails(page);
   await page.getByRole('button', { name: b.nextLabel }).click();
@@ -215,7 +212,6 @@ test('a slot taken meanwhile shows the message and fresh times', async ({ page, 
 });
 
 test('a network failure on step 1 keeps the visitor on step 1 with a clear message, and trying again works', async ({ page, request }) => {
-  await stubTurnstile(page);
   await page.route('**/api/booking/leads', (route) => route.abort());
   await page.goto('/#book');
   await fillDetails(page);
@@ -233,7 +229,6 @@ test('a network failure on step 1 keeps the visitor on step 1 with a clear messa
 });
 
 test('the visitor\'s ad tags reach the lead', async ({ page, request }) => {
-  await stubTurnstile(page);
   await page.goto('/agents?utm_source=facebook&utm_campaign=spring&fbclid=x#book');
   await page.goto('/agents#book'); // a later page view without the tags: the first touch is kept
   await toConfirm(page);

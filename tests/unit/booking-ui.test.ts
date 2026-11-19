@@ -291,7 +291,9 @@ describe('step 2: the time', () => {
 
     booking.reject(new NetworkError());
     await vi.waitFor(() => expect(m.$('[data-time-error]').hidden).toBe(false));
-    expect(m.$('[data-time-error]').textContent).toBe(b.errors.unreachable);
+    // Nothing was booked and nobody was told: the message says so, and does not claim the details are handled.
+    expect(m.$('[data-time-error]').textContent).toBe(b.errors.confirm);
+    expect(b.errors.confirm).not.toBe(b.errors.unreachable);
     expect(confirm.disabled).toBe(false);
     expect(timeStepShown(m)).toBe(true);
   });

@@ -11,7 +11,7 @@ import { renderSlotPicker } from './slot-picker';
 export interface BookingCopy {
   errors: {
     name: string; email: string; buyer: string; volume: string; phone: string; footage: string;
-    slotTaken: string; unreachable: string; network: string; botCheck: string; rateLimited: string;
+    slotTaken: string; unreachable: string; network: string; confirm: string; botCheck: string; rateLimited: string;
   };
   timeNote: string; noSlots: string;
   confirmation: { heading: string; text: string; nextSteps: string[]; calendarTitle: string };
@@ -107,7 +107,7 @@ export function initBooking(root: HTMLElement, api: BookingApi, opts: BookingOpt
     renderSlotPicker(days, slotsBox, slots, tz, (s) => { chosen = s; confirmBtn.disabled = !s; }, copy.noSlots);
   }
 
-  /** The message for something that went wrong on step 1. `leadSaved`: the details are safe even though this step failed. */
+  /** The message for something that went wrong on step 1. `leadSaved`: the details are stored even though loading the times failed. */
   function failStep1(err: unknown, leadSaved: boolean) {
     if (err instanceof FieldsError) {
       const bad = Object.keys(err.fields).map((k) => FIELD_OF_SERVER[k]).filter((f): f is Field => f !== undefined);
@@ -216,7 +216,7 @@ export function initBooking(root: HTMLElement, api: BookingApi, opts: BookingOpt
       // A taken time means fresh times (and nothing picked); any other failure leaves the same time ready to try again.
       if (taken) await loadSlots().catch(() => {});
       else confirmBtn.disabled = false;
-      timeError.textContent = taken ? copy.errors.slotTaken : err instanceof RateLimitedError ? copy.errors.rateLimited : copy.errors.unreachable;
+      timeError.textContent = taken ? copy.errors.slotTaken : err instanceof RateLimitedError ? copy.errors.rateLimited : copy.errors.confirm;
       timeError.hidden = false;
       return;
     }

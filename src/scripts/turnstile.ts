@@ -11,15 +11,16 @@ type TurnstileWindow = Window & { turnstile?: TurnstileApi };
 
 /**
  * Loads Cloudflare's Turnstile script and shows its widget in `container`. The widget stays invisible unless Cloudflare needs the
- * visitor to do something. `getToken()` gives a token (waiting for one for at most 10 seconds, then rejecting); a token is good for
- * one lead, so each one handed out starts the next.
+ * visitor to do something. `getToken()` gives a token (waiting for one for at most 10 seconds, then rejecting; at once when the script
+ * cannot load, and the next call tries the script again); a token is good for one lead, so each one handed out starts the next.
  */
 export function loadTurnstile(siteKey: string, container: HTMLElement): { getToken(): Promise<string> } {
   const doc = container.ownerDocument;
   const win = doc.defaultView as TurnstileWindow;
   let token: string | null = null;
   let widget: string | undefined;
-  let unavailable = false;
+  /** True from the moment Cloudflare's script is added until it has loaded or failed. */
+  let loading = false;
   const waiting = new Set<{ resolve(t: string): void; reject(e: Error): void; timer: ReturnType<typeof setTimeout> }>();
 
   /** Hands out the token and starts the next one. */
@@ -50,27 +51,31 @@ export function loadTurnstile(siteKey: string, container: HTMLElement): { getTok
     });
   };
 
-  if (win.turnstile) {
-    render();
-  } else {
+  /** Adds Cloudflare's script. A script that fails (blocked, offline, a blip) is taken out again, so the next getToken can add a fresh one. */
+  const loadScript = () => {
+    loading = true;
     const script = doc.createElement('script');
     script.src = SRC;
     script.async = true;
     script.defer = true;
-    script.addEventListener('load', render);
+    script.addEventListener('load', () => { loading = false; render(); });
     script.addEventListener('error', () => {
-      unavailable = true; // blocked or offline: nobody should wait for a token that cannot come
+      loading = false;
+      script.remove();
       for (const w of waiting) { clearTimeout(w.timer); w.reject(new Error('turnstile_unavailable')); }
-      waiting.clear();
+      waiting.clear(); // nobody should wait for a token that cannot come
     });
     doc.head.append(script);
-  }
+  };
+
+  if (win.turnstile) render();
+  else loadScript();
 
   return {
     getToken() {
       const ready = take();
       if (ready !== null) return Promise.resolve(ready);
-      if (unavailable) return Promise.reject(new Error('turnstile_unavailable'));
+      if (!win.turnstile && !loading) loadScript(); // the first try failed: try the script again
       return new Promise<string>((resolve, reject) => {
         const w = {
           resolve, reject,

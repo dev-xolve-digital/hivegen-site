@@ -93,14 +93,47 @@ describe('loadTurnstile', () => {
     await outcome;
   });
 
-  it('a script that cannot load (blocked) fails getToken at once, not after the wait', async () => {
+  it('a script that cannot load fails getToken at once, not after the wait', async () => {
     const p = page();
     const ts = loadTurnstile('k', p.container);
     const waiting = ts.getToken();
     const outcome = expect(waiting).rejects.toThrow();
     p.scriptFails();
     await outcome;
-    await expect(ts.getToken()).rejects.toThrow();
+  });
+
+  it('a script that failed once is loaded again on the next try, so one flaky load does not ruin the page for good', async () => {
+    const p = page();
+    const ts = loadTurnstile('k', p.container);
+    const first = expect(ts.getToken()).rejects.toThrow();
+    p.scriptFails();
+    await first;
+    expect(p.window.document.querySelectorAll('script').length).toBe(0); // the failed element is gone
+
+    const retry = ts.getToken(); // the visitor tries again
+    const scripts = p.window.document.querySelectorAll('script');
+    expect(scripts.length).toBe(1);
+    expect(scripts[0].src).toBe(SRC);
+    p.scriptLoads();
+    expect(p.fake.render).toHaveBeenCalledTimes(1);
+    p.token('second-chance');
+    expect(await retry).toBe('second-chance');
+  });
+
+  it('a script that fails again fails the next getToken again, and a script still loading is not added twice', async () => {
+    const p = page();
+    const ts = loadTurnstile('k', p.container);
+    const first = expect(ts.getToken()).rejects.toThrow();
+    p.scriptFails();
+    await first;
+
+    const second = ts.getToken();
+    const third = ts.getToken(); // the script from the second try is still on its way
+    expect(p.window.document.querySelectorAll('script').length).toBe(1);
+    const both = Promise.all([expect(second).rejects.toThrow(), expect(third).rejects.toThrow()]);
+    p.scriptFails();
+    await both;
+    expect(p.window.document.querySelectorAll('script').length).toBe(0);
   });
 
   it('uses the Turnstile that is already on the page instead of loading the script again', async () => {

@@ -1,6 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, loadSection, loadSite } from '../../src/lib/content/load';
-import { stubTurnstile } from './helpers';
 test('home serves a page titled HiveGen', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/HiveGen/);
@@ -34,7 +33,6 @@ test('phone: mobile bar appears after scrolling past the hero button', async ({ 
 });
 test('phone: mobile bar hides while the booking form is on screen', async ({ page, isMobile }) => {
   test.skip(!isMobile);
-  await stubTurnstile(page); // scrolling to the form wakes the booking section, which loads Turnstile
   await page.goto('/');
   const bar = page.getByTestId('mobile-bar');
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();

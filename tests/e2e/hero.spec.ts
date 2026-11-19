@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, loadSection, loadSite, getVideo } from '../../src/lib/content/load';
 for (const p of listPages()) {
   test(`"/${p.slug}" shows its headline and highlight`, async ({ page }) => {

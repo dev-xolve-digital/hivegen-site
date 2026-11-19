@@ -78,7 +78,7 @@ const TURNSTILE_STUB = `(function () {
   };
 })();`;
 
-/** Answers Cloudflare's Turnstile script with the stub above, so no browser test ever reaches Cloudflare. Every test that submits step 1 calls this. */
+/** Answers Cloudflare's Turnstile script with the stub above. tests/e2e/fixtures.ts does this for every test's `page`, so no browser test reaches Cloudflare. */
 export async function stubTurnstile(page: Page): Promise<void> {
   await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', (route) => route.fulfill({ contentType: 'application/javascript', body: TURNSTILE_STUB }));
 }

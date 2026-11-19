@@ -81,6 +81,36 @@ describe('httpApi', () => {
   });
 });
 
+/** A fetch that never answers, but gives up when its signal says so (as the browser's does). */
+const stalledFetch = () => vi.fn<typeof fetch>((_input, init) => new Promise<Response>((_resolve, reject) => {
+  init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'TimeoutError')));
+}));
+
+describe('httpApi: a stalled connection', () => {
+  it('gives up after the timeout, so no button stays disabled for minutes: every call becomes a NetworkError', async () => {
+    const api = httpApi(stalledFetch(), 30);
+    await expect(api.createLead(lead)).rejects.toBeInstanceOf(NetworkError);
+    await expect(api.getSlots()).rejects.toBeInstanceOf(NetworkError);
+    await expect(api.confirm('abc', slot, 'UTC')).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it('every request carries a signal, with a 15 second limit by default', async () => {
+    const seen: Array<AbortSignal | null | undefined> = [];
+    const api = httpApi(vi.fn<typeof fetch>(async (_input, init) => { seen.push(init?.signal); return reply({ slots: [], calendarChecked: true }); }));
+    await api.getSlots();
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    expect(seen[0]!.aborted).toBe(false);
+  });
+
+  it('an answer that stalls halfway (headers, then no body) is a NetworkError too', async () => {
+    const stalledBody = vi.fn<typeof fetch>((_input, init) => {
+      const body = new ReadableStream({ start(controller) { init?.signal?.addEventListener('abort', () => controller.error(new DOMException('aborted', 'TimeoutError'))); } });
+      return Promise.resolve(new Response(body, { status: 200 }));
+    });
+    await expect(httpApi(stalledBody, 30).createLead(lead)).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
 describe('demoApi', () => {
   const rules = loadSite().booking;
   const NOW = new Date('2026-11-23T13:00:00Z'); // Monday 18:00 in Pakistan

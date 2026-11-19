@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, getVideo, loadSection } from '../../src/lib/content/load';
 const labels = (ids: string[]) => ids.map((id) => new RegExp(getVideo(id).label));
 for (const p of listPages()) {
