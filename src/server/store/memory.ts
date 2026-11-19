@@ -2,6 +2,7 @@ import {
   SlotConflictError,
   type Booking, type BookingPatch, type Lead, type NewBooking, type NewLead, type Store, type TrackingRecord,
 } from '../booking/types';
+import { isActive } from '../booking/status';
 
 /**
  * The booking store kept in memory: the test server's fake mode and the reference for the MySQL store,
@@ -9,9 +10,7 @@ import {
  * Everything handed in or out is a copy, so a caller can never change what is stored.
  */
 const copy = <T>(value: T): T => structuredClone(value);
-/** Only booked and requested bookings hold their start; a cancelled one holds nothing. */
-const isActive = (b: Pick<Booking, 'status'>) => b.status === 'booked' || b.status === 'requested';
-/** Fields a patch sets, leaving out the ones given as `undefined`. */
+/** Fields a patch sets, leaving out the ones given as `undefined` (lead and tracking updates never clear a field). */
 const defined = <T extends object>(patch: T): Partial<T> => Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
 
 export function createMemoryStore(): Store {
@@ -20,7 +19,7 @@ export function createMemoryStore(): Store {
   const tracking = new Map<string, TrackingRecord>();
 
   const leadById = (id: number) => leads.find((l) => l.id === id);
-  const heldBy = (start: string, exceptId?: number) => bookings.some((b) => isActive(b) && b.start === start && b.id !== exceptId);
+  const heldBy = (start: string, exceptId?: number) => bookings.some((b) => isActive(b.status) && b.start === start && b.id !== exceptId);
   const inRange = (iso: string, from: string, to: string) => Date.parse(iso) >= Date.parse(from) && Date.parse(iso) < Date.parse(to);
 
   return {
@@ -43,7 +42,7 @@ export function createMemoryStore(): Store {
     },
 
     async insertBooking(b: NewBooking, now: Date) {
-      if (isActive(b) && heldBy(b.start)) throw new SlotConflictError();
+      if (isActive(b.status) && heldBy(b.start)) throw new SlotConflictError();
       const booking: Booking = { ...copy(b), id: bookings.length + 1, createdAt: new Date(now), updatedAt: new Date(now) };
       bookings.push(booking);
       return copy(booking);
@@ -51,14 +50,15 @@ export function createMemoryStore(): Store {
     async updateBooking(id, patch: BookingPatch, now: Date) {
       const current = bookings.find((b) => b.id === id);
       if (!current) throw new Error(`booking ${id} not found`);
-      const next: Booking = { ...current, ...copy(defined(patch)), updatedAt: new Date(now) };
+      // A key in the patch replaces the field, and `undefined` clears it; a key left out keeps it.
+      const next: Booking = { ...current, ...copy(patch), updatedAt: new Date(now) };
       // Checked before anything is written, so a refused move leaves the booking as it was.
-      if (isActive(next) && heldBy(next.start, id)) throw new SlotConflictError();
+      if (isActive(next.status) && heldBy(next.start, id)) throw new SlotConflictError();
       Object.assign(current, next);
       return copy(current);
     },
     async getActiveBookingForLead(leadId) {
-      const found = bookings.filter((b) => b.leadId === leadId && isActive(b)).at(-1);
+      const found = bookings.filter((b) => b.leadId === leadId && isActive(b.status)).at(-1);
       return found ? copy(found) : null;
     },
     async getBookingByToken(token) {

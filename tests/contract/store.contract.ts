@@ -120,6 +120,21 @@ export function storeContract(make: Make): void {
     expect(await store.getBookingByToken(current.manageToken)).toEqual(patched);
   }));
 
+  it('a booking patch key given as undefined clears that field; a key left out keeps it', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1), T0);
+    const made = await store.insertBooking(booking(a.id, 1), T0);
+    await store.updateBooking(made.id, { googleEventId: 'ev-1', reminder24hSentAt: at(5), reminder1hSentAt: at(6) }, at(7));
+
+    const kept = await store.updateBooking(made.id, { visitorNotifiedAt: at(8) }, at(9));
+    expect(kept).toMatchObject({ googleEventId: 'ev-1', reminder24hSentAt: at(5), reminder1hSentAt: at(6), visitorNotifiedAt: at(8) });
+
+    const cleared = await store.updateBooking(made.id, { reminder24hSentAt: undefined, reminder1hSentAt: undefined }, at(10));
+    expect(cleared.reminder24hSentAt).toBeUndefined();
+    expect(cleared.reminder1hSentAt).toBeUndefined();
+    expect(cleared).toMatchObject({ googleEventId: 'ev-1', visitorNotifiedAt: at(8), updatedAt: at(10) });
+    expect(await store.getBookingByToken(made.manageToken)).toEqual(cleared);
+  }));
+
   it('lists bookings starting in a range and leads created in a range', () => withStore(make, async (store) => {
     const a = await store.createLead(lead(1), at(0));
     const b = await store.createLead(lead(2), at(10));

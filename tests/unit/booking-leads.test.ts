@@ -1,34 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { loadSection, loadSite } from '../../src/lib/content/load';
 import { generateSlots } from '../../src/lib/booking/slots';
-import { createBookingService } from '../../src/server/booking/service';
 import { bookingInputSchema, parseInput } from '../../src/server/booking/validate';
-import type { EmailKind, ServerEvent } from '../../src/server/booking/types';
-import { createFakeCalendar } from '../../src/server/calendar/fake';
-import { createMemoryStore } from '../../src/server/store/memory';
-
-const NOW = new Date('2026-12-01T10:00:00Z'); // Tuesday 15:00 in Pakistan
-const booking = loadSection('booking');
-const rules = loadSite().booking;
-
-function setup() {
-  const store = createMemoryStore();
-  const calendar = createFakeCalendar();
-  const sent: EmailKind[] = [];
-  const tracked: ServerEvent[] = [];
-  const botChecks: Array<{ token: string; ip?: string }> = [];
-  const svc = createBookingService({
-    store, calendar, clock: { now: () => NOW }, rules, siteUrl: 'https://hivegen.co',
-    calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions,
-    notifier: { send: async (kind) => { sent.push(kind); } },
-    tracker: { send: async (e) => { tracked.push(e); } },
-    verifyBot: async (token, ip) => { botChecks.push({ token, ip }); return token === 'ok'; },
-  });
-  return { svc, store, calendar, sent, tracked, botChecks };
-}
-
-const good = { name: 'Zoë O’Brien', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
-  footageUrl: 'https://drive.google.com/x', pageVersion: 'agents', attribution: { utm_source: 'facebook', fbclid: 'abc' }, turnstileToken: 'ok', website: '' };
+import { NOW, booking, good, rules, setup } from './helpers/booking';
 
 describe('createLead', () => {
   it('saves the lead and returns an unguessable id and the Lead event id', async () => {
@@ -65,6 +38,16 @@ describe('createLead', () => {
     expect(await setup().svc.createLead({ ...good, phone: '1'.repeat(31), footageUrl: `https://x.test/${'a'.repeat(500)}` }, {}))
       .toEqual({ ok: false, error: 'invalid', fields: { phone: 'too_long', footageUrl: 'too_long' } });
     expect(await setup().svc.createLead({ ...good, phone: '12345' }, {})).toMatchObject({ ok: false, fields: { phone: 'invalid' } });
+  });
+
+  it('a name with a control character (CR, LF, tab, NUL, DEL) is invalid, because it later reaches the invite title and email subjects', async () => {
+    const { svc, store } = setup();
+    for (const name of ['Zoë\r\nBcc: evil@example.com', 'Zo\në', 'Zo\të', 'Zo\u0000ë', 'Zo\u007fë', '\u0001']) {
+      expect(await svc.createLead({ ...good, name }, {})).toEqual({ ok: false, error: 'invalid', fields: { name: 'invalid' } });
+    }
+    expect(await store.leadsCreatedBetween('2000-01-01T00:00:00Z', '2100-01-01T00:00:00Z')).toEqual([]);
+    // Whitespace around the name is trimmed, as before.
+    expect(await svc.createLead({ ...good, name: '\n Zoë \t' }, {})).toMatchObject({ ok: true });
   });
 
   it('blank optional fields are left out; text is trimmed; only the seven attribution keys are kept', async () => {
@@ -197,16 +180,6 @@ describe('getSlots', () => {
   });
 });
 
-describe('the other service methods', () => {
-  it('book, cancel, reschedule and getManaged are not built yet', async () => {
-    const { svc } = setup();
-    await expect(svc.book({}, {})).rejects.toThrow(/not implemented/);
-    await expect(svc.getManaged('t')).rejects.toThrow(/not implemented/);
-    await expect(svc.cancel('t')).rejects.toThrow(/not implemented/);
-    await expect(svc.reschedule('t', {})).rejects.toThrow(/not implemented/);
-  });
-});
-
 describe('bookingInputSchema', () => {
   const ok = { leadId: 'A'.repeat(22), start: '2026-12-02T14:00:00.000Z', visitorTz: 'America/New_York' };
 
@@ -227,6 +200,22 @@ describe('bookingInputSchema', () => {
     expect(parseInput(bookingInputSchema, { leadId: 'short', start: 'tomorrow' }))
       .toEqual({ ok: false, fields: { leadId: 'invalid', start: 'invalid' } });
     expect(parseInput(bookingInputSchema, {})).toEqual({ ok: false, fields: { leadId: 'required', start: 'required' } });
+  });
+  it('a start without Z or an offset is invalid (it would be read as server-local time)', () => {
+    for (const start of ['2026-12-02T14:00:00', '2026-12-02T14:00', '2026-12-02T14:00:00.000', '2026-12-02 14:00:00Z', '2026-12-02']) {
+      expect(parseInput(bookingInputSchema, { ...ok, start })).toEqual({ ok: false, fields: { start: 'invalid' } });
+    }
+    for (const start of ['2026-12-02T14:00:00Z', '2026-12-02T14:00Z', '2026-12-02T14:00:00.5Z', '2026-12-02T09:00:00-05:00']) {
+      expect(parseInput(bookingInputSchema, { ...ok, start })).toMatchObject({ ok: true, value: { start: expect.stringMatching(/Z$/) } });
+    }
+    expect(parseInput(bookingInputSchema, { ...ok, start: '2026-12-02T14:00Z' })).toMatchObject({ value: { start: '2026-12-02T14:00:00.000Z' } });
+  });
+  it('an empty or blank leadId or start is required, as for the lead fields', () => {
+    for (const blank of ['', '   ']) {
+      expect(parseInput(bookingInputSchema, { leadId: blank, start: blank })).toEqual({ ok: false, fields: { leadId: 'required', start: 'required' } });
+    }
+    expect(parseInput(bookingInputSchema, { leadId: null, start: undefined })).toEqual({ ok: false, fields: { leadId: 'required', start: 'required' } });
+    expect(parseInput(bookingInputSchema, { leadId: 42, start: 42 })).toEqual({ ok: false, fields: { leadId: 'invalid', start: 'invalid' } });
   });
 });
 
