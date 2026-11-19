@@ -16,7 +16,8 @@
     "stills": "node scripts/render-3d-stills.mjs",
     "fonts": "node scripts/subset-fonts.mjs",
     "check": "astro check",
-    "db:migrate": "tsx scripts/db-migrate.ts"
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "google:connect": "tsx scripts/google-connect.ts"
   },
   "keywords": [],
   "author": "",
