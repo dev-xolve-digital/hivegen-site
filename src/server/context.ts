@@ -8,6 +8,7 @@ import type { ServerEvent } from './booking/types';
 import { createFakeCalendar, type FakeCalendar } from './calendar/fake';
 import { createGoogleCalendar } from './calendar/google';
 import { readServerConfig, type ServerConfig } from './config';
+import { runScheduledWork, type ScheduledSummary } from './cron';
 import { loadDotEnv } from './env';
 import { createOutboxMailer, createSmtpMailer, type Mailer } from './mail/mailer';
 import { createNotifier } from './mail/notifier';
@@ -33,6 +34,8 @@ export interface ServerContext {
   config: ServerConfig;
   /** Null when booking is not connected: the booking routes answer 503. */
   service: BookingService | null;
+  /** One pass of the scheduled work (POST /api/cron/run), on the same store and notifier as `service`. Null exactly when `service` is. */
+  runScheduled: (() => Promise<ScheduledSummary>) | null;
   limits: RateLimits;
   /** Set (as a time in ms) when starting the services failed: getContext tries again once RETRY_AFTER_MS have passed. Never set otherwise. */
   failedAt?: number;
@@ -53,6 +56,8 @@ export interface ContextOptions {
 export const RETRY_AFTER_MS = 60_000;
 
 const clock = { now: () => new Date() };
+/** Sends a failed tracking event again. Task 11 replaces this with the Meta tracker's `resend`, which only sends: cron records the attempt. */
+const retryTracking = async () => false;
 /** The test server's stand-in for Hassan's inbox: the test services never mail the real one. */
 const FAKE_HASSAN_EMAIL = 'hassan@example.test';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -67,7 +72,7 @@ function loadServiceContent() {
 const logOutbox = (dir: string) => console.info(`booking: emails are written to ${path.resolve(dir)} instead of being sent`);
 
 function notConnected(config: ServerConfig, missing: string[]): ServerContext {
-  return { config: { ...config, mode: 'not_connected', missing }, service: null, limits: createLimits() };
+  return { config: { ...config, mode: 'not_connected', missing }, service: null, runScheduled: null, limits: createLimits() };
 }
 
 /** Everything in memory: the services the Playwright server runs on, which never touch a real service whatever `.env` holds. */
@@ -78,19 +83,26 @@ function fakesContext(config: ServerConfig, outboxDir: string): ServerContext {
   logOutbox(outboxDir);
   const tracked: ServerEvent[] = [];
   const notifier = createNotifier({ mailer, hassanEmail: FAKE_HASSAN_EMAIL, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
-  const build = () => createBookingService({
-    store: createMemoryStore(), calendar, notifier, clock, rules: content.rules, siteUrl: config.siteUrl,
-    calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
-    tracker: { send: async (event) => { tracked.push(event); } },
-    verifyBot: async (token) => token !== 'fail',
-  });
+  /** The service and the scheduled work on one new, empty store. */
+  const build = () => {
+    const store = createMemoryStore();
+    return {
+      service: createBookingService({
+        store, calendar, notifier, clock, rules: content.rules, siteUrl: config.siteUrl,
+        calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
+        tracker: { send: async (event) => { tracked.push(event); } },
+        verifyBot: async (token) => token !== 'fail',
+      }),
+      runScheduled: () => runScheduledWork({ store, notifier, retryTracking, clock }),
+    };
+  };
   const limits = createLimits();
   const ctx: ServerContext = {
-    config, service: build(), limits,
+    config, ...build(), limits,
     fakes: {
       calendar, mailer, tracked,
       reset() {
-        ctx.service = build(); // a new, empty store
+        Object.assign(ctx, build()); // a new, empty store
         calendar.setDown(false);
         calendar.setBusy([]);
         calendar.events.clear();
@@ -135,15 +147,17 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
       logOutbox(dir);
     }
     const secret = config.turnstileSecret!;
+    const store = createMysqlStore(pool);
+    const notifier = createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
     return {
       config, limits: createLimits(),
       service: createBookingService({
-        store: createMysqlStore(pool), calendar: createGoogleCalendar(config.google!),
-        notifier: createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone }),
+        store, calendar: createGoogleCalendar(config.google!), notifier,
         tracker: { send: async () => {} }, // the Meta Conversions API arrives with tracking
         clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
         verifyBot: (token, ip) => verifyTurnstile(token, ip, secret),
       }),
+      runScheduled: () => runScheduledWork({ store, notifier, retryTracking, clock }),
     };
   } catch (e) {
     await pool?.end().catch(() => {});

@@ -245,7 +245,7 @@ describe('getContext', () => {
 describe('createContextProvider', () => {
   let t = 0;
   const now = () => t;
-  const ctxOf = (failedAt?: number) => ({ config: config({}), service: null, limits: undefined as never, ...(failedAt === undefined ? {} : { failedAt }) }) as ServerContext;
+  const ctxOf = (failedAt?: number) => ({ config: config({}), service: null, runScheduled: null, limits: undefined as never, ...(failedAt === undefined ? {} : { failedAt }) }) as ServerContext;
   /** A create() that answers from a list, and records how it was called. */
   function creator(answers: Array<() => Promise<ServerContext>>) {
     const calls: boolean[] = [];

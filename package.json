@@ -17,7 +17,8 @@
     "fonts": "node scripts/subset-fonts.mjs",
     "check": "astro check",
     "db:migrate": "tsx scripts/db-migrate.ts",
-    "google:connect": "tsx scripts/google-connect.ts"
+    "google:connect": "tsx scripts/google-connect.ts",
+    "cron": "tsx scripts/cron.ts"
   },
   "keywords": [],
   "author": "",

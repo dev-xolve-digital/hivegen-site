@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { loadTurnstileSiteKey } from '../../lib/content/load';
 import { bookingConfigResponse } from '../booking-config';
 import type { RateLimiter } from '../booking/rate-limit';
@@ -8,13 +9,15 @@ import { clientIp } from './client-ip';
 /** One handler per route. `params` are the route's `[brackets]`; `socketIp` is the address the connection came from. */
 export type Handler = (request: Request, ctx: ServerContext, params?: Record<string, string | undefined>, socketIp?: string) => Promise<Response>;
 
-const STATUS: Record<ErrorCode, number> = {
-  invalid: 400, bot_check_failed: 403, not_found: 404, slot_taken: 409, too_late: 409, rate_limited: 429, not_connected: 503, server_error: 500,
+/** What a handler answers with: the service's codes, and `unauthorized` (a wrong cron secret), which only the HTTP layer knows. */
+type HttpError = ErrorCode | 'unauthorized';
+const STATUS: Record<HttpError, number> = {
+  invalid: 400, unauthorized: 401, bot_check_failed: 403, not_found: 404, slot_taken: 409, too_late: 409, rate_limited: 429, not_connected: 503, server_error: 500,
 };
 
 /** Every API answer is private and never cached: slots and bookings change by the minute. */
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
-const fail = (error: ErrorCode, fields?: Record<string, FieldCode>) => json({ error, ...(fields && { fields }) }, STATUS[error]);
+const fail = (error: HttpError, fields?: Record<string, FieldCode>) => json({ error, ...(fields && { fields }) }, STATUS[error]);
 const answer = <T>(result: Result<T>) => (result.ok ? json(result.value) : fail(result.error, result.fields));
 
 /** The kind of an unexpected error, and its code (a database's, for one), never its message: that could hold what the visitor typed. */
@@ -162,6 +165,25 @@ export const rescheduleHandler: Handler = (request, ctx, params, socketIp) => gu
   const body = await readJson(request);
   if (!body.ok) return fail('invalid');
   return answer(await ctx.service.reschedule(token, body.value));
+});
+
+/** The secrets are hashed first: the comparison then takes the same time whatever their lengths, and never stops at the first difference. */
+const sameSecret = (given: string, expected: string) => {
+  const digest = (s: string) => createHash('sha256').update(s).digest();
+  return timingSafeEqual(digest(given), digest(expected));
+};
+
+/**
+ * POST /api/cron/run: the scheduled work (reminders, new-lead email, retries), called every 5 minutes by Hostinger's cron job with the
+ * `x-cron-secret` header. Not rate limited: the job always comes from the same address.
+ */
+export const cronHandler: Handler = (request, ctx) => guarded('cron', async () => {
+  const expected = ctx.config.cronSecret;
+  if (!expected) return fail('not_connected'); // nothing could be a right secret
+  const given = request.headers.get('x-cron-secret');
+  if (given === null || !sameSecret(given, expected)) return fail('unauthorized');
+  if (!ctx.service || !ctx.runScheduled) return fail('not_connected');
+  return json(await ctx.runScheduled());
 });
 
 // The test-only routes: the browser tests set up and look at the test services through them. Anywhere but fakes mode they do not exist.
