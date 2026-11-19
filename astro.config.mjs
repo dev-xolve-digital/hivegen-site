@@ -1,6 +1,9 @@
 import { defineConfig } from 'astro/config';
+import node from '@astrojs/node';
 
 export default defineConfig({
+  // Pages stay prerendered files; only src/pages/api/** (and the manage page) run on demand through this server.
+  adapter: node({ mode: 'standalone' }),
   vite: {
     build: {
       rollupOptions: {

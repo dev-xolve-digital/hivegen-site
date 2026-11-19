@@ -26,6 +26,8 @@ export const siteSchema = z.strictObject({
   settings: z.strictObject({
     videoSource: z.enum(['local', 'stream']),
     streamCustomerCode: text.optional(),
+    streamSignedUrls: z.boolean().default(false),
+    turnstileSiteKey: z.string().trim().optional(),
     live3dOnMobile: z.boolean(),
     showBeforeAfter: z.boolean(),
     heroLoop: z.strictObject({ videoId: text, start: z.number().min(0), duration: z.number().positive() }),
