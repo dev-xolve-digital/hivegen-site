@@ -449,7 +449,7 @@ describe('reschedule', () => {
     expect(await t.svc.reschedule(token, { start: target.start })).toEqual({ ok: true, value: { status: 'booked', start: target.start, end: target.end } });
     const moved = await t.store.getBookingByToken(token);
     expect(moved).toMatchObject({ status: 'booked', start: target.start, end: target.end, googleEventId: 'ev-1', meetUrl: out.meetUrl });
-    expect(moved?.reminder24hSentAt).toBeUndefined();
+    expect(moved?.reminder24hSentAt).toEqual(NOW); // the new time is under 24 hours away: its 24-hour reminder is marked as done, not sent late
     expect(moved?.reminder1hSentAt).toBeUndefined();
     expect(t.calendar.events.get('ev-1')).toMatchObject({ start: target.start, end: target.end });
     expect(t.sent).toEqual(['booking-rescheduled', 'hassan-booking-changed']);
@@ -460,6 +460,35 @@ describe('reschedule', () => {
     const open = (await t.svc.getSlots()).slots.map((s) => s.start);
     expect(open).toContain(t.slot.start);
     expect(open).not.toContain(target.start);
+  });
+
+  describe('the 24-hour reminder after a move', () => {
+    const HOUR = 3_600_000;
+    /** A booking for the slot a week out, with both reminders marked as sent, moved to `target` with the clock `before` ms ahead of `target`. */
+    async function moveWithClockBefore(before: number) {
+      const t = await withLead();
+      const far = t.slots.find((s) => Date.parse(s.start) - NOW.getTime() >= 8 * 24 * HOUR)!;
+      const target = t.slots.find((s) => Date.parse(s.start) - NOW.getTime() >= 3 * 24 * HOUR)!;
+      const out = await bookSlot(t, far);
+      const row = await rowFor(t, out.manageUrl);
+      await t.store.updateBooking(row.id, { reminder24hSentAt: NOW, reminder1hSentAt: NOW }, NOW);
+      const at = new Date(Date.parse(target.start) - before);
+      t.clock.set(at);
+      expect(await t.svc.reschedule(tokenOf(out.manageUrl), { start: target.start })).toMatchObject({ ok: true, value: { start: target.start } });
+      return { moved: (await t.store.getBookingByToken(row.manageToken))!, at };
+    }
+
+    it('a call moved to exactly 24 hours away or more starts both reminders over', async () => {
+      const { moved } = await moveWithClockBefore(24 * HOUR);
+      expect(moved.reminder24hSentAt).toBeUndefined();
+      expect(moved.reminder1hSentAt).toBeUndefined();
+    });
+
+    it('a call moved to even a moment under 24 hours away has no 24-hour reminder to send, but still gets the 1-hour one', async () => {
+      const { moved, at } = await moveWithClockBefore(24 * HOUR - 1);
+      expect(moved.reminder24hSentAt).toEqual(at);
+      expect(moved.reminder1hSentAt).toBeUndefined();
+    });
   });
 
   it('accepts a start with an offset, and moves again', async () => {

@@ -1,12 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import type { BookingRules } from '../../lib/content/schemas';
 import { generateSlots } from '../../lib/booking/slots';
+import { bookingEmailKinds, emailSender, logFailure } from './emails';
 import { manageUrl } from './links';
 import { isActive, type ActiveStatus } from './status';
 import { bookingInputSchema, leadInputSchema, parseInput, rescheduleInputSchema } from './validate';
 import {
   CalendarUnavailableError, SlotConflictError,
-  type Booking, type BookingPatch, type BookingStatus, type Calendar, type CalendarEventInput, type Clock, type EmailData, type EmailKind,
+  type Booking, type BookingPatch, type BookingStatus, type Calendar, type CalendarEventInput, type Clock, type EmailData,
   type Interval, type Lead, type Notifier, type Result, type Slot, type Store, type Tracker,
 } from './types';
 
@@ -43,8 +44,6 @@ const overlaps = (a: Interval, b: Interval) => Date.parse(a.start) < Date.parse(
 const fillCopy = (text: string, values: { name: string; manageUrl: string }) =>
   text.replace(/\{(name|manageUrl)\}/g, (_, key: 'name' | 'manageUrl') => values[key]);
 const withoutUndefined = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string>;
-/** One short line for the server log. It names what failed and the kind of error, never anything about the visitor. */
-const logFailure = (what: string, e: unknown) => console.warn(`booking: ${what} (${e instanceof Error ? e.name : 'unknown error'})`);
 
 export function createBookingService(d: ServiceDeps): BookingService {
   const leadSchema = leadInputSchema(d.volumeOptions);
@@ -82,21 +81,13 @@ export function createBookingService(d: ServiceDeps): BookingService {
       return (await d.calendar.busy(slot.start, slot.end)).some((b) => overlaps(b, slot)) ? 'busy' : 'free';
     } catch (e) {
       if (!(e instanceof CalendarUnavailableError)) throw e;
-      logFailure('calendar unavailable', e);
+      logFailure('booking', 'calendar unavailable', e);
       return 'unavailable';
     }
   };
 
   /** Sends one email. A failure is logged and reported as `false`; it never reaches the visitor. */
-  const trySend = async (kind: EmailKind, data: EmailData): Promise<boolean> => {
-    try {
-      await d.notifier.send(kind, data);
-      return true;
-    } catch (e) {
-      logFailure(`email ${kind} not sent`, e);
-      return false;
-    }
-  };
+  const trySend = emailSender(d.notifier, 'booking');
 
   /** The calendar event: the guest sees the title and description, so personal details go in `privateProps` only. */
   const eventFor = (lead: Lead, b: Booking): CalendarEventInput => {
@@ -189,15 +180,14 @@ export function createBookingService(d: ServiceDeps): BookingService {
         try {
           event = await d.calendar.createEvent(eventFor(lead, booking));
         } catch (e) {
-          logFailure('calendar event not created', e);
+          logFailure('booking', 'calendar event not created', e);
         }
       }
       if (event) booking = await d.store.updateBooking(booking.id, { status: 'booked', googleEventId: event.eventId, meetUrl: event.meetUrl }, now);
       await d.store.updateLead(lead.id, { status: booking.status }, now);
 
       // Each email on its own: one that fails stays unmarked, and cron sends it again.
-      const [toVisitor, toHassan]: [EmailKind, EmailKind] = booking.status === 'booked'
-        ? ['booking-confirmed', 'hassan-new-booking'] : ['booking-requested', 'hassan-confirm-by-hand'];
+      const [toVisitor, toHassan] = bookingEmailKinds(booking.status as ActiveStatus); // saved as requested, and booked only with an event
       const visitorSent = await trySend(toVisitor, { lead, booking });
       const hassanSent = await trySend(toHassan, { lead, booking });
       const sentAt = d.clock.now();
@@ -234,7 +224,7 @@ export function createBookingService(d: ServiceDeps): BookingService {
         try {
           await d.calendar.cancelEvent(booking.googleEventId);
         } catch (e) {
-          logFailure('calendar event not cancelled', e);
+          logFailure('booking', 'calendar event not cancelled', e);
           return { ok: false, error: 'server_error' };
         }
       }
@@ -261,10 +251,13 @@ export function createBookingService(d: ServiceDeps): BookingService {
       if (calendar === 'busy') return { ok: false, error: 'slot_taken' };
       if (calendar === 'unavailable') return { ok: false, error: 'server_error' };
 
-      // Reserve the new time first (the store refuses a start someone else holds), then move the event.
+      // Reserve the new time first (the store refuses a start someone else holds), then move the event. The reminders start over; but a call
+      // moved to under 24 hours away has missed its 24-hour reminder (cron would send it at once, though the booking itself is older),
+      // so that one is marked as done instead of cleared.
+      const tooSoonFor24h = Date.parse(slot.start) - now.getTime() < DAY;
       let moved: Booking;
       try {
-        moved = await d.store.updateBooking(booking.id, { start: slot.start, end: slot.end, reminder24hSentAt: null, reminder1hSentAt: null }, now);
+        moved = await d.store.updateBooking(booking.id, { start: slot.start, end: slot.end, reminder24hSentAt: tooSoonFor24h ? now : null, reminder1hSentAt: null }, now);
       } catch (e) {
         if (e instanceof SlotConflictError) return { ok: false, error: 'slot_taken' };
         throw e;
@@ -273,7 +266,7 @@ export function createBookingService(d: ServiceDeps): BookingService {
         try {
           await d.calendar.moveEvent(booking.googleEventId, slot.start, slot.end);
         } catch (e) {
-          logFailure('calendar event not moved', e);
+          logFailure('booking', 'calendar event not moved', e);
           await d.store.updateBooking(booking.id, {
             start: booking.start, end: booking.end, reminder24hSentAt: booking.reminder24hSentAt ?? null, reminder1hSentAt: booking.reminder1hSentAt ?? null,
           }, now);

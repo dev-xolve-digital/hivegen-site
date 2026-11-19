@@ -1,5 +1,6 @@
+import { bookingEmailKinds, emailSender, logFailure } from './booking/emails';
 import { isActive } from './booking/status';
-import type { Clock, EmailData, EmailKind, Notifier, Store, TrackingRecord } from './booking/types';
+import type { Clock, Notifier, Store, TrackingRecord } from './booking/types';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -27,9 +28,6 @@ export interface ScheduledDeps {
   clock: Clock;
 }
 
-/** One short line for the server log: what failed and the kind of error, never anything about the visitor. */
-const logFailure = (what: string, e: unknown) => console.warn(`cron: ${what} (${e instanceof Error ? e.name : 'unknown error'})`);
-
 /**
  * One pass of the scheduled work. Hostinger's cron job starts it every 5 minutes (POST /api/cron/run), so every task is idempotent:
  * a timestamp on the row marks it done, and it is set only after the email went out. Each email is on its own and best-effort:
@@ -41,15 +39,7 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
   const at = now.getTime();
   const iso = (ms: number) => new Date(ms).toISOString();
 
-  const trySend = async (kind: EmailKind, data: EmailData): Promise<boolean> => {
-    try {
-      await d.notifier.send(kind, data);
-      return true;
-    } catch (e) {
-      logFailure(`email ${kind} not sent`, e);
-      return false;
-    }
-  };
+  const trySend = emailSender(d.notifier, 'cron');
 
   const summary: ScheduledSummary = { reminders24h: 0, reminders1h: 0, newLeadEmails: 0, emailRetries: 0, trackingRetries: 0 };
 
@@ -61,8 +51,7 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
     if (b.visitorNotifiedAt && b.hassanNotifiedAt) continue;
     const lead = await d.store.getLead(b.leadId);
     if (!lead) continue;
-    const [toVisitor, toHassan]: [EmailKind, EmailKind] = b.status === 'booked'
-      ? ['booking-confirmed', 'hassan-new-booking'] : ['booking-requested', 'hassan-confirm-by-hand'];
+    const [toVisitor, toHassan] = bookingEmailKinds(b.status); // the same ones `book()` sends first
     if (!b.visitorNotifiedAt && await trySend(toVisitor, { lead, booking: b })) {
       await d.store.updateBooking(b.id, { visitorNotifiedAt: now }, now);
       summary.emailRetries += 1;
@@ -112,7 +101,7 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
     try {
       sent = await d.retryTracking(r);
     } catch (e) {
-      logFailure('tracking event not sent again', e);
+      logFailure('cron', 'tracking event not sent again', e);
     }
     await d.store.updateTrackingEvent(r.eventId, sent ? { status: 'sent', attempts: r.attempts + 1 } : { attempts: r.attempts + 1 }, now);
     if (sent) summary.trackingRetries += 1;

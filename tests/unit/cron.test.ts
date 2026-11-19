@@ -13,7 +13,7 @@ import { createContext, type ServerContext } from '../../src/server/context';
 import { runScheduledWork } from '../../src/server/cron';
 import { cronHandler, withContext } from '../../src/server/http/handlers';
 import { createMemoryStore } from '../../src/server/store/memory';
-import { NOW, good } from './helpers/booking';
+import { NOW, good, withLead } from './helpers/booking';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -150,6 +150,23 @@ describe('the 24-hour reminder', () => {
   });
 });
 
+describe('the hand-over from the 24-hour to the 1-hour reminder', () => {
+  it('at exactly 60 minutes before, a booking eligible for the 24-hour reminder gets the 1-hour one, not the 24-hour one', async () => {
+    const w = world();
+    const b = await w.booking(START, before(START, 3 * DAY)); // no reminder sent yet: cron was down
+    expect(await w.run(before(START, HOUR))).toEqual({ ...quiet, reminders1h: 1 });
+    expect(w.kinds()).toEqual(['reminder-1h']);
+    const stored = await w.row(b.id);
+    expect(stored.reminder24hSentAt).toBeUndefined();
+    expect(stored.reminder1hSentAt).toEqual(before(START, HOUR));
+    // And a millisecond earlier it is still the 24-hour one's turn.
+    const w2 = world();
+    await w2.booking(START, before(START, 3 * DAY));
+    expect(await w2.run(before(START, HOUR + 1))).toEqual({ ...quiet, reminders24h: 1 });
+    expect(w2.kinds()).toEqual(['reminder-24h']);
+  });
+});
+
 describe('the 1-hour reminder', () => {
   it('sends the 1-hour reminder once', async () => {
     const w = world();
@@ -256,6 +273,85 @@ describe('the new-lead email', () => {
     w.failing.clear();
     expect(await w.run(after(NOW, 35 * MIN))).toEqual({ ...quiet, newLeadEmails: 1 });
     expect(w.kinds()).toEqual(['hassan-new-lead']);
+  });
+});
+
+describe('a rescheduled call', () => {
+  const monday = new Date('2026-12-07T14:30:00.000Z'); // 7:30 PM in Pakistan, inside the booking window
+  /** A call booked on 1 December for a day in the second week, then moved on `monday`. Gives the service pieces and the new start. */
+  async function movedTo(wantedAhead: (ms: number) => boolean) {
+    const t = await withLead(); // the clock is at NOW
+    const original = t.slots.find((s) => Date.parse(s.start) >= Date.parse('2026-12-10T00:00:00Z'))!;
+    const out = await t.svc.book({ leadId: t.leadId, start: original.start, visitorTz: 'America/New_York' }, {});
+    if (!out.ok) throw new Error(out.error);
+    t.clock.set(monday);
+    const target = (await t.svc.getSlots()).slots.find((s) => wantedAhead(Date.parse(s.start) - monday.getTime()))!;
+    const moved = await t.svc.reschedule(out.value.manageUrl.split('/').at(-1)!, { start: target.start });
+    expect(moved).toMatchObject({ ok: true, value: { start: target.start } });
+    t.sent.length = 0; // only what cron sends from here on
+    const pass = (at: Date) => {
+      t.clock.set(at);
+      return runScheduledWork({ store: t.store, notifier: t.deps.notifier, retryTracking: async () => false, clock: t.clock });
+    };
+    return { t, target: target.start, pass };
+  }
+
+  it('moved to about 3 hours ahead: no "24 hours" reminder right after the move, and the 1-hour one still comes on time', async () => {
+    const { t, target, pass } = await movedTo((ms) => ms >= 3 * HOUR && ms < 24 * HOUR);
+    expect(await pass(after(monday, 5 * MIN))).toEqual(quiet); // the next cron pass
+    expect(await pass(after(monday, 10 * MIN))).toEqual(quiet);
+    expect(await pass(before(target, 2 * HOUR))).toEqual(quiet);
+    expect(t.sent).toEqual([]);
+    expect(await pass(before(target, HOUR))).toEqual({ ...quiet, reminders1h: 1 });
+    expect(await pass(before(target, 55 * MIN))).toEqual(quiet);
+    expect(t.sent).toEqual(['reminder-1h']);
+  });
+
+  it('moved to about 2 days ahead: the 24-hour reminder comes at 24 hours before, then the 1-hour one', async () => {
+    const { t, target, pass } = await movedTo((ms) => ms >= 40 * HOUR);
+    expect(Date.parse(target) - monday.getTime()).toBeLessThan(3 * DAY);
+    expect(await pass(after(monday, 5 * MIN))).toEqual(quiet);
+    expect(await pass(before(target, 24 * HOUR + 1))).toEqual(quiet);
+    expect(await pass(before(target, 24 * HOUR))).toEqual({ ...quiet, reminders24h: 1 });
+    expect(await pass(before(target, 23 * HOUR))).toEqual(quiet);
+    expect(await pass(before(target, HOUR))).toEqual({ ...quiet, reminders1h: 1 });
+    expect(t.sent).toEqual(['reminder-24h', 'reminder-1h']);
+  });
+});
+
+describe('book() and the retry send the same emails', () => {
+  it.each([
+    ['booked', false],
+    ['requested', true], // Google is down: the booking is only requested
+  ])('%s: what cron sends again is what book() tried first', async (status, googleDown) => {
+    const tried: EmailKind[] = [];
+    const t = await withLead({ notifier: { send: async (kind) => { tried.push(kind); throw new TransportError('mailbox down'); } } });
+    t.calendar.setDown(googleDown);
+    const out = await t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'America/New_York' }, {});
+    expect(out.ok && out.value.status).toBe(status);
+    expect(tried).toHaveLength(2);
+
+    const again: EmailKind[] = [];
+    const summary = await runScheduledWork({
+      store: t.store, notifier: { send: async (kind) => { again.push(kind); } }, retryTracking: async () => false, clock: { now: () => after(NOW, 5 * MIN) },
+    });
+    expect(again).toEqual(tried);
+    expect(summary).toEqual({ ...quiet, emailRetries: 2 });
+  });
+
+  it('both log a failed email the same way, apart from the area', async () => {
+    const w = world();
+    await w.booking(START, NOW, { unsent: ['visitor'] });
+    w.failing.add('booking-confirmed');
+    await w.run(after(NOW, 5 * MIN));
+    expect(warn.mock.calls.flat()).toEqual(['cron: email booking-confirmed not sent (TransportError)']);
+
+    warn.mockClear();
+    const t = await withLead({ notifier: { send: async () => { throw new TransportError('mailbox down'); } } });
+    await t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'America/New_York' }, {});
+    expect(warn.mock.calls.flat()).toEqual([
+      'booking: email booking-confirmed not sent (TransportError)', 'booking: email hassan-new-booking not sent (TransportError)',
+    ]);
   });
 });
 
