@@ -14,8 +14,10 @@ const EMAIL_RETRY_WINDOW = 2 * DAY;
 const NEW_LEAD_AFTER = 30 * MIN;
 /** Leads older than this are no longer announced. */
 const NEW_LEAD_WINDOW = 7 * DAY;
-/** A failed tracking event is sent again until it has had this many attempts. */
+/** A failed tracking event is sent again until it has had this many attempts; then it is skipped for good. */
 const MAX_TRACKING_ATTEMPTS = 3;
+/** One pass sends at most this many events again, so a Meta that stalls (5 s each) cannot hold a pass up for long. The rest wait for the next. */
+const MAX_TRACKING_RETRIES_PER_PASS = 20;
 
 /** What one pass did. Every number counts what went through; a send that failed is in the log and is tried again next pass. */
 export interface ScheduledSummary { reminders24h: number; reminders1h: number; newLeadEmails: number; emailRetries: number; trackingRetries: number }
@@ -94,16 +96,22 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
     }
   }
 
-  // Tracking events that failed are sent again until they have had their attempts; the pass records each attempt.
+  // Tracking events that failed are sent again, up to MAX_TRACKING_RETRIES_PER_PASS a pass, until they have had their attempts; the pass
+  // records each attempt. An event whose last attempt fails is skipped: it leaves the failed list for good, so it is never read again.
+  let tried = 0;
   for (const r of await d.store.trackingEventsByStatus('failed')) {
     if (r.attempts >= MAX_TRACKING_ATTEMPTS) continue;
+    if (tried >= MAX_TRACKING_RETRIES_PER_PASS) break;
+    tried += 1;
     let sent = false;
     try {
       sent = await d.retryTracking(r);
     } catch (e) {
       logFailure('cron', 'tracking event not sent again', e);
     }
-    await d.store.updateTrackingEvent(r.eventId, sent ? { status: 'sent', attempts: r.attempts + 1 } : { attempts: r.attempts + 1 }, now);
+    const attempts = r.attempts + 1;
+    const status = sent ? 'sent' : attempts >= MAX_TRACKING_ATTEMPTS ? 'skipped' : undefined; // undefined: still failed, tried again next pass
+    await d.store.updateTrackingEvent(r.eventId, status ? { status, attempts } : { attempts }, now);
     if (sent) summary.trackingRetries += 1;
   }
 

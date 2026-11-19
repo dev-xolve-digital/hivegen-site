@@ -14,6 +14,8 @@ const mg = loadSection('manage-booking');
 
 // A private page for one booking: it is never kept by a cache, and (below) never indexed. Whatever the answer is, it is this one.
 Astro.response.headers.set('cache-control', 'no-store');
+// Its address holds the secret manage token: a link or request from this page must never carry it as a referrer (to the Pixel or the Google tag on the next page).
+Astro.response.headers.set('referrer-policy', 'no-referrer');
 
 let state: ManageState;
 let ctx: ServerContext | undefined;

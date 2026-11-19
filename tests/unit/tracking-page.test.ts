@@ -57,4 +57,14 @@ describe('the tracking ids in a page', () => {
     // ...while an ordinary page of the same site does:
     expect(tracking(await render())).toBeDefined();
   });
+
+  it('a page with no tracking keeps its address to itself: its links carry no referrer, so no tracker on the next page can see it', async () => {
+    vi.mocked(getContext).mockResolvedValue({ service: null } as unknown as ServerContext);
+    const html = await render(ManagePage, `/booking/${'T'.repeat(43)}`);
+    expect(html).toContain('<meta name="referrer" content="no-referrer">');
+    // An ordinary page says nothing: the browser's default policy applies, and the page keeps its marketing referrer.
+    expect(await render()).not.toContain('name="referrer"');
+    withIds({ metaPixelId: '123456789012345' });
+    expect(await render()).not.toContain('name="referrer"');
+  });
 });

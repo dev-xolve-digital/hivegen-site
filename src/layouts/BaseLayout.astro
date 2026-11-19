@@ -6,7 +6,10 @@ import { scriptJson } from '../lib/text';
 
 interface Props {
   seo: { title: string; description: string; noindex: boolean };
-  /** false for a page whose address is private (the manage page: its link is a secret): no tracker may see it. */
+  /**
+   * false for a page whose address is private (the manage page: its link is a secret): no tracker runs on it, and its links and
+   * requests send no referrer, so no tracker on the page a visitor goes to next can see the address either.
+   */
   tracking?: boolean;
 }
 const { seo, tracking = true } = Astro.props;
@@ -26,6 +29,7 @@ const trackingIds = tracking ? Object.fromEntries(Object.entries(site.tracking ?
     <title>{seo.title}</title>
     <meta name="description" content={seo.description} />
     {seo.noindex && <meta name="robots" content="noindex, nofollow" />}
+    {!tracking && <meta name="referrer" content="no-referrer" />}
     <meta name="theme-color" content="#FFF9EB" />
     <meta property="og:title" content={seo.title} />
     <meta property="og:description" content={seo.description} />

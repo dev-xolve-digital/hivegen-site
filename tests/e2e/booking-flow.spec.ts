@@ -438,6 +438,18 @@ test('the manage page is not indexed and not cached', async ({ page, request }) 
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
 });
 
+test('leaving the manage page by a link sends no referrer, so its secret address never reaches a tracker on the next page', async ({ page, request }) => {
+  const { token } = await bookNewLead(request, 5);
+  const res = await page.goto(`/booking/${token}`);
+  expect(res!.headers()['referrer-policy']).toBe('no-referrer');
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer');
+  const landing = page.waitForRequest((r) => r.isNavigationRequest() && new URL(r.url()).pathname === '/');
+  await page.locator('a.logo-link').click();
+  expect(await (await landing).headerValue('referer')).toBeNull();
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => document.referrer)).toBe('');
+});
+
 test('a "too late" answer hides the action and says so; the other action stays', async ({ page, request }) => {
   const { token } = await bookNewLead(request, 5);
   await page.route('**/api/booking/manage/*/reschedule', (route) => route.fulfill({ status: 409, json: { error: 'too_late' } }));

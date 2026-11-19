@@ -147,6 +147,38 @@ describe('createMetaTracker', () => {
     expect(rejected.attempts).toBe(1);
   });
 
+  it('a PageView is sent but leaves no row: only Lead and Schedule are recorded (and so retried)', async () => {
+    const view = event({ name: 'PageView', eventId: '3f8c1c1e-2b7a-4c53-9d0e-6a1f5b7d9e21', leadId: undefined, user: { ip: '203.0.113.9', userAgent: 'Mozilla/5.0 (Test)' } });
+    const fetchFn = vi.fn(async (_url?: unknown, _init?: unknown) => ok());
+    const { tracker, store } = make(fetchFn);
+    const record = vi.spyOn(store, 'recordTrackingEvent');
+    const update = vi.spyOn(store, 'updateTrackingEvent');
+    await tracker.send(view);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchFn.mock.calls[0]).data[0]).toMatchObject({ event_name: 'PageView', event_id: view.eventId });
+    expect(record).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    for (const status of ['pending', 'sent', 'failed', 'skipped'] as const) expect(await store.trackingEventsByStatus(status)).toEqual([]);
+    await tracker.send(event()); // a Lead next to it is recorded as ever
+    expect((await store.trackingEventsByStatus('sent')).map((r) => r.eventId)).toEqual(['lead.abc123']);
+  });
+
+  it('a PageView that fails is logged by its kind of error only, never thrown, never kept for a retry', async () => {
+    const view = event({ name: 'PageView', eventId: '3f8c1c1e-2b7a-4c53-9d0e-6a1f5b7d9e21', leadId: undefined, user: { ip: '203.0.113.9', userAgent: 'Mozilla/5.0 (Test)' } });
+    const refused = vi.fn(async (_url?: unknown, _init?: unknown) => new Response(JSON.stringify({ error: { message: 'Invalid OAuth access token 203.0.113.9', code: 190 } }), { status: 400 }));
+    const a = make(refused);
+    await expect(a.tracker.send(view)).resolves.toBeUndefined();
+    for (const status of ['pending', 'sent', 'failed', 'skipped'] as const) expect(await a.store.trackingEventsByStatus(status)).toEqual([]);
+    expect(logged()).toContain('tracking');
+    expect(logged()).toContain('PageView');
+    expect(logged()).toContain('http 400 code 190');
+
+    const down = vi.fn(async (_url?: unknown, _init?: unknown) => { throw new TypeError('connect ECONNREFUSED 203.0.113.9'); });
+    await expect(make(down).tracker.send(view)).resolves.toBeUndefined();
+    expect(logged()).toContain('TypeError');
+    for (const secret of [TOKEN, '203.0.113.9', 'Mozilla', view.eventId]) expect(logged()).not.toContain(secret);
+  });
+
   it('a stalled request is cut off and counts as failed', async () => {
     const stalled = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
       init.signal!.addEventListener('abort', () => reject(init.signal!.reason));

@@ -32,6 +32,9 @@ async function visit(token = TOKEN) {
 
 afterEach(() => { vi.restoreAllMocks(); vi.mocked(getContext).mockReset(); });
 
+/** Whatever the answer is, the page's links and requests send no referrer: its address holds the secret manage token. */
+const noReferrer = (res: Response) => expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+
 describe('the manage page on the server', () => {
   it('a known token: 200 with the call time, never indexed, never cached', async () => {
     const getManaged = vi.fn<BookingService['getManaged']>(async () => ({ booking, lead, canCancel: true, canReschedule: true }));
@@ -39,6 +42,8 @@ describe('the manage page on the server', () => {
     const { res, html } = await visit();
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    noReferrer(res);
+    expect(html).toContain('<meta name="referrer" content="no-referrer">');
     expect(html).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(html).toContain('Monday, December 7, 9:00 AM EST');
     expect(html).toContain(`<title>${mg.title}</title>`);
@@ -52,6 +57,7 @@ describe('the manage page on the server', () => {
     const { res, html } = await visit('nope');
     expect(res.status).toBe(404);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    noReferrer(res);
     expect(html).toContain('noindex');
     expect(html).toContain(mg.notFoundText);
     expect(html).not.toContain('data-manage');
@@ -62,6 +68,7 @@ describe('the manage page on the server', () => {
     const { res, html } = await visit();
     expect(res.status).toBe(503);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    noReferrer(res);
     expect(html).toContain('noindex');
     expect(html).toContain(mg.errorText);
     expect(html).toContain(`href="${site.contact.instagramUrl}"`);
@@ -73,6 +80,7 @@ describe('the manage page on the server', () => {
     const { res, html } = await visit();
     expect(res.status).toBe(503);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    noReferrer(res);
     expect(html).toContain(mg.errorText);
   });
 
@@ -82,6 +90,7 @@ describe('the manage page on the server', () => {
     const { res, html } = await visit();
     expect(res.status).toBe(500);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    noReferrer(res);
     expect(html).toContain(mg.errorText);
     expect(html).not.toContain('select *');
     const logged = error.mock.calls.flat().join(' ');

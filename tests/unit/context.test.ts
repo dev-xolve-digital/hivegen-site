@@ -375,11 +375,12 @@ describe('the tracker', () => {
     const fetchFn = answer();
     const store = createMemoryStore();
     const tracker = chooseTracker(meta, '123456789012345', store, fetchFn as unknown as typeof fetch);
-    await tracker.send(event);
+    const lead = { ...event, name: 'Lead' as const, eventId: 'lead.abc123' }; // a PageView is sent but leaves no row
+    await tracker.send(lead);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toBe(`https://graph.facebook.com/${META_GRAPH_VERSION}/123456789012345/events`);
     expect(JSON.parse((fetchFn.mock.calls[0] as unknown as [string, { body: string }])[1].body)).toMatchObject({ test_event_code: 'TEST123', access_token: 'EAAB-secret' });
-    expect((await store.trackingEventsByStatus('sent')).map((r) => r.eventId)).toEqual([event.eventId]);
+    expect((await store.trackingEventsByStatus('sent')).map((r) => r.eventId)).toEqual([lead.eventId]);
     expect(await tracker.resend((await store.trackingEventsByStatus('sent'))[0])).toBe(true); // cron's retry uses the same tracker
   });
 

@@ -61,9 +61,10 @@ export interface MetaTrackerOptions {
 }
 
 /**
- * Sends events to Meta's Conversions API. `send` (the first attempt) writes the event to `tracking_events` as pending, then sent or
- * failed, and never throws: a lead or booking is never held back by it. `resend` only sends a stored event again and says whether
- * Meta took it; the cron pass records that attempt.
+ * Sends events to Meta's Conversions API. `send` (the first attempt) writes a Lead or Schedule to `tracking_events` as pending, then
+ * sent or failed, and never throws: a lead or booking is never held back by it. A PageView is only sent: every visit would add a row
+ * holding the visitor's address and browser, so it has no row and no retry; a failure is logged by its kind of error. `resend` only
+ * sends a stored event again and says whether Meta took it; the cron pass records that attempt.
  */
 export function createMetaTracker(o: MetaTrackerOptions): Tracker & { resend(r: TrackingRecord): Promise<boolean> } {
   const fetchFn = o.fetchFn ?? fetch;
@@ -102,6 +103,11 @@ export function createMetaTracker(o: MetaTrackerOptions): Tracker & { resend(r: 
         payload = buildMetaEvent(e, o.testEventCode);
       } catch (err) {
         logFailure('tracking', 'event not built', err);
+        return;
+      }
+      if (e.name === 'PageView') {
+        const outcome = await post(payload);
+        if (!outcome.ok) console.warn(`tracking: PageView not sent (${outcome.error})`);
         return;
       }
       await attempt('event not recorded', () => o.store.recordTrackingEvent({ eventId: e.eventId, name: e.name, leadId: e.leadId, payload, status: 'pending', attempts: 1 }, new Date()));

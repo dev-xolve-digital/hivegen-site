@@ -453,7 +453,8 @@ describe('retrying tracking events', () => {
     expect(await w.run(NOW)).toEqual({ ...quiet, trackingRetries: 1 });
     expect(w.retried.map((r) => r.eventId).sort()).toEqual(['lead.one', 'lead.three', 'lead.two']);
     const failed = Object.fromEntries((await w.store.trackingEventsByStatus('failed')).map((r) => [r.eventId, r.attempts]));
-    expect(failed).toEqual({ 'lead.one': 1, 'lead.three': 3, 'lead.exhausted': 3 });
+    expect(failed).toEqual({ 'lead.one': 1, 'lead.exhausted': 3 }); // lead.three used its 3rd attempt: it is skipped now
+    expect((await w.store.trackingEventsByStatus('skipped')).map((r) => [r.eventId, r.attempts])).toEqual([['lead.three', 3]]);
     expect((await w.store.trackingEventsByStatus('sent')).map((r) => [r.eventId, r.attempts]).sort()).toEqual([['lead.sent', 1], ['lead.two', 2]]);
 
     // lead.one is tried again until it has used 3 attempts; the others are not touched again.
@@ -465,7 +466,61 @@ describe('retrying tracking events', () => {
     w.retried.length = 0;
     await w.run(after(NOW, 15 * MIN));
     expect(w.retried).toEqual([]);
-    expect((await w.store.trackingEventsByStatus('failed')).map((r) => r.attempts)).toEqual([3, 3, 3]);
+    expect((await w.store.trackingEventsByStatus('failed')).map((r) => [r.eventId, r.attempts])).toEqual([['lead.exhausted', 3]]);
+    expect((await w.store.trackingEventsByStatus('skipped')).map((r) => [r.eventId, r.attempts])).toEqual([['lead.one', 3], ['lead.three', 3]]);
+  });
+
+  it('a retry that fails on the last attempt makes the event skipped, and later passes do not read it again', async () => {
+    const w = world();
+    await w.track('lead.last', 2);
+    expect(await w.run(NOW)).toEqual(quiet);
+    expect((await w.store.trackingEventsByStatus('skipped')).map((r) => [r.eventId, r.attempts])).toEqual([['lead.last', 3]]);
+    expect(await w.store.trackingEventsByStatus('failed')).toEqual([]);
+    // Skipped events are never looked at again: the pass asks the store for failed ones only.
+    const asked: string[] = [];
+    const ask = w.store.trackingEventsByStatus.bind(w.store);
+    w.store.trackingEventsByStatus = async (status) => { asked.push(status); return ask(status); };
+    w.retried.length = 0;
+    await w.run(after(NOW, 5 * MIN));
+    expect(asked).toEqual(['failed']);
+    expect(w.retried).toEqual([]);
+  });
+
+  it('a retry that throws on the last attempt is skipped too', async () => {
+    const w = world();
+    await w.track('lead.last', 2);
+    w.retryOutcome.set('lead.last', new TransportError('boom'));
+    await w.run(NOW);
+    expect((await w.store.trackingEventsByStatus('skipped')).map((r) => r.eventId)).toEqual(['lead.last']);
+  });
+
+  it('a retry that works on the last attempt is sent, not skipped', async () => {
+    const w = world();
+    await w.track('lead.last', 2);
+    w.retryOutcome.set('lead.last', true);
+    expect(await w.run(NOW)).toEqual({ ...quiet, trackingRetries: 1 });
+    expect((await w.store.trackingEventsByStatus('sent')).map((r) => [r.eventId, r.attempts])).toEqual([['lead.last', 3]]);
+    expect(await w.store.trackingEventsByStatus('skipped')).toEqual([]);
+  });
+
+  it('at most 20 events are sent again in one pass, so a Meta that stalls cannot hold a pass up for long', async () => {
+    const w = world();
+    const ids = Array.from({ length: 25 }, (_, i) => `lead.${String(i).padStart(2, '0')}`);
+    for (const id of ids) await w.track(id, 1);
+    for (const id of ids) w.retryOutcome.set(id, true);
+    expect(await w.run(NOW)).toEqual({ ...quiet, trackingRetries: 20 });
+    expect(w.retried.map((r) => r.eventId)).toEqual(ids.slice(0, 20));
+    expect((await w.store.trackingEventsByStatus('failed')).map((r) => r.eventId)).toEqual(ids.slice(20)); // the rest wait for the next pass
+    w.retried.length = 0;
+    expect(await w.run(after(NOW, 5 * MIN))).toEqual({ ...quiet, trackingRetries: 5 });
+    expect(w.retried.map((r) => r.eventId)).toEqual(ids.slice(20));
+  });
+
+  it('the cap counts every try, failed ones too', async () => {
+    const w = world();
+    for (let i = 0; i < 30; i += 1) await w.track(`lead.${String(i).padStart(2, '0')}`, 0); // none of them works
+    await w.run(NOW);
+    expect(w.retried).toHaveLength(20);
   });
 
   it('a retry that throws counts as a failed attempt, and does not stop the pass', async () => {
