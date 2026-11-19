@@ -275,6 +275,8 @@ it('loadDotEnv fills only missing keys', () => { /* temp file "A=1\nB=2"; env {A
 
 - [ ] **Step 5: Switch the test server.** In `playwright.config.ts`, set `webServer.command` to:
   `npm run build && cross-env HOST=127.0.0.1 PORT=4322 NODE_ENV=test HIVEGEN_FAKES=1 node dist/server/entry.mjs`
+
+  Also set `reuseExistingServer: false`, so a leftover server from an older build is never reused silently.
   Write `tests/e2e/api.spec.ts`:
 
 ```ts
@@ -623,8 +625,8 @@ it('the outbox mailer writes an .html and a .txt file per email', ...);
 - Create:
   - `src/server/booking/rate-limit.ts`, `src/server/http/handlers.ts`, `src/server/context.ts`;
   - the route files `src/pages/api/booking/{slots,leads,bookings}.ts`, `src/pages/api/booking/manage/[token]/{cancel,reschedule}.ts`, `src/pages/api/test/{calendar,outbox,events,reset}.ts`;
-  - tests `tests/unit/http.test.ts` and `tests/e2e/helpers.ts`.
-- Modify: `src/pages/api/booking/config.ts` to use the context, and `tests/e2e/api.spec.ts`.
+  - tests `tests/unit/http.test.ts`, `tests/e2e/helpers.ts` and `tests/e2e/booking-flow.spec.ts`.
+- Modify: `src/pages/api/booking/config.ts` to use the context.
 
 **Interfaces:**
 - Produces:
@@ -694,7 +696,7 @@ test('a lead, then a booking, through the HTTP API; booking twice returns the sa
   - `src/lib/booking/api-client.ts`, `src/scripts/booking-ui.ts`, `src/components/Booking.astro`;
   - `content/sections/booking.yaml` and its schema;
   - `content/site.yaml` (`booking.backupUrl` optional);
-  - `tests/e2e/booking.spec.ts`.
+  - `tests/e2e/booking.spec.ts`, `tests/e2e/booking-flow.spec.ts`, `tests/e2e/helpers.ts`.
 - Create: `src/scripts/{attribution,turnstile,slot-picker}.ts`, `tests/unit/attribution.test.ts`, `tests/unit/booking-modes.test.ts`.
 
 **Interfaces:**
@@ -856,7 +858,7 @@ it('the cron route refuses a missing or wrong secret', ...);
 - Modify:
   - `content/site.yaml` and the schema: a `tracking: { metaPixelId, googleTagId, googleAdsId, googleAdsScheduleLabel }` block, all optional strings, where empty means off;
   - `src/layouts/BaseLayout.astro`: a `<script type="application/json" data-tracking>` element holding only the public IDs, rendered only when one is set;
-  - `src/server/context.ts`, `src/scripts/lightbox.ts`, `src/components/Booking.astro`.
+  - `src/server/context.ts`, `src/server/http/handlers.ts` (the `/api/events` handler lives here, like the others), `src/scripts/lightbox.ts`, `src/components/Booking.astro`.
 
 **Interfaces:**
 - Hashing:
