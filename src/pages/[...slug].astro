@@ -15,11 +15,13 @@ import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
 import { listPages, loadPage, loadSection, loadSite, type PageSlug } from '../lib/content/load';
 import { assertNoSamplesInProduction } from '../lib/content/samples';
+import { assertEmailTemplatesRender } from '../server/mail/check';
 
 // Only the paths come from here: the dev server keeps this result between refreshes,
 // so the page itself is read fresh below, and an edited page file shows on refresh.
-export function getStaticPaths() {
+export async function getStaticPaths() {
   assertNoSamplesInProduction();
+  await assertEmailTemplatesRender(); // a broken email file stops the build here, naming the file
   return listPages().map((page) => ({ params: { slug: page.slug || undefined } }));
 }
 

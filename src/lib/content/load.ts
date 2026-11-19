@@ -7,8 +7,8 @@ import { ContentError } from './errors';
 import type { EmailKind } from '../../server/booking/types';
 import { allowedPlaceholders, splitPlaceholders } from './placeholders';
 import {
-  siteSchema, emailSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
-  type Site, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
+  siteSchema, emailSiteSchema, bookingSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
+  type Site, type BookingRules, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
 } from './schemas';
 
 export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images, Email } from './schemas';
@@ -133,6 +133,15 @@ export function loadTurnstileSiteKey(): string | undefined {
 export function loadEmailSite(): { brandName: string; logo: string; replyTo: string } {
   const { brand, contact } = parse(emailSiteSchema, 'site.yaml');
   return { brandName: brand.name, logo: brand.logo, replyTo: contact.replyTo };
+}
+
+/**
+ * What the booking server needs from site.yaml: the call rules and the address Hassan's emails go to.
+ * One small file read for the running server, with none of loadSite()'s build-time checks.
+ */
+export function loadBookingSite(): { rules: BookingRules; hassanEmail: string } {
+  const { booking, contact } = parse(bookingSiteSchema, 'site.yaml');
+  return { rules: booking, hassanEmail: contact.notificationEmail };
 }
 
 /** The name shown in messages for an email's wording file, e.g. "content/emails/reminder-1h.yaml". */

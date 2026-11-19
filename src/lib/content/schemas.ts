@@ -42,6 +42,12 @@ export const emailSiteSchema = z.looseObject({
   contact: z.looseObject({ replyTo: siteSchema.shape.contact.shape.replyTo }),
 });
 
+/** Just the site.yaml values the booking server needs: the call rules and where Hassan's emails go. The rest of the file is not looked at. */
+export const bookingSiteSchema = z.looseObject({
+  booking: bookingSchema,
+  contact: z.looseObject({ notificationEmail: siteSchema.shape.contact.shape.notificationEmail }),
+});
+
 export const pageSchema = z.strictObject({
   slug: z.enum(['', 'agencies', 'videographers', 'agents']),
   seo: z.strictObject({ title: text, description: text, noindex: z.boolean() }),
