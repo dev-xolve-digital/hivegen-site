@@ -99,7 +99,7 @@ Hostinger cron, every 5 min ─ /api/cron/run ┘  └─ Stream token signer
 
 - **Ports and adapters.** The booking service is plain TypeScript that receives its dependencies (store, calendar, mailer, tracker, clock, config) as arguments, so every rule is unit-tested with fakes. Each external system has one small adapter.
 - **Shared rules.** The slot engine (`src/lib/booking/slots.ts`) and the content loader already run in Node, and the server reuses them unchanged.
-- **Runtime mode.** At startup the server decides **live** (all booking secrets present) or **not connected** (anything missing). `GET /api/booking/config` tells the page which, along with the Turnstile site key.
+- **Runtime mode.** At startup the server decides **live** (all booking secrets present) or **not connected** (anything missing). **In production, live also requires a sending mailbox (all SMTP settings)** (user, 2026-11-19: "wait for the mailbox"). Until one is connected, the live website shows the offline booking card, so no lead is lost silently. On this computer, emails go to `.outbox/` instead. `GET /api/booking/config` tells the page which, along with the Turnstile site key.
   - In development, "not connected" keeps today's demo booking (in-browser, with the demo note).
   - In production (`NODE_ENV=production`), "not connected" never runs the demo. The booking card shows the Instagram button and the backup appointment link instead, and the server logs a loud error at startup. This prevents the anti-goal of a fake "You're booked".
 
@@ -119,6 +119,16 @@ All routes are JSON and `prerender = false`. Errors use `{ error: code, fields?:
 | `GET /api/video/[id]` | — | `{ src }` | Stream iframe URL: signed when `streamSignedUrls` is on, plain otherwise. Unknown id returns 404. |
 | `POST /api/events` | name (`PageView`), eventId, url, fbp?, fbc? | 204 | Server side of PageView for the Conversions API. |
 | `POST /api/cron/run` | header `x-cron-secret` | summary of the work done | Called by Hostinger cron every 5 minutes; `npm run cron` runs it locally. |
+
+**After a "requested" booking** (the Phase 1 design: Hassan confirms by hand). It stays "requested" in the database:
+- Hassan creates the calendar event and emails the visitor himself.
+- The system doesn't retry Google on its own, because that could clash with what Hassan does by hand.
+- Requested bookings get no reminders.
+- The visitor's manage link can cancel a requested booking, which frees the slot and tells Hassan, but cannot reschedule it.
+
+**Who visitors see and reach:**
+- Replies to every email go to `connect@hivegen.co`, the public address the user chose on 2026-11-18. Where that forwards is set in Cloudflare Email Routing; today it forwards to the developer's Gmail.
+- Google's invite shows the calendar owner's address (Hassan's Gmail) to the person booking. The user accepted this on 2026-11-19. It never appears on the website.
 
 **Validation** (server, Zod):
 - name: 1–100 characters.
@@ -372,7 +382,7 @@ The job therefore calls the site itself, for example `curl -s -X POST https://hi
 
 ## 19. My calls for the user to check
 
-1. Email goes out through any SMTP mailbox. Until the professional mailbox exists, emails are saved to a folder (visitors still get Google's invite).
+1. Email goes out through any SMTP mailbox. Until the professional mailbox exists, emails on this computer are saved to a folder. The live site waits for the mailbox (your answer).
 2. Hassan gets a "new lead, no time picked" email 30 minutes after an unfinished step 1.
 3. "I am a…" and "videos per month" become required.
 4. Trackers and Turnstile load after the page; a visitor who leaves in the first second isn't counted.
