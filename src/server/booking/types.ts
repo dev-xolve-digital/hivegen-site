@@ -14,8 +14,10 @@ export interface Booking extends NewBooking {
   id: number; googleEventId?: string; meetUrl?: string; reminder24hSentAt?: Date; reminder1hSentAt?: Date;
   visitorNotifiedAt?: Date; hassanNotifiedAt?: Date; createdAt: Date; updatedAt: Date;
 }
-export type BookingPatch = Partial<Pick<Booking, 'start' | 'end' | 'status' | 'visitorTz' | 'googleEventId' | 'meetUrl'
-  | 'reminder24hSentAt' | 'reminder1hSentAt' | 'visitorNotifiedAt' | 'hassanNotifiedAt'>>;
+type ClearableBookingField = 'googleEventId' | 'meetUrl' | 'reminder24hSentAt' | 'reminder1hSentAt' | 'visitorNotifiedAt' | 'hassanNotifiedAt';
+/** Missing or undefined keeps a value; null clears it (clearable fields only). */
+export type BookingPatch = Partial<Pick<Booking, 'start' | 'end' | 'status' | 'visitorTz'>>
+  & { [K in ClearableBookingField]?: Booking[K] | null };
 export interface TrackingRecord { eventId: string; name: string; leadId?: number; payload: unknown; status: 'pending' | 'sent' | 'failed' | 'skipped'; attempts: number; error?: string }
 export class SlotConflictError extends Error { constructor() { super('slot_conflict'); this.name = 'SlotConflictError'; } }
 export class CalendarUnavailableError extends Error { constructor(msg = 'calendar_unavailable') { super(msg); this.name = 'CalendarUnavailableError'; } }
@@ -27,7 +29,7 @@ export interface Store {
   getLeadByPublicId(publicId: string): Promise<Lead | null>;
   updateLead(id: number, patch: { status?: LeadStatus; newLeadNotifiedAt?: Date }, now: Date): Promise<void>;
   insertBooking(b: NewBooking, now: Date): Promise<Booking>;                 // SlotConflictError if an active booking has this start
-  updateBooking(id: number, patch: BookingPatch, now: Date): Promise<Booking>; // SlotConflictError when moved/reactivated onto a taken start
+  updateBooking(id: number, patch: BookingPatch, now: Date): Promise<Booking>; // SlotConflictError when moved/reactivated onto a taken start; missing/undefined keeps a field, null clears a clearable one
   getActiveBookingForLead(leadId: number): Promise<Booking | null>;
   getBookingByToken(token: string): Promise<Booking | null>;
   bookingsStartingBetween(fromIso: string, toIso: string): Promise<Booking[]>; // every status, ordered by start

@@ -171,17 +171,19 @@ export function createBookingService(d: ServiceDeps): BookingService {
       const calendar = await checkCalendar(slot);
       if (calendar === 'busy') return { ok: false, error: 'slot_taken' };
 
-      // The store's unique start is the final guard when two visitors confirm the same slot at once.
+      // The booking is saved as "requested", which holds the slot just the same; the store's unique start is the final guard when
+      // two visitors confirm one slot at once. A confirm from this same lead that lost the race gets the booking the winner saved.
       let booking: Booking;
       try {
-        booking = await d.store.insertBooking({ leadId: lead.id, start: slot.start, end: slot.end, visitorTz, status: 'booked', manageToken: randomToken() }, now);
+        booking = await d.store.insertBooking({ leadId: lead.id, start: slot.start, end: slot.end, visitorTz, status: 'requested', manageToken: randomToken() }, now);
       } catch (e) {
-        if (e instanceof SlotConflictError) return { ok: false, error: 'slot_taken' };
-        throw e;
+        if (!(e instanceof SlotConflictError)) throw e;
+        const mine = await d.store.getActiveBookingForLead(lead.id);
+        return mine ? { ok: true, value: outcomeOf(lead, mine) } : { ok: false, error: 'slot_taken' };
       }
 
-      // The slot is saved. From here the visitor keeps it whatever Google does: without an event the booking becomes "requested"
-      // and Hassan confirms it by hand.
+      // Only an event that Google has made turns it into "booked". Without one (Google down, or the event failed) it stays "requested"
+      // and Hassan confirms it by hand; the visitor keeps the slot either way.
       let event: Awaited<ReturnType<Calendar['createEvent']>> | undefined;
       if (calendar === 'free') {
         try {
@@ -190,7 +192,7 @@ export function createBookingService(d: ServiceDeps): BookingService {
           logFailure('calendar event not created', e);
         }
       }
-      booking = await d.store.updateBooking(booking.id, event ? { googleEventId: event.eventId, meetUrl: event.meetUrl } : { status: 'requested' }, now);
+      if (event) booking = await d.store.updateBooking(booking.id, { status: 'booked', googleEventId: event.eventId, meetUrl: event.meetUrl }, now);
       await d.store.updateLead(lead.id, { status: booking.status }, now);
 
       // Each email on its own: one that fails stays unmarked, and cron sends it again.
@@ -262,7 +264,7 @@ export function createBookingService(d: ServiceDeps): BookingService {
       // Reserve the new time first (the store refuses a start someone else holds), then move the event.
       let moved: Booking;
       try {
-        moved = await d.store.updateBooking(booking.id, { start: slot.start, end: slot.end, reminder24hSentAt: undefined, reminder1hSentAt: undefined }, now);
+        moved = await d.store.updateBooking(booking.id, { start: slot.start, end: slot.end, reminder24hSentAt: null, reminder1hSentAt: null }, now);
       } catch (e) {
         if (e instanceof SlotConflictError) return { ok: false, error: 'slot_taken' };
         throw e;
@@ -273,7 +275,7 @@ export function createBookingService(d: ServiceDeps): BookingService {
         } catch (e) {
           logFailure('calendar event not moved', e);
           await d.store.updateBooking(booking.id, {
-            start: booking.start, end: booking.end, reminder24hSentAt: booking.reminder24hSentAt, reminder1hSentAt: booking.reminder1hSentAt,
+            start: booking.start, end: booking.end, reminder24hSentAt: booking.reminder24hSentAt ?? null, reminder1hSentAt: booking.reminder1hSentAt ?? null,
           }, now);
           return { ok: false, error: 'server_error' };
         }

@@ -192,15 +192,65 @@ describe('book', () => {
     expect(t.sent).toEqual(['booking-requested', 'hassan-confirm-by-hand']);
   });
 
-  it('a double click (two confirmations at once) still leaves one booking and one event', async () => {
+  /** Both answers of a duplicate confirm: ok, the same booking, and never "booked" without a Meet link. */
+  const expectOneBooking = (results: Awaited<ReturnType<Ctx['svc']['book']>>[]) => {
+    const values = results.map((r) => { if (!r.ok) throw new Error(`a duplicate confirm got ${r.error}`); return r.value; });
+    expect(new Set(values.map((v) => v.manageUrl)).size).toBe(1);
+    for (const v of values) if (v.status === 'booked') expect(v.meetUrl).toMatch(/^https:\/\/meet\.google\.com\//);
+  };
+
+  it('a double click (two confirmations at once) gives both the same booking, and leaves one booking and one event', async () => {
     const t = await withLead();
     const results = await Promise.all([
       t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {}),
       t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {}),
     ]);
-    expect(results.some((r) => r.ok)).toBe(true);
+    expectOneBooking(results);
     expect(await everyBooking(t.store)).toHaveLength(1);
     expect(t.calendar.events.size).toBe(1);
+    expect(t.sent).toEqual(['booking-confirmed', 'hassan-new-booking']);
+    expect(t.tracked.filter((e) => e.name === 'Schedule')).toHaveLength(1);
+  });
+
+  it('a second confirm that lands before the first is saved gets the first booking, not slot_taken', async () => {
+    const t = await withLead();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const busy = t.calendar.busy.bind(t.calendar);
+    const asked = vi.spyOn(t.calendar, 'busy').mockImplementation(async (from, to) => { await gate; return busy(from, to); });
+    const first = t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {});
+    const second = t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {});
+    await vi.waitFor(() => expect(asked).toHaveBeenCalledTimes(2)); // both have read "no booking yet" and wait on Google
+    release();
+    expectOneBooking(await Promise.all([first, second]));
+    expect(await everyBooking(t.store)).toHaveLength(1);
+    expect(t.calendar.events.size).toBe(1);
+    expect(t.sent).toEqual(['booking-confirmed', 'hassan-new-booking']);
+  });
+
+  it('a second confirm that lands while Google makes the event gets the same booking as requested, never booked without a Meet link', async () => {
+    const t = await withLead();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const createEvent = t.calendar.createEvent.bind(t.calendar);
+    const making = vi.spyOn(t.calendar, 'createEvent').mockImplementation(async (e) => { await gate; return createEvent(e); });
+    const first = t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {});
+    await vi.waitFor(() => expect(making).toHaveBeenCalled()); // the booking is saved and Google is working on the event
+
+    const second = await t.svc.book({ leadId: t.leadId, start: t.slot.start, visitorTz: 'UTC' }, {});
+    if (!second.ok) throw new Error(second.error);
+    expect(second.value).toMatchObject({ status: 'requested' });
+    expect(second.value.meetUrl).toBeUndefined();
+    expect(t.sent).toEqual([]);
+
+    release();
+    const done = await first;
+    if (!done.ok) throw new Error(done.error);
+    expect(done.value).toMatchObject({ status: 'booked', meetUrl: 'https://meet.google.com/fake-1' });
+    expect(done.value.manageUrl).toBe(second.value.manageUrl);
+    expect(await everyBooking(t.store)).toHaveLength(1);
+    expect(t.calendar.events.size).toBe(1);
+    expect(t.sent).toEqual(['booking-confirmed', 'hassan-new-booking']);
   });
 
   it('a fresh service on the same store (process restarted) still books the lead', async () => {

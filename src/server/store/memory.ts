@@ -10,8 +10,19 @@ import { isActive } from '../booking/status';
  * Everything handed in or out is a copy, so a caller can never change what is stored.
  */
 const copy = <T>(value: T): T => structuredClone(value);
-/** Fields a patch sets, leaving out the ones given as `undefined` (lead and tracking updates never clear a field). */
+/** Fields a patch sets, leaving out the ones given as `undefined`. */
 const defined = <T extends object>(patch: T): Partial<T> => Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
+
+/** A copy of `booking` with the patch applied: a value replaces the field, a missing or `undefined` key keeps it, `null` clears it. */
+function applyBookingPatch(booking: Booking, patch: BookingPatch, now: Date): Booking {
+  const next: Record<string, unknown> = { ...booking, updatedAt: new Date(now) };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) delete next[key];
+    else next[key] = copy(value);
+  }
+  return next as unknown as Booking;
+}
 
 export function createMemoryStore(): Store {
   const leads: Lead[] = [];
@@ -48,14 +59,13 @@ export function createMemoryStore(): Store {
       return copy(booking);
     },
     async updateBooking(id, patch: BookingPatch, now: Date) {
-      const current = bookings.find((b) => b.id === id);
-      if (!current) throw new Error(`booking ${id} not found`);
-      // A key in the patch replaces the field, and `undefined` clears it; a key left out keeps it.
-      const next: Booking = { ...current, ...copy(patch), updatedAt: new Date(now) };
+      const index = bookings.findIndex((b) => b.id === id);
+      if (index < 0) throw new Error(`booking ${id} not found`);
+      const next = applyBookingPatch(bookings[index], patch, now);
       // Checked before anything is written, so a refused move leaves the booking as it was.
       if (isActive(next.status) && heldBy(next.start, id)) throw new SlotConflictError();
-      Object.assign(current, next);
-      return copy(current);
+      bookings[index] = next;
+      return copy(next);
     },
     async getActiveBookingForLead(leadId) {
       const found = bookings.filter((b) => b.leadId === leadId && isActive(b.status)).at(-1);

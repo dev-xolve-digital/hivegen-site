@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { SlotConflictError, type NewBooking, type NewLead, type Store, type TrackingRecord } from '../../src/server/booking/types';
+import { SlotConflictError, type BookingPatch, type NewBooking, type NewLead, type Store, type TrackingRecord } from '../../src/server/booking/types';
 
 /**
  * The behaviour every Store must have: the memory store and the MySQL store both run these tests.
@@ -120,19 +120,35 @@ export function storeContract(make: Make): void {
     expect(await store.getBookingByToken(current.manageToken)).toEqual(patched);
   }));
 
-  it('a booking patch key given as undefined clears that field; a key left out keeps it', () => withStore(make, async (store) => {
+  it('a booking patch: missing or undefined keeps a field, null clears a clearable one, and start, end and status cannot be cleared', () => withStore(make, async (store) => {
     const a = await store.createLead(lead(1), T0);
+    const b = await store.createLead(lead(2), T0);
     const made = await store.insertBooking(booking(a.id, 1), T0);
-    await store.updateBooking(made.id, { googleEventId: 'ev-1', reminder24hSentAt: at(5), reminder1hSentAt: at(6) }, at(7));
+    await store.updateBooking(made.id, { googleEventId: 'ev-1', meetUrl: 'https://meet.google.com/abc', reminder24hSentAt: at(5), reminder1hSentAt: at(6) }, at(7));
 
-    const kept = await store.updateBooking(made.id, { visitorNotifiedAt: at(8) }, at(9));
-    expect(kept).toMatchObject({ googleEventId: 'ev-1', reminder24hSentAt: at(5), reminder1hSentAt: at(6), visitorNotifiedAt: at(8) });
+    const added = await store.updateBooking(made.id, { visitorNotifiedAt: at(8) }, at(9));
+    expect(added).toMatchObject({ googleEventId: 'ev-1', reminder24hSentAt: at(5), reminder1hSentAt: at(6), visitorNotifiedAt: at(8) });
 
-    const cleared = await store.updateBooking(made.id, { reminder24hSentAt: undefined, reminder1hSentAt: undefined }, at(10));
+    // undefined is the same as leaving the key out, for every field: nothing is cleared, and the slot stays held.
+    const kept = await store.updateBooking(made.id, {
+      status: undefined, start: undefined, end: undefined, googleEventId: undefined, meetUrl: undefined, reminder24hSentAt: undefined, visitorNotifiedAt: undefined,
+    }, at(10));
+    expect(kept).toMatchObject({ status: 'booked', start: slot(1), end: slotEnd(1), googleEventId: 'ev-1', meetUrl: 'https://meet.google.com/abc',
+      reminder24hSentAt: at(5), reminder1hSentAt: at(6), visitorNotifiedAt: at(8), updatedAt: at(10) });
+    await expect(store.insertBooking(booking(b.id, 1), at(10))).rejects.toBeInstanceOf(SlotConflictError);
+
+    // null clears a clearable field and leaves the others alone.
+    const cleared = await store.updateBooking(made.id, { reminder24hSentAt: null, reminder1hSentAt: null, meetUrl: null }, at(11));
     expect(cleared.reminder24hSentAt).toBeUndefined();
     expect(cleared.reminder1hSentAt).toBeUndefined();
-    expect(cleared).toMatchObject({ googleEventId: 'ev-1', visitorNotifiedAt: at(8), updatedAt: at(10) });
+    expect(cleared.meetUrl).toBeUndefined();
+    expect(cleared).toMatchObject({ status: 'booked', start: slot(1), googleEventId: 'ev-1', visitorNotifiedAt: at(8), updatedAt: at(11) });
     expect(await store.getBookingByToken(made.manageToken)).toEqual(cleared);
+
+    // A required field cannot be cleared: the type does not allow null there.
+    // @ts-expect-error start, end and status are not clearable
+    const notAllowed: BookingPatch = { status: null };
+    void notAllowed;
   }));
 
   it('lists bookings starting in a range and leads created in a range', () => withStore(make, async (store) => {
