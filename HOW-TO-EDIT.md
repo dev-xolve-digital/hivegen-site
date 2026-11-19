@@ -32,7 +32,7 @@ Lines starting with `#` are notes for you. The site ignores them. Notes marked `
 | The three "Who it's for" cards (main page only) | `content/sections/who-its-for.yaml` | `text: Hand us the editing…` |
 | The three steps | `content/sections/how-it-works.yaml` | `title: Book a 15-minute call` |
 | Section 05 (before/after) | `content/sections/before-after.yaml` | see "Section 05" below |
-| Client video cards and the message rows | `content/testimonials.yaml` | `role: Listing agent` |
+| Client video cards and the message rows | `content/testimonials.yaml` | `role: Kenneth` |
 | Plan names, prices, minimums, revisions, features | `content/sections/plans.yaml` | `price: 60` / `minimumPerMonth: 30` |
 | The line under each plan price | `content/sections/plans.yaml`, `termsLine:` | `termsLine: "{min}+ videos a month · {revisions} revision{s}"` |
 | The single-video bar and the free-edit note | `content/sections/plans.yaml`, `single:` and `freeNote:` | `priceFrom: 90` |
@@ -46,6 +46,7 @@ Lines starting with `#` are notes for you. The site ignores them. Notes marked `
 | Where booking emails go, the Instagram chat link | `content/site.yaml`, `contact:` | `instagramUrl: https://ig.me/m/hasan.drp` |
 | Live 3D on phones instead of still images | `content/site.yaml` | `live3dOnMobile: true` |
 | Hide section 05 | `content/site.yaml` | `showBeforeAfter: false` |
+| Which images load from Cloudflare Images | `content/images.yaml` | `media/posters/v-rooftop-hook.jpg: e1ba4a9f-…` |
 
 Words in `{curly braces}` in `booking.yaml` and `plans.yaml`, such as `{email}`, `{when}` or `{min}`, are filled in by the site. Keep them as they are. In `termsLine`, `{s}` adds an "s" unless the plan has exactly 1 revision.
 
@@ -70,9 +71,16 @@ All 31 portfolio videos play from Cloudflare Stream. Each one has an entry in `c
 2. Put the original file under `references/final-videos/`.
 3. Add an entry like the one above to `videos.yaml`.
 4. Run `npm run media` to make its card image. If you forget, the site stops and tells you which image is missing.
-5. Add its `id` to `videoOrder` in each page file where it should appear.
+5. Upload the new card image (`public/media/posters/<id>.jpg`) to Cloudflare Images and add its line to `content/images.yaml` (see "Images" below). Until you do, the site serves the image itself, so nothing breaks.
+6. Add its `id` to `videoOrder` in each page file where it should appear.
 
-**To change a card image**, change `posterTime` and run `npm run media`.
+**To change a card image**, change `posterTime` and run `npm run media`. Then upload the new image to Cloudflare Images and replace its ID in `images.yaml`, or delete its line there so the site serves the new image itself.
+
+**Client videos (section 06)** play from Stream too. Their entries in `videos.yaml` have ids starting with `t-` and no `source:`, because their card image is Stream's own frame at `posterTime`. To add one:
+
+1. Upload it to Cloudflare Stream and copy its video ID.
+2. Add an entry to `videos.yaml` with `id`, `title`, `label`, `duration`, `orientation`, `posterTime` and `streamUid`.
+3. Add it under `videos:` in `content/testimonials.yaml`. `role:` is the name shown under the card.
 
 **To remove a video**, delete its `id` from every page's `videoOrder`. You can also delete its entry in `videos.yaml`.
 
@@ -80,33 +88,47 @@ All 31 portfolio videos play from Cloudflare Stream. Each one has an entry in `c
 
 ## Section 05 (before/after)
 
-It currently shows a stand-in: the day-to-dusk moment from portrait video 1. When your raw clip and its finished edit arrive:
+A drag slider compares the raw porch shot with the same shot from the finished edit. The two short clips come from `references/final-videos/Section-05/raw-section-5.mp4` and `edited-section-5.mp4`, from second 38.17 for 2.96 seconds. They play forward then backward (`boomerang: true`), so the loop has no jump. The site serves them itself, not Stream. "Watch the full edit" plays the full edited video (`v-before-after-edit` in `videos.yaml`) from Stream.
 
-1. Put both files under `references/`, for example `references/before-after/raw.mp4` and `references/before-after/edit.mp4`. Use the same shot, same framing, same length, ideally 3–6 seconds.
-2. In `content/sections/before-after.yaml`, follow the steps in the note at the top: set `mode: slider`, paste the new heading and labels, and fill in `slider:` with both files.
-3. Change `ariaLabel:` so it describes the new clip (screen readers read it out), and set `sample: false`.
+To use a different moment or different videos:
+
+1. Put the files under `references/`.
+2. In `content/sections/before-after.yaml`, change `source`, `start` and `duration` under `slider:`. Keep `start` and `duration` the same for both clips so the frames line up.
+3. Change `ariaLabel:` so it describes the new clip (screen readers read it out).
 4. Run `npm run media`. Until you do, the site stops and says which clip is missing.
-
-The two clips are served by the site itself, not Stream. To add a "watch the full edit" button that plays the full video from Stream, set `fullVideoId:` to that video's id from `videos.yaml`, and set `fullVideoLabel:` to the button text.
 
 ## Message screenshots
 
-The images live in `public/media/screenshots/`.
+The 18 client messages live in `public/media/screenshots/` and load from Cloudflare Images. All cards have the same width, so each card's height follows its screenshot.
 
-- **To replace one**, save the new image with the same file name (for example `shot-03.jpg`).
-- **To add or rename images**, list them under `screenshots:` in `content/testimonials.yaml`. Each one gets a `file`, an `alt` (a short description of the message, for screen readers) and a `row`. `front` moves right; `back` moves left, behind the front row.
+- **To add one:**
+  1. Save it in `public/media/screenshots/` with a lowercase name without spaces, for example `new-client.webp`.
+  2. Upload the same file to Cloudflare Images and add `media/screenshots/new-client.webp: <its ID>` to `content/images.yaml`.
+  3. List it under `screenshots:` in `content/testimonials.yaml`, with:
+     - a `file`;
+     - an `alt`: a short description of the message, for screen readers;
+     - a `row`: `front` moves right; `back` moves left, behind the front row;
+     - `sample: false`.
+- **To remove one**, delete its four lines from `testimonials.yaml`.
+
+## Images (Cloudflare Images)
+
+These images load from Cloudflare Images, a fast image network, instead of from the site itself:
+
+- the card images;
+- the hero video's still;
+- the phone images of the 3D objects;
+- the message screenshots.
+
+`content/images.yaml` lists each one: its path inside `public/`, then its image ID in Cloudflare. A file that is not listed there is served by the site itself, so a missing line never breaks a page.
+
+When you change an image on this computer, upload the new version to Cloudflare Images and replace its ID in `images.yaml`. Until you do, the site keeps showing the old Cloudflare copy.
 
 ## Samples
 
-Placeholder items carry `sample: true` and show a small "Sample" tag in the draft. Right now these are:
+Nothing on the site is a placeholder any more, so a production build (`SITE_MODE=production`) can finish. If you ever add a placeholder, mark it `sample: true`. It then shows a small "Sample" tag in the draft, and the production build refuses to finish until it is replaced.
 
-- the three client videos (their `sample:` lines are in `content/videos.yaml`, on the entries whose id starts with `t-`);
-- the twelve message screenshots (in `content/testimonials.yaml`);
-- section 05 (in `content/sections/before-after.yaml`).
-
-When you replace one with real content, change it to `sample: false`.
-
-**Real client videos go on Cloudflare Stream**, like the portfolio videos: upload each one, then give its entry in `videos.yaml` a `streamUid` and remove `host: local`. Video files kept on this computer (`host: local`) are not saved with the site's code, so they would not reach the live site. A production build (`SITE_MODE=production`) refuses to finish while any sample remains, and lists the ones left.
+**Real client videos go on Cloudflare Stream**, like the portfolio videos. Video files kept on this computer (`host: local`) are not saved with the site's code, so they would not reach the live site.
 
 ## When something is wrong
 
@@ -116,7 +138,7 @@ If a content file has a mistake, the site stops and tells you the file and the l
 content/pages/main.yaml: "hero.subline" is missing (field hero.subline)
 content/site.yaml: tab characters must not be used in indentation (line 5)
 content/pages/main.yaml: unknown video id "v-nope"; add it to videos.yaml or fix the spelling (field videoOrder.vertical.0)
-content/testimonials.yaml: "shot-3.jpg" was not found in public/media/screenshots/; check the spelling or add the image (field screenshots.2.file)
+content/testimonials.yaml: "img-401.webp" was not found in public/media/screenshots/; check the spelling or add the image (field screenshots.1.file)
 content/videos.yaml: no card image for "v-new-tour" (public/media/posters/v-new-tour.jpg); run npm run media (field videos.31.id)
 ```
 

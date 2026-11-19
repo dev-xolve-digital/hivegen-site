@@ -5,11 +5,11 @@ import { imageSize } from 'image-size';
 import type { z } from 'zod';
 import { ContentError } from './errors';
 import {
-  siteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema,
-  type Site, type Page, type Video, type Sections, type Testimonials,
+  siteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema,
+  type Site, type Page, type Video, type Sections, type Testimonials, type Images,
 } from './schemas';
 
-export type { Site, Page, Video, Sections, Testimonials, BookingRules } from './schemas';
+export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images } from './schemas';
 export type PageSlug = '' | 'agencies' | 'videographers' | 'agents';
 /** A message screenshot plus its image size, so the page can reserve its space before it loads. */
 export type Screenshot = Testimonials['screenshots'][number] & { width: number; height: number };
@@ -84,10 +84,21 @@ export function loadVideos(): Video[] {
   videos.forEach((v, i) => {
     if (seen.has(v.id)) throw new ContentError(`${shown('videos.yaml')}: the id "${v.id}" is used twice (field videos.${i}.id)`, shown('videos.yaml'), `videos.${i}.id`);
     seen.add(v.id);
-    requirePublic(`media/posters/${v.id}.jpg`, 'videos.yaml', `videos.${i}.id`,
-      `no card image for "${v.id}" (public/media/posters/${v.id}.jpg); run npm run media`);
+    if (!v.source && !v.streamUid) {
+      throw new ContentError(`${shown('videos.yaml')}: "${v.id}" needs a source file (to make its card image) or a streamUid (to use Stream's) (field videos.${i})`, shown('videos.yaml'), `videos.${i}`);
+    }
+    // Videos with an original under references/ get a card image from `npm run media`; the others use Stream's.
+    if (v.source) {
+      requirePublic(`media/posters/${v.id}.jpg`, 'videos.yaml', `videos.${i}.id`,
+        `no card image for "${v.id}" (public/media/posters/${v.id}.jpg); run npm run media`);
+    }
   });
   return videos;
+}
+
+/** Which files are served from Cloudflare Images, by their path inside public/. */
+export function loadImages(): Images {
+  return parse(imagesSchema, 'images.yaml');
 }
 
 export function getVideo(id: string): Video {

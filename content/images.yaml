@@ -1,0 +1,64 @@
+# Images served from Cloudflare Images (a fast image network) instead of the site itself.
+# Each line under images: is a file's path inside public/, then its image ID in Cloudflare Images.
+#
+# To move an image to Cloudflare: upload it in the Cloudflare dashboard (Images), copy its ID,
+# and add a line here. A file that is not listed is served by the site itself, so nothing breaks
+# if you forget. If you change an image on this computer (for example a new card image from
+# `npm run media`), upload the new one and replace its ID here, or delete its line.
+deliveryUrl: https://imagedelivery.net/VqmzJppFb-FqShL8TBqhpw   # your Cloudflare Images address
+variant: public                                                  # the size preset images are delivered in
+images:
+  media/3d/booking-pause.webp: 8289f86b-35d3-4f03-b4ec-5154e0f41a00
+  media/3d/hero-camera.webp: e4400f72-97a4-423f-57f7-ea5e765edb00
+  media/3d/hero-pause.webp: f4687863-eb21-4795-4197-411ae6fe9d00
+  media/3d/hero-play.webp: 307a23e3-3b41-4f94-c055-1d846a1d8a00
+  media/posters/h-agent-led.jpg: 8165f456-10eb-43bf-2669-5afd57005400
+  media/posters/h-bright-modern.jpg: 23980df8-20b0-4487-9acd-32b773416200
+  media/posters/h-country-barn.jpg: 385fbeec-7c11-4844-5834-b28e711e0900
+  media/posters/h-estate-aerial.jpg: 4c89fe03-3f3c-419c-de2d-806e81fd7300
+  media/posters/h-family-home.jpg: 68d15d8e-345b-4c73-b40b-4b7df7d45800
+  media/posters/h-modern-villa.jpg: f6deaedd-5d36-4c0c-daea-46054f904d00
+  media/posters/h-new-build.jpg: a770a271-f19d-4361-0354-a451c6eb2100
+  media/posters/h-yacht.jpg: 615242d3-f5f0-4948-9664-f8733f78e200
+  media/posters/hero-loop.jpg: 8314f836-0437-4725-2593-b1b30a640000
+  media/posters/v-agent-hosted.jpg: 396ae4be-e310-4bf7-0727-2ed3d99b7900
+  media/posters/v-agent-spotlight.jpg: d23f7a17-8cf9-49e3-5be2-abf50e2d7b00
+  media/posters/v-autumn-cottage.jpg: e5aaf4da-9837-444c-300e-38b658c6c800
+  media/posters/v-buyer-story.jpg: 695d4588-ce51-4d41-f571-4538d617be00
+  media/posters/v-client-reveal.jpg: 55f5932d-53eb-4b61-d40e-834bc4784c00
+  media/posters/v-community-tour.jpg: f008a28d-6a40-492d-f9ba-4c2326a02200
+  media/posters/v-creative-hook.jpg: 2144c613-5567-4278-a793-ada9115e7d00
+  media/posters/v-golf-cart-tour.jpg: 5b3fdcd7-3c43-48f0-3c0a-4d25043ff600
+  media/posters/v-investor-angle.jpg: c24f4fc8-33df-4d29-cb06-501e2cd78e00
+  media/posters/v-lakefront.jpg: 14f9c165-3fc7-45aa-e816-f1ad2debb700
+  media/posters/v-lifestyle-couple.jpg: 3e30909e-3968-485c-a26f-a09ae863aa00
+  media/posters/v-lifestyle-story.jpg: bba6272a-ba0f-4bca-9741-8aba027c5100
+  media/posters/v-luxury-kitchen.jpg: bc10b960-6b6a-4347-319b-cf17eb2fdd00
+  media/posters/v-miami-story.jpg: ba68886e-14bd-459a-ec53-c06fe23d8300
+  media/posters/v-new-build-host.jpg: 65eed85a-6fde-4a25-ba1f-437c60b4c400
+  media/posters/v-night-sky.jpg: 3ffcaf72-8f22-4ef3-207a-223d383edd00
+  media/posters/v-pool-home-hook.jpg: dad22717-071a-4a42-7d54-34ae4f60f200
+  media/posters/v-portfolio-reel.jpg: 84981b96-3ee0-42a8-74ce-da7ab8323b00
+  media/posters/v-ranch-acreage.jpg: d03ca8b7-1eb7-4695-ed48-15e9566b4100
+  media/posters/v-rooftop-hook.jpg: e1ba4a9f-89c6-417d-aae2-2cf10e6e8300
+  media/posters/v-still-not-sold.jpg: 9874ae6c-68fb-4db1-179f-53f156617300
+  media/posters/v-street-hook.jpg: ea603b21-092d-4593-aacd-c60d145e5800
+  media/posters/v-twilight-exterior.jpg: 8f5b4d55-381c-4acb-6b43-3aa90c58af00
+  media/screenshots/amin.webp: d651dbc2-cf09-43a9-f351-bac565350e00
+  media/screenshots/darian.webp: de115b1a-565e-4d51-a0e2-5b235e171a00
+  media/screenshots/declam.webp: 697e8437-c1d1-4b53-d0ed-773f4b04ee00
+  media/screenshots/img-4001.webp: 522b84c7-b473-4be6-a1ee-f700e9185200
+  media/screenshots/img-4009.webp: 126e4e7c-c97b-4f2b-0fbd-04ce57246700
+  media/screenshots/img-4012.webp: a838a0cb-fb04-473f-9c4d-06f00504fb00
+  media/screenshots/img-4013.webp: 73bbe7c8-a807-4cd8-991f-cbc9772e1200
+  media/screenshots/img-4014.webp: fac615cc-9faf-4c9d-e4fc-b955b6f33900
+  media/screenshots/img-4015.webp: 1cd0b531-0bd8-4e43-f53d-d6a53a4eb700
+  media/screenshots/img-4016.webp: 2e10d81a-f034-4696-48cb-47e59e41c500
+  media/screenshots/img-4017.webp: 7a8d10a2-562a-4503-ed83-712393732900
+  media/screenshots/img-4018.webp: b59d209c-d423-46da-a39d-b3b1b7fece00
+  media/screenshots/img-4020.webp: d5fb80c6-a243-4caa-4bf2-1aff9ef38700
+  media/screenshots/jerry.webp: 8cd994ad-e82a-4f63-0b26-474316c47100
+  media/screenshots/katie.webp: 6485b345-0fd4-4226-13d9-89e1f1b80700
+  media/screenshots/kenneth-clary-2.webp: 13978444-753c-4ed0-a25e-ef7265595e00
+  media/screenshots/kenneth-clary.webp: 167c824d-65e9-4bf1-5c1d-dcc34cf15c00
+  media/screenshots/tannerm.webp: cd3a9355-56aa-41e6-84f7-25a0ff035200

@@ -20,7 +20,7 @@ it.each([2, 20])('a marquee with %i shots fills a 2560px screen and announces ea
   const cards = html.match(/<figure[^>]*data-testid="shot"[^>]*>/g)!;
   expect(cards.filter((f) => !f.includes('aria-hidden')).length).toBe(n);
   expect(cards.length % 2).toBe(0);
-  // one copy is half the track; at the desktop front-row height (270px) a 360x500 card is 194px wide, plus an 18px gap
-  expect((cards.length / 2) * (360 * 270 / 500 + 18)).toBeGreaterThanOrEqual(2560);
+  // one copy is half the track; front-row cards are 320px wide on desktop, plus an 18px gap
+  expect((cards.length / 2) * (320 + 18)).toBeGreaterThanOrEqual(2560);
   expect(html).toMatch(/<img[^>]*width="360"[^>]*height="500"/);
 });

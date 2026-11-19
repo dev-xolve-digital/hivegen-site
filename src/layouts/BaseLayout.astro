@@ -1,11 +1,14 @@
 ---
 import '../styles/global.css';
 import '../styles/site.css';
-import { loadSite } from '../lib/content/load';
+import { loadSite, loadImages } from '../lib/content/load';
 
 interface Props { seo: { title: string; description: string; noindex: boolean } }
 const { seo } = Astro.props;
 const site = loadSite();
+const images = loadImages();
+// Card images, the hero poster and screenshots come from Cloudflare Images: open that connection early.
+const imageOrigin = Object.keys(images.images).length > 0 ? new URL(images.deliveryUrl).origin : undefined;
 ---
 <!doctype html>
 <html lang="en" data-live3d-mobile={site.settings.live3dOnMobile ? 'true' : 'false'}>
@@ -20,6 +23,7 @@ const site = loadSite();
     <meta property="og:description" content={seo.description} />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/png" href={site.brand.logo} />
+    {imageOrigin && <link rel="preconnect" href={imageOrigin} />}
     <link rel="preload" href="/fonts/archivo-display.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/montserrat-text.woff2" as="font" type="font/woff2" crossorigin />
   </head>

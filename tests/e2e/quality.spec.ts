@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { gzipSync } from 'node:zlib';
 import { listPages } from '../../src/lib/content/load';
+import { imageUrl } from '../../src/lib/media';
 
 test('phone: initial JavaScript under 50 KB gzipped, poster under 80 KB, fonts under 100 KB', async ({ page, isMobile }) => {
   test.skip(!isMobile);
@@ -10,7 +11,7 @@ test('phone: initial JavaScript under 50 KB gzipped, poster under 80 KB, fonts u
   await page.goto('/', { waitUntil: 'load' });
   const all = await Promise.all(bodies);
   expect(all.filter((x) => x.type === 'script').reduce((n, x) => n + x.size, 0)).toBeLessThan(50 * 1024);
-  expect(all.find((x) => /hero-loop\.jpg$/.test(x.url))!.size).toBeLessThan(80 * 1024);
+  expect(all.find((x) => x.url === imageUrl('media/posters/hero-loop.jpg'))!.size).toBeLessThan(80 * 1024);
   expect(all.filter((x) => x.type === 'font').reduce((n, x) => n + x.size, 0)).toBeLessThan(100 * 1024);
 });
 test('layout shift stays under 0.05', async ({ page }) => {

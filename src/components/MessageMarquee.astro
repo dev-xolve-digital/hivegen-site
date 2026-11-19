@@ -1,15 +1,16 @@
 ---
 import SampleTag from './SampleTag.astro';
 import type { Screenshot } from '../lib/content/load';
+import { imageUrl } from '../lib/media';
 interface Props { shots: Screenshot[]; direction: 'right' | 'left'; layer: 'front' | 'back' }
 const { shots, layer } = Astro.props;
 // The track holds two identical copies and slides by one copy, so one copy must be at least as wide
 // as the widest screen, or a blank stretch scrolls through. Repeat the screenshots until a copy is
-// about 2800px wide at the desktop card height (keep in step with .shot and .mq.back .shot in site.css).
-const ROW_HEIGHT = layer === 'front' ? 270 : 236;
+// about 2800px wide at the desktop card width (keep in step with .shot and .mq.back .shot in site.css).
+const CARD_WIDTH = layer === 'front' ? 320 : 270;
 const GAP = 18;
 const COVER_PX = 2800;
-const setWidth = shots.reduce((w, s) => w + (s.width * ROW_HEIGHT) / s.height + GAP, 0);
+const setWidth = shots.length * (CARD_WIDTH + GAP);
 const repeats = setWidth > 0 ? Math.ceil(COVER_PX / setWidth) : 1;
 const copy = Array.from({ length: repeats }, (_, r) => shots.map((s) => ({ s, first: r === 0 }))).flat();
 // Same speed whatever the number of cards (~9 s per card).
@@ -22,7 +23,7 @@ const dur = `${Math.max(copy.length, 1) * 9}s`;
       const hidden = c === 1 || !first;
       return (
         <figure class="shot" data-testid="shot" aria-hidden={hidden ? 'true' : undefined}>
-          <img src={`/media/screenshots/${s.file}`} alt={hidden ? '' : s.alt} width={s.width} height={s.height} loading="lazy" decoding="async" draggable="false" />
+          <img src={imageUrl(`media/screenshots/${s.file}`)} alt={hidden ? '' : s.alt} width={s.width} height={s.height} loading="lazy" decoding="async" draggable="false" />
           <SampleTag show={s.sample} />
         </figure>
       );
