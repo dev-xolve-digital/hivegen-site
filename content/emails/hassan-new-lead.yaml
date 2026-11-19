@@ -1,0 +1,16 @@
+# To Hassan, when someone filled in the form but has not picked a time yet. Sent once, about 30 minutes later.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {email} {phone} {buyerType} {volume} {footageUrl} {pageVersion} {source}
+# There is no call time yet, so do not use {when} or {whenPakistan} here.
+# A detail the visitor left out shows as a dash.
+subject: "New lead (no time picked yet): {name} · {buyerType}"
+body: |
+  {name} filled in the form but hasn't picked a time yet.
+
+  Email: {email}
+  Phone: {phone}
+  Type: {buyerType}
+  Videos per month: {volume}
+  Footage link: {footageUrl}
+  Page: {pageVersion}
+  Came from: {source}

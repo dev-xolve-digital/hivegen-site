@@ -1,0 +1,19 @@
+# To Hassan, when a call is booked.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {email} {phone} {buyerType} {volume} {footageUrl} {pageVersion} {source}
+#   {whenPakistan} (his time) {when} {timezone} (the visitor's time and zone name)
+# A detail the visitor left out shows as a dash.
+subject: "New booking: {name} · {buyerType} · {volume}/month · {whenPakistan}"
+body: |
+  {name} booked a call. It's in your Google Calendar.
+
+  Call: {whenPakistan} (your time)
+  Their time: {when} ({timezone})
+
+  Email: {email}
+  Phone: {phone}
+  Type: {buyerType}
+  Videos per month: {volume}
+  Footage link: {footageUrl}
+  Page: {pageVersion}
+  Came from: {source}

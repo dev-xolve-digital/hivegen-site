@@ -1,0 +1,17 @@
+# To the visitor, after they move their call to another time.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {when} {timezone} {previousWhen} {meetUrl} {manageUrl}
+# {when} is the new time and {previousWhen} the old one, both in the visitor's own time zone.
+# The button shows only when Google has given a Meet link, so the words must read well without it.
+subject: "Moved: your HiveGen call is now {when}"
+body: |
+  Hi {name},
+
+  Your call has moved to {when} ({timezone}). It was {previousWhen}.
+
+  The Google Meet link is in your updated calendar invite.
+
+  Need a different time? Reschedule or cancel: {manageUrl}
+button:
+  label: Join the call
+  link: meet

@@ -1,0 +1,20 @@
+# To Hassan, when Google could not make the calendar event and the booking waits for him.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {email} {phone} {buyerType} {volume} {footageUrl} {pageVersion} {source}
+#   {whenPakistan} (his time) {when} {timezone} (the visitor's time and zone name)
+# A detail the visitor left out shows as a dash.
+subject: "Confirm by hand: {name} · {whenPakistan}"
+body: |
+  {name} booked a call, but Google didn't make the calendar event, so there's no Meet link yet. Their time is held.
+
+  To do: add the event to your calendar with a Google Meet link, then email {name} at {email} to confirm. They were told you'd confirm by email.
+
+  Call: {whenPakistan} (your time)
+  Their time: {when} ({timezone})
+
+  Phone: {phone}
+  Type: {buyerType}
+  Videos per month: {volume}
+  Footage link: {footageUrl}
+  Page: {pageVersion}
+  Came from: {source}

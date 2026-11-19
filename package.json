@@ -33,6 +33,7 @@
     "js-yaml": "^5.5.0",
     "marked": "^18.2.1",
     "mysql2": "3.24.6",
+    "nodemailer": "10.6.0",
     "three": "^0.187.0",
     "zod": "^4.6.7"
   },
@@ -44,6 +45,7 @@
     "@playwright/test": "^1.65.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "@types/three": "^0.187.0",
     "cross-env": "^10.1.0",
     "jsdom": "^31.0.1",

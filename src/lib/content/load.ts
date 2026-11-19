@@ -4,12 +4,14 @@ import { load as parseYaml, YAMLException } from 'js-yaml';
 import { imageSize } from 'image-size';
 import type { z } from 'zod';
 import { ContentError } from './errors';
+import type { EmailKind } from '../../server/booking/types';
+import { allowedPlaceholders, splitPlaceholders } from './placeholders';
 import {
-  siteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema,
-  type Site, type Page, type Video, type Sections, type Testimonials, type Images,
+  siteSchema, emailSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
+  type Site, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
 } from './schemas';
 
-export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images } from './schemas';
+export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images, Email } from './schemas';
 export type PageSlug = '' | 'agencies' | 'videographers' | 'agents';
 /** A message screenshot plus its image size, so the page can reserve its space before it loads. */
 export type Screenshot = Testimonials['screenshots'][number] & { width: number; height: number };
@@ -122,6 +124,36 @@ export function loadSite(): Site {
 export function loadTurnstileSiteKey(): string | undefined {
   const key = (readYaml('site.yaml') as { settings?: { turnstileSiteKey?: unknown } } | null)?.settings?.turnstileSiteKey;
   return typeof key === 'string' ? key.trim() || undefined : undefined;
+}
+
+/**
+ * What an email needs from site.yaml: the brand name and logo for its layout, and the Reply-To address.
+ * One small file read for the running server, with none of loadSite()'s build-time checks.
+ */
+export function loadEmailSite(): { brandName: string; logo: string; replyTo: string } {
+  const { brand, contact } = parse(emailSiteSchema, 'site.yaml');
+  return { brandName: brand.name, logo: brand.logo, replyTo: contact.replyTo };
+}
+
+/** The name shown in messages for an email's wording file, e.g. "content/emails/reminder-1h.yaml". */
+export const emailFile = (kind: EmailKind) => shown(`emails/${kind}.yaml`);
+
+/** One email's wording. Every {placeholder} in it is one that email is allowed to use. */
+export function loadEmail(kind: EmailKind): Email {
+  const rel = `emails/${kind}.yaml`;
+  const email = parse(emailSchema, rel);
+  const allowed = allowedPlaceholders(kind);
+  const wording: Array<[field: string, text: string]> = [['subject', email.subject], ['body', email.body]];
+  if (email.button) wording.push(['button.label', email.button.label]);
+  for (const [field, text] of wording) {
+    for (const piece of splitPlaceholders(text)) {
+      if ('placeholder' in piece && !allowed.includes(piece.placeholder)) {
+        const list = allowed.map((name) => `{${name}}`).join(' ');
+        throw new ContentError(`${shown(rel)}: {${piece.placeholder}} can't be used in this email; use only ${list} (field ${field})`, shown(rel), field);
+      }
+    }
+  }
+  return email;
 }
 
 export function loadPage(slug: PageSlug): Page {

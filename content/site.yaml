@@ -6,6 +6,8 @@ brand:
 contact:
   # Where new-lead and booking emails go (used from Phase 2).
   notificationEmail: "Hasansiddiqui56@gmail.com"
+  # Replies to every booking email go here.
+  replyTo: connect@hivegen.co
   instagramHandle: hasan.drp
   # Opens an Instagram chat with the account above.
   instagramUrl: https://ig.me/m/hasan.drp

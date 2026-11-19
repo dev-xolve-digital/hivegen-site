@@ -1,0 +1,20 @@
+# To Hassan, after a visitor cancels or moves their call.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {change} (cancelled or rescheduled) {email} {phone} {buyerType} {volume} {footageUrl} {pageVersion} {source}
+#   {whenPakistan} (his time) {when} {timezone} (the visitor's time and zone name)
+# The time is the new one when the call was moved, and the one that was cancelled otherwise.
+# A detail the visitor left out shows as a dash.
+subject: "Booking {change}: {name} · {whenPakistan}"
+body: |
+  {name} {change} their call. Your Google Calendar is already up to date.
+
+  Time: {whenPakistan} (your time)
+  Their time: {when} ({timezone})
+
+  Email: {email}
+  Phone: {phone}
+  Type: {buyerType}
+  Videos per month: {volume}
+  Footage link: {footageUrl}
+  Page: {pageVersion}
+  Came from: {source}

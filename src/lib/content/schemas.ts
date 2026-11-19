@@ -21,7 +21,7 @@ export const bookingSchema = z.strictObject({
 
 export const siteSchema = z.strictObject({
   brand: z.strictObject({ name: text, logo: text }),
-  contact: z.strictObject({ notificationEmail: z.email(), instagramHandle: text, instagramUrl: z.url() }),
+  contact: z.strictObject({ notificationEmail: z.email(), replyTo: z.email(), instagramHandle: text, instagramUrl: z.url() }),
   booking: bookingSchema,
   settings: z.strictObject({
     videoSource: z.enum(['local', 'stream']),
@@ -34,6 +34,12 @@ export const siteSchema = z.strictObject({
   }).refine((s) => s.videoSource !== 'stream' || !!s.streamCustomerCode, {
     message: 'is needed when videoSource is stream', path: ['streamCustomerCode'],
   }),
+});
+
+/** Just the site.yaml values an email needs. The rest of the file is not looked at. */
+export const emailSiteSchema = z.looseObject({
+  brand: siteSchema.shape.brand,
+  contact: z.looseObject({ replyTo: siteSchema.shape.contact.shape.replyTo }),
 });
 
 export const pageSchema = z.strictObject({
@@ -143,6 +149,14 @@ export const sectionSchemas = {
   'not-found': z.strictObject({ title: text, heading: text, text: text }),
 };
 
+/** One email: a subject, a body and optionally one button. Words in {curly braces} are filled in when it is sent. */
+export const emailSchema = z.strictObject({
+  subject: text,
+  body: text,
+  /** `meet` goes to the Google Meet link (left out when there is none); `manage` goes to the visitor's reschedule/cancel page. */
+  button: z.strictObject({ label: text, link: z.enum(['meet', 'manage']) }).optional(),
+});
+
 export const testimonialsSchema = z.strictObject({
   heading: text,
   subline: text,
@@ -157,5 +171,6 @@ export type BookingRules = z.infer<typeof bookingSchema>;
 export type Page = z.infer<typeof pageSchema>;
 export type Video = z.infer<typeof videoSchema>;
 export type Testimonials = z.infer<typeof testimonialsSchema>;
+export type Email = z.infer<typeof emailSchema>;
 export type Images = z.infer<typeof imagesSchema>;
 export type Sections = { [K in keyof typeof sectionSchemas]: z.infer<(typeof sectionSchemas)[K]> };

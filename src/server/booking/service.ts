@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { BookingRules } from '../../lib/content/schemas';
 import { generateSlots } from '../../lib/booking/slots';
+import { manageUrl } from './links';
 import { isActive, type ActiveStatus } from './status';
 import { bookingInputSchema, leadInputSchema, parseInput, rescheduleInputSchema } from './validate';
 import {
@@ -47,8 +48,7 @@ const logFailure = (what: string, e: unknown) => console.warn(`booking: ${what} 
 
 export function createBookingService(d: ServiceDeps): BookingService {
   const leadSchema = leadInputSchema(d.volumeOptions);
-  const siteBase = d.siteUrl.replace(/\/$/, '');
-  const manageUrlFor = (token: string) => `${siteBase}/booking/${token}`;
+  const manageUrlFor = (token: string) => manageUrl(d.siteUrl, token);
   const scheduleEventId = (lead: Lead) => `schedule.${lead.publicId}`;
   const outcomeOf = (lead: Lead, b: Booking): BookOutcome => ({
     status: b.status as ActiveStatus, // only an active booking is ever turned into an outcome
