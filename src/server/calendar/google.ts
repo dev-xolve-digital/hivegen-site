@@ -89,12 +89,16 @@ export function createGoogleCalendar(cfg: GoogleCalendarConfig, fetchFn: FetchFn
     }
   }
 
+  /** The answer's JSON, which must be an object: `null`, a list or a bare value is not what Google documents. */
   async function readJson<T>(res: Response, label: string): Promise<T> {
+    let body: unknown;
     try {
-      return (await res.json()) as T;
+      body = await res.json();
     } catch {
       throw new CalendarUnavailableError(`google ${label} unreadable`);
     }
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new CalendarUnavailableError(`google ${label} malformed`);
+    return body as T;
   }
 
   async function requestToken(): Promise<string> {
@@ -150,8 +154,11 @@ export function createGoogleCalendar(cfg: GoogleCalendarConfig, fetchFn: FetchFn
   return {
     async busy(fromIso, toIso): Promise<Interval[]> {
       const res = succeeded('freeBusy', await api('freeBusy', 'POST', '/freeBusy', { timeMin: fromIso, timeMax: toIso, items: [{ id: cfg.calendarId }] }));
-      const entry = (await readJson<FreeBusyAnswer>(res, 'freeBusy')).calendars?.[cfg.calendarId];
-      if (!entry) throw new CalendarUnavailableError('google freeBusy malformed');
+      const calendars = (await readJson<FreeBusyAnswer>(res, 'freeBusy')).calendars;
+      // We asked about one calendar. Google may name it by its address when we asked for "primary", so a lone entry is ours.
+      const only = calendars && Object.keys(calendars).length === 1 ? Object.values(calendars)[0] : undefined;
+      const entry = calendars?.[cfg.calendarId] ?? only;
+      if (!entry || typeof entry !== 'object') throw new CalendarUnavailableError('google freeBusy malformed');
       if (entry.errors?.length) throw new CalendarUnavailableError('google freeBusy calendar error');
       return (entry.busy ?? []).map((b) => ({ start: iso('freeBusy', b?.start), end: iso('freeBusy', b?.end) }));
     },

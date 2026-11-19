@@ -28,8 +28,8 @@ export interface Store {
   getLead(id: number): Promise<Lead | null>;
   getLeadByPublicId(publicId: string): Promise<Lead | null>;
   updateLead(id: number, patch: { status?: LeadStatus; newLeadNotifiedAt?: Date }, now: Date): Promise<void>;
-  insertBooking(b: NewBooking, now: Date): Promise<Booking>;                 // SlotConflictError if an active booking has this start
-  updateBooking(id: number, patch: BookingPatch, now: Date): Promise<Booking>; // SlotConflictError when moved/reactivated onto a taken start; missing/undefined keeps a field, null clears a clearable one
+  insertBooking(b: NewBooking, now: Date): Promise<Booking>;                 // SlotConflictError if an active booking holds this start or the lead already has an active booking
+  updateBooking(id: number, patch: BookingPatch, now: Date): Promise<Booking>; // SlotConflictError when moved/reactivated onto a start an active booking holds, or when the lead would have two active bookings; missing/undefined keeps a field, null clears a clearable one
   getActiveBookingForLead(leadId: number): Promise<Booking | null>;
   getBookingByToken(token: string): Promise<Booking | null>;
   bookingsStartingBetween(fromIso: string, toIso: string): Promise<Booking[]>; // every status, ordered by start

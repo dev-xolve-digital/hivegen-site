@@ -138,6 +138,25 @@ describe('Google busy times', () => {
     await expect(cal.busy('2026-12-02T00:00:00.000Z', '2026-12-03T00:00:00.000Z')).resolves.toEqual([]);
     expect(JSON.parse(g.apiRequests()[0].body!).items).toEqual([{ id: 'sales@example.com' }]);
   });
+
+  it('when Google keys the answer by another name, uses the one calendar in it (we asked for exactly one)', async () => {
+    // "primary" can come back under the account's address.
+    const g = fakeGoogle(() => json({ calendars: { 'owner@example.com': { busy: [{ start: '2026-12-02T14:00:00Z', end: '2026-12-02T14:30:00Z' }] } } }));
+    await expect(createGoogleCalendar(cfg, g.fetchFn).busy('2026-12-02T00:00:00.000Z', '2026-12-03T00:00:00.000Z'))
+      .resolves.toEqual([{ start: '2026-12-02T14:00:00.000Z', end: '2026-12-02T14:30:00.000Z' }]);
+  });
+
+  it('still fails closed when the answer has no calendar, or several and none is ours', async () => {
+    const window = ['2026-12-02T00:00:00.000Z', '2026-12-03T00:00:00.000Z'] as const;
+    for (const reply of [{}, { calendars: {} }, { calendars: { a: { busy: [] }, b: { busy: [] } } }]) {
+      await expect(createGoogleCalendar(cfg, fakeGoogle(() => json(reply)).fetchFn).busy(...window)).rejects.toEqual(unavailable('google freeBusy malformed'));
+    }
+  });
+
+  it('errors in the one calendar of the answer still count', async () => {
+    const g = fakeGoogle(() => json({ calendars: { 'owner@example.com': { errors: [{ reason: 'notFound' }] } } }));
+    await expect(createGoogleCalendar(cfg, g.fetchFn).busy('2026-12-02T00:00:00.000Z', '2026-12-03T00:00:00.000Z')).rejects.toEqual(unavailable('google freeBusy calendar error'));
+  });
 });
 
 describe('Google events', () => {
@@ -274,6 +293,21 @@ describe('Google failures', () => {
   it('per-calendar errors become CalendarUnavailableError', async () => {
     const g = fakeGoogle(() => json({ calendars: { primary: { errors: [{ domain: 'global', reason: 'notFound' }], busy: [] } } }));
     await expect(createGoogleCalendar(cfg, g.fetchFn).busy(...window)).rejects.toEqual(unavailable('google freeBusy calendar error'));
+  });
+
+  it('an answer that is not a JSON object (null, a list, a number) becomes CalendarUnavailableError, not a TypeError', async () => {
+    const calls: Array<(cal: ReturnType<typeof createGoogleCalendar>) => Promise<unknown>> = [
+      (cal) => cal.busy(...window), (cal) => cal.createEvent(event),
+    ];
+    for (const body of ['null', '[]', '42', '"text"']) {
+      for (const call of calls) {
+        const error = await call(createGoogleCalendar(cfg, fakeGoogle(() => new Response(body, { status: 200 })).fetchFn)).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(CalendarUnavailableError);
+      }
+    }
+    // The token answer too.
+    const nullToken = fakeGoogle(() => busyReply(), () => new Response('null', { status: 200 }));
+    await expect(createGoogleCalendar(cfg, nullToken.fetchFn).busy(...window)).rejects.toBeInstanceOf(CalendarUnavailableError);
   });
 
   it('an answer that is not what Google documents becomes CalendarUnavailableError', async () => {
