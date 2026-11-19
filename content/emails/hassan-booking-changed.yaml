@@ -4,9 +4,11 @@
 #   {whenPakistan} (his time) {when} {timezone} (the visitor's time and zone name)
 # The time is the new one when the call was moved, and the one that was cancelled otherwise.
 # A detail the visitor left out shows as a dash.
+# Do not say the calendar is up to date: a call that was only requested has no calendar event of its own,
+# so one Hassan added by hand stays until he removes it.
 subject: "Booking {change}: {name} · {whenPakistan}"
 body: |
-  {name} {change} their call. Your Google Calendar is already up to date.
+  {name} {change} their call. If you added this call to your calendar yourself, update it to match.
 
   Time: {whenPakistan} (your time)
   Their time: {when} ({timezone})

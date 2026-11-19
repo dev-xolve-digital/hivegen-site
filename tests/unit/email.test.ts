@@ -355,6 +355,21 @@ describe('createNotifier', () => {
     expect(moved.text).toContain(PAKISTAN_TIME);
   });
 
+  it('a cancelled request never tells Hassan his calendar is up to date: it had no event, and one he added by hand stays', async () => {
+    // A requested booking has no Google event (no googleEventId, no Meet link), yet its cancellation still sends this email.
+    const { googleEventId: _event, ...requestedWithoutEvent } = bookingWithoutMeet;
+    const m = await sendOne('hassan-booking-changed', { change: 'cancelled', previousStart: undefined }, { ...requestedWithoutEvent, status: 'cancelled' });
+    expect(m.to).toBe(HASSAN);
+    expect(m.subject).toMatch(/cancelled/i);
+    expect(m.text).toContain(PAKISTAN_TIME);
+    // Only the false claim is pinned, so any other wording the owner writes still passes.
+    const claim = /(up[- ]to[- ]date|already (updated|removed|moved|current)|calendar (is|has been) (current|updated))/i;
+    expect(m.text).not.toMatch(claim);
+    expect(m.html).not.toMatch(claim);
+    const { body } = loadEmail('hassan-booking-changed');
+    expect(body).not.toMatch(claim);
+  });
+
   it("shows each time in its own zone: the visitor's in theirs, Hassan's in his", async () => {
     const m = await sendOne('hassan-new-booking', {}, { ...booking, visitorTz: 'Europe/London' });
     expect(m.text).toContain('Wednesday, December 2, 2:00 PM GMT');
