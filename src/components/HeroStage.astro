@@ -1,6 +1,6 @@
 ---
 import { getVideo, loadSection, loadSite } from '../lib/content/load';
-import { resolveVideo, heroLoopSrc } from '../lib/media';
+import { resolveVideo, heroLoopSrc, imageUrl } from '../lib/media';
 import Three3D from './Three3D.astro';
 const hero = loadSection('hero');
 const settings = loadSite().settings;
@@ -20,7 +20,7 @@ const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: r
       loop
       playsinline
       preload="none"
-      poster="/media/posters/hero-loop.jpg"
+      poster={imageUrl('media/posters/hero-loop.jpg')}
       data-src={heroLoopSrc()}
       controlslist="nodownload noplaybackrate"
       disablepictureinpicture

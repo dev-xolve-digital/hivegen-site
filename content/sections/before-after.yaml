@@ -1,28 +1,21 @@
 # 05 · Before / after
-# PENDING: the raw clip and its edited version arrive on 2026-11-19.
-# When they do: put both files under references/, then switch to the slider:
-#   mode: slider
-#   heading: Same footage. Different result.
-#   subline: Drag the handle to compare a raw clip with our finished edit.
-#   labels: { before: Raw footage, after: HiveGen edit }
-#   slider:
-#     before: { source: <path under references/>, start: 0, duration: 5 }
-#     after:  { source: <path under references/>, start: 0, duration: 5 }
-#     fullVideoId: <optional id from videos.yaml: adds a "watch the full edit" button>
-#     fullVideoLabel: Watch the full edit
-# then run `npm run media` and set sample: false.
-mode: reveal
-heading: Same home. Different result.
-subline: Watch a daylight shot turn into a twilight hero shot.
+# A drag slider: the raw clip underneath, the finished edit on top, the same moment from both.
+# `npm run media` cuts the two short clips from the files under references/; the site serves them
+# itself (never Stream). Keep start and duration the same in both so the frames line up.
+#   boomerang: true     plays each clip forward then backward, so the loop has no jump
+#   fullVideoId         a video in videos.yaml; its button plays the full edit from Stream
+# After changing anything under slider:, run `npm run media`.
+mode: slider
+heading: Same footage. Different result.
+subline: Drag the handle to compare a raw clip with our finished edit.
 labels:
-  before: Before · daylight
-  after: After · dusk
-ariaLabel: Daylight shot of a home cutting to the same home at dusk
-reveal:                       # stand-in: a real day-to-dusk cut from portrait video 1
-  source: final-videos/Potrait/potrait-video-1.mp4
-  start: 31.62
-  duration: 2.83
-  slowdown: 1.4
-  cutAt: 1.5                  # seconds into the prepared clip where the label switches
-sample: true
-note: Stand-in until the raw clip and its finished edit arrive; then this section becomes a drag slider.
+  before: Raw footage
+  after: HiveGen edit
+ariaLabel: Compare the raw porch shot with the same shot after HiveGen's edit
+slider:
+  before: { source: final-videos/Section-05/raw-section-5.mp4, start: 38.17, duration: 2.96 }
+  after: { source: final-videos/Section-05/edited-section-5.mp4, start: 38.17, duration: 2.96 }
+  boomerang: true
+  fullVideoId: v-before-after-edit
+  fullVideoLabel: Watch the full edit
+sample: false

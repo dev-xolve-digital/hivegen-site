@@ -255,31 +255,3 @@ videos:
     source: final-videos/Landscape/landscape-cinematic-6.mp4
     posterTime: 2.28
     streamUid: 2945693f201eae65b4d796ff48e36618
-  # Client testimonial videos (placeholders from Instagram; replace with real ones)
-  - id: t-listing-agent
-    title: Listing agent testimonial
-    label: Listing agent
-    duration: "1:09"
-    orientation: vertical
-    source: "instagram-videos/Another happy client 🤝Just finished editing this video for Chris, and here’s what he had to say.mp4"
-    posterTime: 0.3
-    host: local
-    sample: true
-  - id: t-creator
-    title: Real estate creator testimonial
-    label: Real estate creator
-    duration: "0:13"
-    orientation: vertical
-    source: "instagram-videos/Real feedback from a real client. 🙌If you want videos that actually stand out and perform, we’v.mp4"
-    posterTime: 3.3
-    host: local
-    sample: true
-  - id: t-agency-owner
-    title: Media agency owner testimonial
-    label: Media agency owner
-    duration: "1:56"
-    orientation: vertical
-    source: "instagram-videos/This is why I do what I do 🙏Helping people bring their vision to life, one video at a time 🎥✨.mp4"
-    posterTime: 58.4
-    host: local
-    sample: true

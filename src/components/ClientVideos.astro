@@ -12,7 +12,7 @@ const anySample = t.screenshots.some((s) => s.sample);
   <div class="blob lime" style="width:420px;height:420px;right:6%;bottom:-60px"></div>
   <div class="in">
     <div class="sec-head center"><div><h2 class="disp">{t.heading}</h2><p class="sub" style="margin-left:auto;margin-right:auto">{t.subline}</p></div></div>
-    <div class="tgrid">
+    <div class="tgrid" style={`--n:${t.videos.length}`}>
       {t.videos.map((tv) => {
         const video = getVideo(tv.videoId);
         return (

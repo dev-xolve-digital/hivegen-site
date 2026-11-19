@@ -3,63 +3,91 @@ heading: Hear it from our clients
 subline: Clients we edit for, in their own words.
 watchLabel: Watch with sound
 videos:                       # ids from videos.yaml; role = the label under each card
-  - videoId: t-listing-agent
-    role: Listing agent
-  - videoId: t-creator
-    role: Real estate creator
-  - videoId: t-agency-owner
-    role: Media agency owner
+  - videoId: t-kenneth
+    role: Kenneth
+  - videoId: t-christine
+    role: Christine
+  - videoId: t-deangelo
+    role: DeAngelo
+  - videoId: t-julz
+    role: Julz
+  - videoId: t-chris
+    role: Chris
 inbox:
   heading: Straight from our inbox
   subline: Messages clients sent us after their edits landed.
-  note: These message screenshots are generated samples for the draft. Replace them with real client messages (with permission) before ads go live.
-# Files live in public/media/screenshots/. row: front (moves right) or back (moves left, behind).
+# Message screenshots: files in public/media/screenshots/ (served from Cloudflare Images when listed in images.yaml).
+# row: front scrolls right, back scrolls left behind it. Order within a row is the scroll order.
 screenshots:
-  - file: shot-01.jpg
-    alt: "Text message: “Just watched the Maple Ridge edit, that opening hook is so good”"
+  - file: kenneth-clary-2.webp
+    alt: "WhatsApp message from Kenneth Clary: \"You're the missing piece to what I've been needing man. Night and day difference.\""
     row: front
-    sample: true
-  - file: shot-02.jpg
-    alt: "Chat message: “The turnaround on this was crazy fast. Got it before my showing”"
+    sample: false
+  - file: img-4001.webp
+    alt: "WhatsApp message from a client: \"This is your best work, animations, everything. You killed it. More like this.\""
     row: front
-    sample: true
-  - file: shot-03.jpg
-    alt: "Direct message: “Honestly the best edit I've had on a listing. My seller loved it”"
+    sample: false
+  - file: jerry.webp
+    alt: "WhatsApp message from Jerry: \"Best editor we have met! I'm so happy I took a chance on you and you found us man!\""
     row: front
-    sample: true
-  - file: shot-04.jpg
-    alt: "Email: “The final cut is perfect. Clean, fast, and exactly the style we asked for”"
+    sample: false
+  - file: img-4012.webp
+    alt: "WhatsApp message from a client about a video: \"I really love it its perfectly smooth and luxurious\"."
     row: front
-    sample: true
-  - file: shot-05.jpg
-    alt: "Text message: “The twilight shots look unreal. Can you do the same look on the lake house?”"
+    sample: false
+  - file: tannerm.webp
+    alt: "Instagram message from a client: \"Phenomenal!! thank you for getting that back to me so fast brother\"."
     row: front
-    sample: true
-  - file: shot-06.jpg
-    alt: "Chat message: “Revision came back in 2 hours. Smooth as always”"
+    sample: false
+  - file: darian.webp
+    alt: "WhatsApp message from a client: \"Me and Darian LOVE working with you.\""
     row: front
-    sample: true
-  - file: shot-07.jpg
-    alt: "Text message: “Got the video. My client watched it 3 times in a row, thank you!”"
+    sample: false
+  - file: katie.webp
+    alt: "Instagram message from a client: \"we are speechless. Super thrilled with that first draft, THANK YOU!\""
+    row: front
+    sample: false
+  - file: img-4018.webp
+    alt: "WhatsApp message from a client: \"You are my new editor I will be sending more projects through out this week as well\"."
+    row: front
+    sample: false
+  - file: img-4009.webp
+    alt: "WhatsApp message from a client: \"Some of the best color grading on the Acam/Bcam I've seen yall do yet. Great job! Agent loves videos so far.\""
+    row: front
+    sample: false
+  - file: img-4017.webp
+    alt: "WhatsApp messages from Jerry: \"You're definitely my guy moving forward!!!\", followed by an offer to pay for the edit."
     row: back
-    sample: true
-  - file: shot-08.jpg
-    alt: "Direct message: “Your edit made my footage look 10x better”"
+    sample: false
+  - file: img-4016.webp
+    alt: "WhatsApp message from a client: \"I appreciate you a lot bro! Honestly, Your the MVP\"."
     row: back
-    sample: true
-  - file: shot-09.jpg
-    alt: "Text message: “Love the 3D text over the driveway”"
+    sample: false
+  - file: amin.webp
+    alt: "WhatsApp message from Amin: \"That is amazing brother wow\", adding that he is very happy to have finally found you."
     row: back
-    sample: true
-  - file: shot-10.jpg
-    alt: "Team chat: “All 12 edits this week came back on time. Our clients think we have an in-house team”"
+    sample: false
+  - file: img-4015.webp
+    alt: "WhatsApp message from a client: \"You are the best editor... Great work bro\"."
     row: back
-    sample: true
-  - file: shot-11.jpg
-    alt: "Chat message: “Thank you for being so easy to work with. Sent you my logo pack for the next ones”"
+    sample: false
+  - file: declam.webp
+    alt: "Instagram message from a client replying to a video preview: \"sick man! love it\"."
     row: back
-    sample: true
-  - file: shot-12.jpg
-    alt: "Email: “The listing video was fantastic. You captured the feel of the home perfectly”"
+    sample: false
+  - file: img-4014.webp
+    alt: "WhatsApp message from a client: \"the video was amazing btw bro, the team loved it\"."
     row: back
-    sample: true
+    sample: false
+  - file: kenneth-clary.webp
+    alt: "WhatsApp message from Kenneth Clary: \"I appreciate your patience to find a way to make it right. You always do great\"."
+    row: back
+    sample: false
+  - file: img-4020.webp
+    alt: "WhatsApp message from a client saying the work is worth every dollar and that you are the best editor they have ever worked with."
+    row: back
+    sample: false
+  - file: img-4013.webp
+    alt: "WhatsApp message from Walid: \"that is some of the craziest effect i have seen... Love it bro\"."
+    row: back
+    sample: false

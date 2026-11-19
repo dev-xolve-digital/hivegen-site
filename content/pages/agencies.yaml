@@ -49,9 +49,9 @@ videoOrder:
   horizontal:
     - h-agent-led
     - h-modern-villa
-    - h-country-barn
     - h-estate-aerial
     - h-family-home
     - h-new-build
     - h-bright-modern
     - h-yacht
+    - h-country-barn

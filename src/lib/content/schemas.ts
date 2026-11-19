@@ -57,11 +57,19 @@ export const videoSchema = z.strictObject({
   label: text,
   duration: z.string().regex(/^\d+:\d{2}$/, 'use m:ss in quotes, e.g. "1:05"'),
   orientation: z.enum(['vertical', 'horizontal']),
-  source: text,
+  source: text.optional(),
   posterTime: z.number().min(0),
   streamUid: z.string().regex(/^[a-f0-9]{32}$/, 'is a 32-character Stream video ID').optional(),
   host: z.enum(['stream', 'local']).optional(),
   sample: z.boolean().optional(),
+});
+export const imagesSchema = z.strictObject({
+  deliveryUrl: z.url().refine((u) => !u.endsWith('/'), 'leave off the final /'),
+  variant: text,
+  images: z.record(
+    z.string().regex(/^media\/\S+\.(jpe?g|png|webp|avif)$/, 'use a path inside public/, e.g. media/posters/v-x.jpg'),
+    z.string().regex(/^[A-Za-z0-9-]+$/, 'is a Cloudflare image ID'),
+  ),
 });
 export const videosFileSchema = z.strictObject({ videos: z.array(videoSchema).min(1) });
 
@@ -85,7 +93,7 @@ export const sectionSchemas = {
     labels: z.strictObject({ before: text, after: text }),
     ariaLabel: text,
     reveal: z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive(), slowdown: z.number().positive(), cutAt: z.number().min(0) }).optional(),
-    slider: z.strictObject({ before: clip, after: clip, fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
+    slider: z.strictObject({ before: clip, after: clip, boomerang: z.boolean().optional(), fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
     sample: z.boolean(),
     note: text.optional(),
   }).superRefine((s, ctx) => {
@@ -146,4 +154,5 @@ export type BookingRules = z.infer<typeof bookingSchema>;
 export type Page = z.infer<typeof pageSchema>;
 export type Video = z.infer<typeof videoSchema>;
 export type Testimonials = z.infer<typeof testimonialsSchema>;
+export type Images = z.infer<typeof imagesSchema>;
 export type Sections = { [K in keyof typeof sectionSchemas]: z.infer<(typeof sectionSchemas)[K]> };

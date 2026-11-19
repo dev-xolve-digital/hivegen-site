@@ -47,10 +47,10 @@ videoOrder:
     - v-portfolio-reel
   horizontal:
     - h-modern-villa
-    - h-country-barn
     - h-estate-aerial
     - h-agent-led
     - h-family-home
     - h-new-build
     - h-bright-modern
     - h-yacht
+    - h-country-barn

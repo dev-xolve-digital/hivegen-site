@@ -1,12 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { loadTestimonials } from '../../src/lib/content/load';
+import { loadTestimonials, getVideo } from '../../src/lib/content/load';
 const t = loadTestimonials();
-test('three testimonial cards with role labels and Sample tags', async ({ page }) => {
+test('client video cards come from testimonials.yaml, carry no Sample tag, and show a frame from Stream', async ({ page }) => {
   await page.goto('/');
   const cards = page.getByTestId('testimonial-card');
-  await expect(cards).toHaveCount(3);
+  await expect(cards).toHaveCount(t.videos.length);
   await expect(cards).toContainText(t.videos.map((v) => v.role));
-  await expect(cards.getByText('Sample', { exact: true })).toHaveCount(3);
+  await expect(cards.getByText('Sample', { exact: true })).toHaveCount(0);
+  for (const [i, tv] of t.videos.entries()) {
+    await expect(cards.nth(i).locator('img')).toHaveAttribute('src', new RegExp(`\\.cloudflarestream\\.com/${getVideo(tv.videoId).streamUid}/thumbnails/thumbnail\\.jpg\\?time=`));
+  }
+});
+test('tapping a client video plays it from Stream', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('testimonial-card').first().getByTestId('testimonial-video').click();
+  await expect(page.getByTestId('lightbox').locator('iframe')).toHaveAttribute('src', new RegExp(getVideo(t.videos[0].videoId).streamUid!));
 });
 test('front row moves right, back row moves left', async ({ page }) => {
   await page.goto('/');
