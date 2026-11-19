@@ -1,18 +1,22 @@
 import type { APIRoute } from 'astro';
-import { loadSite } from '../../../lib/content/load';
-import { clientMode, readServerConfig } from '../../../server/config';
+import { loadTurnstileSiteKey } from '../../../lib/content/load';
+import { bookingConfigResponse } from '../../../server/booking-config';
+import { readServerConfig } from '../../../server/config';
 import { loadDotEnv } from '../../../server/env';
 
 export const prerender = false;
 
-/** Cloudflare's published test key for Turnstile: always passes, so the test server needs no account. */
-const TURNSTILE_TEST_SITE_KEY = '1x00000000000000000000AA';
-
 loadDotEnv();
 
+/** A site.yaml that cannot be read must not take the endpoint down: the form just gets no site key. */
+function readSiteKey(): string | undefined {
+  try {
+    return loadTurnstileSiteKey();
+  } catch (e) {
+    console.error(`booking config: could not read the Turnstile site key from site.yaml (${e instanceof Error ? e.message : e})`);
+    return undefined;
+  }
+}
+
 /** Tells the booking form which mode to run in, and which Turnstile site key to show. */
-export const GET: APIRoute = () => {
-  const config = readServerConfig(process.env);
-  const turnstileSiteKey = config.mode === 'fakes' ? TURNSTILE_TEST_SITE_KEY : loadSite().settings.turnstileSiteKey || undefined;
-  return Response.json({ mode: clientMode(config), turnstileSiteKey });
-};
+export const GET: APIRoute = () => Response.json(bookingConfigResponse(readServerConfig(process.env), readSiteKey));

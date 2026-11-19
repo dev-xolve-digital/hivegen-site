@@ -115,6 +115,15 @@ export function loadSite(): Site {
   return site;
 }
 
+/**
+ * Just the public Turnstile site key from site.yaml, for the running server: one small file read,
+ * with none of loadSite()'s build-time checks (other content files, files in public/).
+ */
+export function loadTurnstileSiteKey(): string | undefined {
+  const key = (readYaml('site.yaml') as { settings?: { turnstileSiteKey?: unknown } } | null)?.settings?.turnstileSiteKey;
+  return typeof key === 'string' ? key.trim() || undefined : undefined;
+}
+
 export function loadPage(slug: PageSlug): Page {
   const rel = `pages/${PAGE_FILES[slug]}.yaml`;
   const page = parse(pageSchema, rel);
