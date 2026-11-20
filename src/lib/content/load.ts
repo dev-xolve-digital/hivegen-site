@@ -188,7 +188,8 @@ export function loadEmail(kind: EmailKind): Email {
     for (const piece of splitPlaceholders(text)) {
       if ('placeholder' in piece && !allowed.includes(piece.placeholder)) {
         const list = allowed.map((name) => `{${name}}`).join(' ');
-        throw new ContentError(`${shown(rel)}: {${piece.placeholder}} can't be used in this email; use only ${list} (field ${field})`, shown(rel), field);
+        const instead = allowed.length ? `use only ${list}` : 'it takes no {placeholders} at all';
+        throw new ContentError(`${shown(rel)}: {${piece.placeholder}} can't be used in this email; ${instead} (field ${field})`, shown(rel), field);
       }
     }
   }

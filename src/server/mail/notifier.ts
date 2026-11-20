@@ -8,6 +8,9 @@ import { renderEmail } from './render';
 /** Shown for a detail the visitor left out. */
 const DASH = '—';
 
+/** The emails that are about a lead alone: no booking, so no call time and no manage link. */
+const NO_BOOKING_KINDS: readonly EmailKind[] = ['hassan-new-lead', 'hassan-new-inquiry', 'inquiry-received'];
+
 /** Where the visitor came from: the ad tags, or the kind of ad when only a click id is left. */
 function sourceOf(a: Attribution): string {
   if (a.utm_source && a.utm_campaign) return `${a.utm_source} / ${a.utm_campaign}`;
@@ -19,6 +22,7 @@ function sourceOf(a: Attribution): string {
 
 /**
  * Sends each kind of email to the right person: visitor emails to the lead, `hassan-*` emails to Hassan.
+ * Replies go to the site's reply address, except to Hassan's inquiry email: that one is answered by writing to the visitor.
  * A failure (wording that cannot be filled in, or a mailer that cannot send) is thrown, so the caller can try again later.
  */
 export function createNotifier(o: { mailer: Mailer; hassanEmail: string; siteUrl: string; hassanTz: string }): Notifier {
@@ -33,6 +37,7 @@ export function createNotifier(o: { mailer: Mailer; hassanEmail: string; siteUrl
       Object.assign(values, {
         email: lead.email, phone: lead.phone ?? DASH, buyerType: lead.buyerType ?? DASH, volume: lead.volume ?? DASH,
         footageUrl: lead.footageUrl ?? DASH, pageVersion: lead.pageVersion, source: sourceOf(lead.attribution),
+        needs: lead.needs?.length ? lead.needs.join(', ') : DASH, message: lead.message || DASH,
       });
       if (booking) values.whenPakistan = at(booking.start, o.hassanTz);
     }
@@ -49,12 +54,12 @@ export function createNotifier(o: { mailer: Mailer; hassanEmail: string; siteUrl
 
   return {
     async send(kind, data) {
-      if (kind !== 'hassan-new-lead' && !data.booking) throw new Error(`${kind} needs a booking`);
+      if (!NO_BOOKING_KINDS.includes(kind) && !data.booking) throw new Error(`${kind} needs a booking`);
       const message = renderEmail(kind, valuesFor(kind, data), o.siteUrl);
       await o.mailer.send({
         to: kind.startsWith('hassan-') ? o.hassanEmail : data.lead.email,
         ...message,
-        replyTo: loadEmailSite().replyTo,
+        replyTo: kind === 'hassan-new-inquiry' ? data.lead.email : loadEmailSite().replyTo,
         tag: kind,
       });
     },

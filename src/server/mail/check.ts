@@ -14,10 +14,19 @@ const booking: Booking = {
 const { meetUrl: _meet, ...bookingWithoutMeet } = booking;
 const requested: Booking = { ...bookingWithoutMeet, status: 'requested', googleEventId: undefined };
 const PREVIOUS_START = '2030-01-01T15:00:00.000Z';
+/** A "Send details" inquiry with everything the form can hold, and one that is only an email address. */
+const inquiry: Lead = {
+  ...lead, id: 2, publicId: 'check-inquiry-000000000', status: 'inquiry', needs: ['Listing videos', 'Reels for social'], message: 'Hello,\nPlease tell me more.',
+};
+const emailOnlyInquiry: Lead = {
+  id: 3, publicId: 'check-inquiry-000000001', email: 'sam@example.test', pageVersion: 'main', attribution: {},
+  createdAt: new Date('2030-01-01T10:00:00Z'), status: 'inquiry',
+};
 
 /**
  * Every email the service sends, with the data it really sends it with, in the cases that differ:
- * Google's Meet link comes late or never, so those emails are tried both ways.
+ * Google's Meet link comes late or never, so those emails are tried both ways. The inquiry emails are tried with a full
+ * inquiry and with one that is only an email address, so every detail the visitor left out shows as a dash.
  */
 const CASES: Array<[EmailKind, EmailData]> = [
   ['booking-confirmed', { lead, booking }],
@@ -38,6 +47,10 @@ const CASES: Array<[EmailKind, EmailData]> = [
   ['hassan-booking-changed', { lead, booking: { ...booking, status: 'cancelled' }, change: 'cancelled' }],
   ['hassan-booking-changed', { lead, booking: { ...requested, status: 'cancelled' }, change: 'cancelled' }],
   ['hassan-booking-changed', { lead, booking, previousStart: PREVIOUS_START, change: 'rescheduled' }],
+  ['hassan-new-inquiry', { lead: inquiry }],
+  ['hassan-new-inquiry', { lead: emailOnlyInquiry }],
+  ['inquiry-received', { lead: inquiry }],
+  ['inquiry-received', { lead: emailOnlyInquiry }],
 ];
 
 /**

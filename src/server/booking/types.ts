@@ -56,7 +56,8 @@ export interface Calendar {
   cancelEvent(eventId: string): Promise<void>;
 }
 export type EmailKind = 'booking-confirmed' | 'booking-requested' | 'reminder-24h' | 'reminder-1h' | 'booking-cancelled'
-  | 'booking-rescheduled' | 'hassan-new-booking' | 'hassan-confirm-by-hand' | 'hassan-new-lead' | 'hassan-booking-changed';
+  | 'booking-rescheduled' | 'hassan-new-booking' | 'hassan-confirm-by-hand' | 'hassan-new-lead' | 'hassan-booking-changed'
+  | 'hassan-new-inquiry' | 'inquiry-received';
 export interface EmailData { lead: Lead; booking?: Booking; previousStart?: string; change?: 'cancelled' | 'rescheduled' }
 export interface Notifier { send(kind: EmailKind, data: EmailData): Promise<void> }  // throws on transport failure
 export interface ServerEvent {

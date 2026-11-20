@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createTransport } from 'nodemailer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContentError } from '../../src/lib/content/errors';
-import { loadEmail, loadSite } from '../../src/lib/content/load';
+import { loadBookingSite, loadEmail, loadSite } from '../../src/lib/content/load';
 import { manageUrl } from '../../src/server/booking/links';
 import type { Booking, EmailData, EmailKind, Lead } from '../../src/server/booking/types';
 import { createOutboxMailer, createSmtpMailer, smtpTransportOptions, type MailMessage, type Mailer } from '../../src/server/mail/mailer';
@@ -15,6 +15,8 @@ import { setup } from './helpers/booking';
 
 const KINDS: EmailKind[] = ['booking-confirmed', 'booking-requested', 'reminder-24h', 'reminder-1h', 'booking-cancelled',
   'booking-rescheduled', 'hassan-new-booking', 'hassan-confirm-by-hand', 'hassan-new-lead', 'hassan-booking-changed'];
+/** The two emails of the "Send details" form. They have no booking and no call time, so they are tested apart from KINDS. */
+const INQUIRY_KINDS: EmailKind[] = ['hassan-new-inquiry', 'inquiry-received'];
 const SITE = 'https://hivegen.co';
 const HASSAN = 'hassan@example.test';
 const MEET = 'https://meet.google.com/abc-defg-hij';
@@ -38,7 +40,7 @@ const allVars: Record<string, string> = {
   name: 'Zoë O’Brien', when: NEW_YORK_TIME, timezone: 'America/New York', meetUrl: MEET, manageUrl: `${SITE}/booking/tok-123`,
   previousWhen: 'Tuesday, December 1, 10:00 AM EST', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
   footageUrl: 'https://drive.google.com/drive/folders/x1', pageVersion: 'agents', source: 'facebook / agents-q1', whenPakistan: PAKISTAN_TIME,
-  change: 'rescheduled',
+  change: 'rescheduled', needs: 'Listing videos, Reels for social', message: 'Hello\nThere',
 };
 const { meetUrl: _meetVar, ...allVarsWithoutMeet } = allVars;
 
@@ -75,11 +77,11 @@ const sendOne = async (kind: EmailKind, over: Partial<EmailData> = {}, b: Bookin
 
 describe('email wording files', () => {
   it('there is one file per kind of email, and nothing else', () => {
-    expect(fs.readdirSync('content/emails').sort()).toEqual(KINDS.map((k) => `${k}.yaml`).sort());
+    expect(fs.readdirSync('content/emails').sort()).toEqual([...KINDS, ...INQUIRY_KINDS].map((k) => `${k}.yaml`).sort());
   });
 
   it('every email file loads and uses only its allowed placeholders', () => {
-    for (const kind of KINDS) expect(() => loadEmail(kind), kind).not.toThrow();
+    for (const kind of [...KINDS, ...INQUIRY_KINDS]) expect(() => loadEmail(kind), kind).not.toThrow();
     // A visitor email may not use Hassan's details.
     process.env.CONTENT_DIR = tempContent({ 'emails/booking-confirmed.yaml': (s) => s.replace('Hi {name},', 'Hi {name}, {phone}') });
     expect(() => loadEmail('booking-confirmed')).toThrow(/emails\/booking-confirmed\.yaml: \{phone\} can't be used in this email.*\(field body\)/);
@@ -203,7 +205,7 @@ describe('renderEmail', () => {
   });
 
   it('every email renders, with and without a Meet link, and nothing is left in braces', () => {
-    for (const kind of KINDS) {
+    for (const kind of [...KINDS, ...INQUIRY_KINDS]) {
       for (const vars of [allVars, allVarsWithoutMeet]) {
         const m = renderEmail(kind, vars, SITE);
         for (const part of [m.subject, m.html, m.text]) expect(part, kind).not.toMatch(/[{}]|undefined/);
@@ -422,6 +424,103 @@ describe('createNotifier', () => {
     expect(manageUrl('https://hivegen.co', 't')).toBe('https://hivegen.co/booking/t');
     expect(manageUrl('https://hivegen.co/', 't')).toBe('https://hivegen.co/booking/t');
     expect(manageUrl('http://localhost:4321', 't')).toBe('http://localhost:4321/booking/t');
+  });
+});
+
+describe('the inquiry emails', () => {
+  /** What someone who sent only their email, what they need and a message looks like. */
+  const inquiry: Lead = {
+    id: 2, publicId: 'pub-2', email: 'visitor@example.com', status: 'inquiry', needs: ['Listing videos', 'Reels for social'],
+    message: 'Line one\nLine two <script>alert(1)</script> 🏠', pageVersion: 'agents', attribution: { utm_source: 'facebook', utm_campaign: 'nov' },
+    createdAt: new Date('2026-12-01T10:00:00Z'),
+  };
+  /** Sends one inquiry email through the notifier and returns what the mailer was given. */
+  async function sendInquiry(kind: EmailKind, l: Lead = inquiry, hassanEmail = HASSAN) {
+    const mailer = recorder();
+    await createNotifier({ mailer, hassanEmail, siteUrl: SITE, hassanTz: 'Asia/Karachi' }).send(kind, { lead: l });
+    return mailer.sent[0];
+  }
+
+  it('hassan-new-inquiry goes to Hassan with the visitor as Reply-To', async () => {
+    const hassanEmail = loadBookingSite().hassanEmail;
+    const m = await sendInquiry('hassan-new-inquiry', inquiry, hassanEmail);
+    expect(m.to).toBe(hassanEmail);
+    expect(m.replyTo).toBe('visitor@example.com');
+    expect(m.tag).toBe('hassan-new-inquiry');
+    expect(m.subject).toContain('visitor@example.com');
+    expect(m.text).toContain('Needs: Listing videos, Reels for social');
+    expect(m.text).toContain('Came from: facebook / nov');
+    expect(m.text).toMatch(/Name: —/);
+    expect(m.text).toMatch(/Phone: —/);
+    expect(m.text).toMatch(/Footage link: —/);
+    expect(m.text).toMatch(/Type: —/);
+    expect(m.text).toMatch(/Videos per month: —/);
+    expect(m.text).toMatch(/Page: agents/);
+    expect(m.text).not.toMatch(/GMT|EST/); // there is no call time
+  });
+
+  it('the message stays plain text and keeps its line breaks', async () => {
+    const m = await sendInquiry('hassan-new-inquiry');
+    expect(m.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(m.html).not.toContain('<script>');
+    expect(m.text).toContain('Line one\nLine two <script>alert(1)</script> 🏠');
+    expect(m.html).toContain('Line one<br>Line two &lt;script&gt;');
+  });
+
+  it('a message with a blank line and Windows line breaks keeps them as breaks too', async () => {
+    const m = await sendInquiry('hassan-new-inquiry', { ...inquiry, message: 'One\r\n\r\nTwo' });
+    expect(m.text).toContain('One\r\n\r\nTwo');
+    expect(m.html).toContain('One<br><br>Two');
+    expect(m.html).not.toMatch(/[\r\n]Two/);
+  });
+
+  it('a message that looks like a link or a placeholder is plain text', async () => {
+    const m = await sendInquiry('hassan-new-inquiry', { ...inquiry, message: 'See https://evil.test/x and {email}' });
+    expect(m.html).toContain('See https://evil.test/x and {email}');
+    expect(m.html).not.toContain('href="https://evil.test');
+    expect(m.text).toContain('See https://evil.test/x and {email}');
+  });
+
+  it('what is left out shows as a dash: no needs, an empty list of needs, no message', async () => {
+    for (const needs of [undefined, []]) {
+      const m = await sendInquiry('hassan-new-inquiry', { ...inquiry, needs, message: undefined });
+      expect(m.text, JSON.stringify(needs)).toContain('Needs: —');
+      expect(m.text, JSON.stringify(needs)).toMatch(/Message:\n—$/);
+    }
+  });
+
+  it('inquiry-received goes to the visitor and repeats nothing they typed', async () => {
+    const typed: Lead = { ...inquiry, name: '<a href="https://evil.test">win</a>', message: 'buy now', footageUrl: 'https://evil.test/x', phone: '+1 555 010 3000' };
+    const m = await sendInquiry('inquiry-received', typed);
+    expect(m).toMatchObject({ to: 'visitor@example.com', replyTo: loadSite().contact.replyTo, tag: 'inquiry-received' });
+    for (const part of [m.subject, m.html, m.text]) {
+      expect(part).not.toContain('evil.test');
+      expect(part).not.toContain('buy now');
+      expect(part).not.toContain('win');
+      expect(part).not.toContain('555');
+      expect(part).not.toContain('Listing videos');
+    }
+    expect(m.text).not.toContain(HASSAN);
+    expect(m.text).not.toMatch(/[{}]|undefined/);
+  });
+
+  it('inquiry-received works for an inquiry that is only an email address', async () => {
+    const { needs: _needs, message: _message, ...bare } = inquiry;
+    const m = await sendInquiry('inquiry-received', bare);
+    expect(m.to).toBe('visitor@example.com');
+    expect(m.text).toContain('reply');
+  });
+
+  it('an inquiry with every detail fills each line', async () => {
+    const full: Lead = { ...inquiry, name: 'Zoë O’Brien', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15', footageUrl: 'https://drive.google.com/drive/folders/x1' };
+    const m = await sendInquiry('hassan-new-inquiry', full);
+    for (const part of [m.text, m.html]) {
+      for (const shown of ['Zoë O’Brien', '+1 (555) 010-2000', 'agent', '6–15', 'Listing videos, Reels for social', 'https://drive.google.com/drive/folders/x1', 'Line one']) {
+        expect(part).toContain(shown);
+      }
+      expect(part).not.toContain('—');
+    }
+    expect(m.html).toContain('<a href="https://drive.google.com/drive/folders/x1"'); // the footage link is clickable
   });
 });
 

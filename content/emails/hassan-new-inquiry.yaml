@@ -1,0 +1,21 @@
+# To Hassan, at once, when someone sends the "Send details" form instead of booking a call.
+# Reply to this email to answer them: the reply goes straight to the visitor's address.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {email} {phone} {buyerType} {volume} {needs} {footageUrl} {message} {pageVersion} {source}
+# A detail the visitor left out shows as a dash.
+subject: "New message from the website: {email}"
+body: |
+  Someone sent their details instead of booking a call. Reply to this email to answer them.
+
+  Email: {email}
+  Name: {name}
+  Phone: {phone}
+  Type: {buyerType}
+  Videos per month: {volume}
+  Needs: {needs}
+  Footage link: {footageUrl}
+  Page: {pageVersion}
+  Came from: {source}
+
+  Message:
+  {message}
