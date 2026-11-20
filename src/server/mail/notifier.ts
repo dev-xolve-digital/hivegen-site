@@ -27,10 +27,11 @@ export function createNotifier(o: { mailer: Mailer; hassanEmail: string; siteUrl
 
   /** The value for each {placeholder} the data can fill. A value that is not there (no Meet link, no previous time) is left out. */
   function valuesFor(kind: EmailKind, { lead, booking, previousStart, change }: EmailData): Record<string, string> {
-    const values: Record<string, string> = { name: lead.name };
-    if (kind.startsWith('hassan-')) {
+    const forHassan = kind.startsWith('hassan-');
+    const values: Record<string, string> = { name: lead.name ?? (forHassan ? DASH : '') };
+    if (forHassan) {
       Object.assign(values, {
-        email: lead.email, phone: lead.phone ?? DASH, buyerType: lead.buyerType, volume: lead.volume,
+        email: lead.email, phone: lead.phone ?? DASH, buyerType: lead.buyerType ?? DASH, volume: lead.volume ?? DASH,
         footageUrl: lead.footageUrl ?? DASH, pageVersion: lead.pageVersion, source: sourceOf(lead.attribution),
       });
       if (booking) values.whenPakistan = at(booking.start, o.hassanTz);

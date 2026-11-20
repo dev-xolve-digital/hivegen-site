@@ -2,7 +2,7 @@ import { createPool as createMysqlPool, type Pool, type ResultSetHeader, type Ro
 import { applyBookingPatch } from '../booking/patch';
 import { isActive } from '../booking/status';
 import {
-  SlotConflictError,
+  DuplicateRequestError, SlotConflictError,
   type Booking, type BookingPatch, type Lead, type NewBooking, type NewLead, type Store, type TrackingRecord,
 } from '../booking/types';
 
@@ -17,9 +17,10 @@ export function createPool(url: string): Pool {
 }
 
 interface LeadRow extends RowDataPacket {
-  id: number; public_id: string; name: string; email: string; phone: string | null; buyer_type: Lead['buyerType']; volume: string;
+  id: number; public_id: string; name: string | null; email: string; phone: string | null; buyer_type: Lead['buyerType'] | null; volume: string | null;
   footage_url: string | null; page_version: Lead['pageVersion']; attribution: string; fbp: string | null; fbc: string | null;
-  client_ip: string | null; user_agent: string | null; status: Lead['status']; new_lead_notified_at: Date | null; created_at: Date;
+  client_ip: string | null; user_agent: string | null; status: Lead['status']; needs: string | null; message: string | null; request_id: string | null;
+  new_lead_notified_at: Date | null; hassan_notified_at: Date | null; visitor_notified_at: Date | null; created_at: Date;
 }
 interface BookingRow extends RowDataPacket {
   id: number; lead_id: number; start_utc: Date; end_utc: Date; visitor_tz: string; status: Booking['status']; manage_token: string;
@@ -36,10 +37,13 @@ const present = <T>(value: T | null): T | undefined => value ?? undefined;
 const defined = <T extends object>(value: T): T => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
 
 const leadOf = (row: LeadRow): Lead => defined({
-  id: row.id, publicId: row.public_id, name: row.name, email: row.email, phone: present(row.phone), buyerType: row.buyer_type, volume: row.volume,
+  id: row.id, publicId: row.public_id, name: present(row.name), email: row.email, phone: present(row.phone),
+  buyerType: present(row.buyer_type), volume: present(row.volume),
   footageUrl: present(row.footage_url), pageVersion: row.page_version, attribution: JSON.parse(row.attribution) as Lead['attribution'],
   fbp: present(row.fbp), fbc: present(row.fbc), clientIp: present(row.client_ip), userAgent: present(row.user_agent),
+  needs: row.needs === null ? undefined : (JSON.parse(row.needs) as string[]), message: present(row.message), requestId: present(row.request_id),
   createdAt: row.created_at, status: row.status, newLeadNotifiedAt: present(row.new_lead_notified_at),
+  hassanNotifiedAt: present(row.hassan_notified_at), visitorNotifiedAt: present(row.visitor_notified_at),
 });
 
 const bookingOf = (row: BookingRow): Booking => defined({
@@ -74,6 +78,14 @@ function conflictOr(error: unknown): unknown {
   return e?.errno === 1062 && HOLD_KEY.test(e.sqlMessage ?? '') ? new SlotConflictError() : error;
 }
 
+/** MySQL 8 names the key 'leads.leads_request_id', MySQL 5.7 and MariaDB just 'leads_request_id'. */
+const REQUEST_KEY = /for key '(?:\w+\.)?leads_request_id'/;
+/** A duplicate on the request id key is a DuplicateRequestError; any other error is passed on as it is. */
+function duplicateOr(error: unknown): unknown {
+  const e = error as { errno?: number; sqlMessage?: string } | null;
+  return e?.errno === 1062 && REQUEST_KEY.test(e.sqlMessage ?? '') ? new DuplicateRequestError() : error;
+}
+
 export function createMysqlStore(pool: Pool): Store {
   const rows = async <R extends RowDataPacket>(sql: string, params: unknown[] = []): Promise<R[]> => (await pool.query<R[]>(sql, params))[0];
   const leadById = async (id: number): Promise<Lead | null> => {
@@ -88,17 +100,27 @@ export function createMysqlStore(pool: Pool): Store {
 
   return {
     async createLead(l: NewLead, now: Date) {
-      const [result] = await pool.query<ResultSetHeader>(
-        `INSERT INTO leads (public_id, name, email, phone, buyer_type, volume, footage_url, page_version, attribution, fbp, fbc, client_ip, user_agent, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'started', ?)`,
-        [l.publicId, l.name, l.email, l.phone ?? null, l.buyerType, l.volume, l.footageUrl ?? null, l.pageVersion, JSON.stringify(l.attribution ?? {}),
-          l.fbp ?? null, l.fbc ?? null, l.clientIp ?? null, l.userAgent ?? null, now],
-      );
-      return (await leadById(result.insertId))!;
+      try {
+        const [result] = await pool.query<ResultSetHeader>(
+          `INSERT INTO leads (public_id, name, email, phone, buyer_type, volume, footage_url, page_version, attribution, fbp, fbc, client_ip, user_agent,
+             status, needs, message, request_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [l.publicId, l.name ?? null, l.email, l.phone ?? null, l.buyerType ?? null, l.volume ?? null, l.footageUrl ?? null, l.pageVersion,
+            JSON.stringify(l.attribution ?? {}), l.fbp ?? null, l.fbc ?? null, l.clientIp ?? null, l.userAgent ?? null,
+            l.status ?? 'started', l.needs === undefined ? null : JSON.stringify(l.needs), l.message ?? null, l.requestId ?? null, now],
+        );
+        return (await leadById(result.insertId))!;
+      } catch (error) {
+        throw duplicateOr(error);
+      }
     },
     getLead: leadById,
     async getLeadByPublicId(publicId) {
       const [row] = await rows<LeadRow>('SELECT * FROM leads WHERE public_id = ?', [publicId]);
+      return row ? leadOf(row) : null;
+    },
+    async getLeadByRequestId(requestId) {
+      const [row] = await rows<LeadRow>('SELECT * FROM leads WHERE request_id = ?', [requestId]);
       return row ? leadOf(row) : null;
     },
     async updateLead(id, patch) {
@@ -107,6 +129,8 @@ export function createMysqlStore(pool: Pool): Store {
       const params: unknown[] = [];
       if (patch.status !== undefined) { sets.push('status = ?'); params.push(patch.status); }
       if (patch.newLeadNotifiedAt !== undefined) { sets.push('new_lead_notified_at = ?'); params.push(patch.newLeadNotifiedAt); }
+      if (patch.hassanNotifiedAt !== undefined) { sets.push('hassan_notified_at = ?'); params.push(patch.hassanNotifiedAt); }
+      if (patch.visitorNotifiedAt !== undefined) { sets.push('visitor_notified_at = ?'); params.push(patch.visitorNotifiedAt); }
       if (sets.length) await pool.query(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
     },
 

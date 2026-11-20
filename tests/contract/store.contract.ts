@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { SlotConflictError, type BookingPatch, type NewBooking, type NewLead, type Store, type TrackingRecord } from '../../src/server/booking/types';
+import { DuplicateRequestError, SlotConflictError, type BookingPatch, type NewBooking, type NewLead, type Store, type TrackingRecord } from '../../src/server/booking/types';
 
 /**
  * The behaviour every Store must have: the memory store and the MySQL store both run these tests.
@@ -47,6 +47,64 @@ export function storeContract(make: Make): void {
 
     await store.updateLead(saved.id, { status: 'booked', newLeadNotifiedAt: at(30) }, at(30));
     expect(await store.getLead(saved.id)).toMatchObject({ status: 'booked', newLeadNotifiedAt: at(30), name: 'Zoë O’Brien' });
+  }));
+
+  it('an inquiry lead round-trips with only an email', () => withStore(make, async (store) => {
+    const input: NewLead = {
+      publicId: 'inquiry-id-1', email: 'only@example.com', pageVersion: 'main', attribution: {}, status: 'inquiry',
+      needs: ['Listing videos'], message: 'Hi\nthere', requestId: 'req-00000001',
+    };
+    const saved = await store.createLead(input, T0);
+    expect(saved).toMatchObject({ ...input, createdAt: T0 });
+    for (const key of ['name', 'buyerType', 'volume', 'phone', 'footageUrl', 'hassanNotifiedAt', 'visitorNotifiedAt'] as const) expect(saved[key]).toBeUndefined();
+    expect(await store.getLead(saved.id)).toEqual(saved);
+    expect(await store.getLeadByRequestId('req-00000001')).toEqual(saved);
+    expect(await store.getLeadByPublicId('inquiry-id-1')).toEqual(saved);
+
+    // An inquiry needs no name, buyer type, volume, needs, message or request id; a lead given no status is 'started'.
+    const bare = await store.createLead(lead(2, { status: 'inquiry', name: undefined, buyerType: undefined, volume: undefined }), T0);
+    expect(bare).toMatchObject({ status: 'inquiry', email: 'lead2@example.com' });
+    expect([bare.needs, bare.message, bare.requestId, bare.name, bare.buyerType, bare.volume]).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
+    expect((await store.createLead(lead(3), T0)).status).toBe('started');
+  }));
+
+  it('a repeated requestId throws DuplicateRequestError and stores nothing; leads without one never collide', () => withStore(make, async (store) => {
+    const first = await store.createLead(lead(1, { requestId: 'req-00000001', status: 'inquiry' }), T0);
+    await expect(store.createLead(lead(2, { requestId: 'req-00000001', status: 'inquiry' }), at(1))).rejects.toBeInstanceOf(DuplicateRequestError);
+    await expect(store.createLead(lead(2, { requestId: 'req-00000001', status: 'inquiry' }), at(1))).rejects.toThrow('duplicate_request');
+    expect(await store.getLeadByPublicId('public-id-2')).toBeNull();
+    expect(await store.getLeadByRequestId('req-00000001')).toEqual(first);
+    expect(await store.leadsCreatedBetween(at(-60).toISOString(), at(60).toISOString())).toEqual([first]);
+
+    // Another request id is another send; no request id at all is never "the same send".
+    const other = await store.createLead(lead(2, { requestId: 'req-00000002' }), at(2));
+    const plainA = await store.createLead(lead(3), at(3));
+    const plainB = await store.createLead(lead(4), at(4));
+    expect(new Set([first.id, other.id, plainA.id, plainB.id]).size).toBe(4);
+    expect((await store.leadsCreatedBetween(at(-60).toISOString(), at(60).toISOString())).map((l) => l.id)).toEqual([first.id, other.id, plainA.id, plainB.id]);
+  }));
+
+  it('getLeadByRequestId of an unknown id is null', () => withStore(make, async (store) => {
+    await store.createLead(lead(1), T0);
+    await store.createLead(lead(2, { requestId: 'req-00000001' }), T0);
+    expect(await store.getLeadByRequestId('req-00000002')).toBeNull();
+    expect(await store.getLeadByRequestId('')).toBeNull();
+  }));
+
+  it('updateLead sets hassanNotifiedAt and visitorNotifiedAt; undefined keeps them', () => withStore(make, async (store) => {
+    const a = await store.createLead(lead(1, { status: 'inquiry' }), T0);
+    await store.updateLead(a.id, { hassanNotifiedAt: at(1) }, at(1));
+    const afterHassan = await store.getLead(a.id);
+    expect(afterHassan).toMatchObject({ status: 'inquiry', hassanNotifiedAt: at(1) });
+    expect(afterHassan!.visitorNotifiedAt).toBeUndefined();
+
+    await store.updateLead(a.id, { visitorNotifiedAt: at(2), status: 'booked' }, at(2));
+    expect(await store.getLead(a.id)).toMatchObject({ status: 'booked', hassanNotifiedAt: at(1), visitorNotifiedAt: at(2) });
+
+    await store.updateLead(a.id, { hassanNotifiedAt: undefined, visitorNotifiedAt: undefined, newLeadNotifiedAt: undefined }, at(3));
+    const kept = await store.getLead(a.id);
+    expect(kept).toMatchObject({ status: 'booked', hassanNotifiedAt: at(1), visitorNotifiedAt: at(2) });
+    expect(kept!.newLeadNotifiedAt).toBeUndefined();
   }));
 
   it('a taken start throws SlotConflictError; cancelling frees it', () => withStore(make, async (store) => {

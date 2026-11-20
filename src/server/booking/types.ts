@@ -1,14 +1,21 @@
 import type { Interval, Slot } from '../../lib/booking/slots';
 export type BuyerType = 'agency' | 'videographer' | 'agent' | 'other';
 export type PageVersion = 'main' | 'agencies' | 'videographers' | 'agents';
-export type LeadStatus = 'started' | 'booked' | 'requested' | 'cancelled';
+export type LeadStatus = 'started' | 'inquiry' | 'booked' | 'requested' | 'cancelled';
 export type BookingStatus = 'booked' | 'requested' | 'cancelled';
 export interface Attribution { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_term?: string; utm_content?: string; fbclid?: string; gclid?: string }
+/**
+ * A lead from the booking form has a name, a buyer type and a volume. An inquiry ("Send details", `status: 'inquiry'`) needs only an email:
+ * it may come with what the visitor needs and a message, and with the browser's request id, which is unique (a repeated id is the same send).
+ */
 export interface NewLead {
-  publicId: string; name: string; email: string; phone?: string; buyerType: BuyerType; volume: string;
+  publicId: string; name?: string; email: string; phone?: string; buyerType?: BuyerType; volume?: string;
   footageUrl?: string; pageVersion: PageVersion; attribution: Attribution; fbp?: string; fbc?: string; clientIp?: string; userAgent?: string;
+  status?: 'started' | 'inquiry'; needs?: string[]; message?: string; requestId?: string;
 }
-export interface Lead extends NewLead { id: number; createdAt: Date; status: LeadStatus; newLeadNotifiedAt?: Date }
+export interface Lead extends Omit<NewLead, 'status'> {
+  id: number; createdAt: Date; status: LeadStatus; newLeadNotifiedAt?: Date; hassanNotifiedAt?: Date; visitorNotifiedAt?: Date;
+}
 export interface NewBooking { leadId: number; start: string; end: string; visitorTz: string; status: BookingStatus; manageToken: string }
 export interface Booking extends NewBooking {
   id: number; googleEventId?: string; meetUrl?: string; reminder24hSentAt?: Date; reminder1hSentAt?: Date;
@@ -20,14 +27,16 @@ export type BookingPatch = Partial<Pick<Booking, 'start' | 'end' | 'status' | 'v
   & { [K in ClearableBookingField]?: Booking[K] | null };
 export interface TrackingRecord { eventId: string; name: string; leadId?: number; payload: unknown; status: 'pending' | 'sent' | 'failed' | 'skipped'; attempts: number; error?: string }
 export class SlotConflictError extends Error { constructor() { super('slot_conflict'); this.name = 'SlotConflictError'; } }
+export class DuplicateRequestError extends Error { constructor() { super('duplicate_request'); this.name = 'DuplicateRequestError'; } }
 export class CalendarUnavailableError extends Error { constructor(msg = 'calendar_unavailable') { super(msg); this.name = 'CalendarUnavailableError'; } }
 
 /** Active = booked or requested. The store keeps a unique slot key (= start) only for active bookings. */
 export interface Store {
-  createLead(l: NewLead, now: Date): Promise<Lead>;
+  createLead(l: NewLead, now: Date): Promise<Lead>;                           // status defaults to 'started'; DuplicateRequestError if `l.requestId` is already stored (leads without one never collide)
   getLead(id: number): Promise<Lead | null>;
   getLeadByPublicId(publicId: string): Promise<Lead | null>;
-  updateLead(id: number, patch: { status?: LeadStatus; newLeadNotifiedAt?: Date }, now: Date): Promise<void>;
+  getLeadByRequestId(requestId: string): Promise<Lead | null>;
+  updateLead(id: number, patch: { status?: LeadStatus; newLeadNotifiedAt?: Date; hassanNotifiedAt?: Date; visitorNotifiedAt?: Date }, now: Date): Promise<void>;
   insertBooking(b: NewBooking, now: Date): Promise<Booking>;                 // SlotConflictError if an active booking holds this start or the lead already has an active booking
   updateBooking(id: number, patch: BookingPatch, now: Date): Promise<Booking>; // SlotConflictError when moved/reactivated onto a start an active booking holds, or when the lead would have two active bookings; missing/undefined keeps a field, null clears a clearable one
   getActiveBookingForLead(leadId: number): Promise<Booking | null>;

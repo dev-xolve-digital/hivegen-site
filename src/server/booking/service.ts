@@ -91,10 +91,10 @@ export function createBookingService(d: ServiceDeps): BookingService {
 
   /** The calendar event: the guest sees the title and description, so personal details go in `privateProps` only. */
   const eventFor = (lead: Lead, b: Booking): CalendarEventInput => {
-    const values = { name: lead.name, manageUrl: manageUrlFor(b.manageToken) };
+    const values = { name: lead.name ?? '', manageUrl: manageUrlFor(b.manageToken) };
     return {
       start: b.start, end: b.end, summary: fillCopy(d.calendarCopy.title, values), description: fillCopy(d.calendarCopy.description, values),
-      attendee: { email: lead.email, name: lead.name },
+      attendee: { email: lead.email, name: lead.name ?? '' },
       privateProps: withoutUndefined({
         leadId: lead.publicId, phone: lead.phone, volume: lead.volume, footageUrl: lead.footageUrl, pageVersion: lead.pageVersion,
         utm_source: lead.attribution.utm_source, utm_campaign: lead.attribution.utm_campaign,

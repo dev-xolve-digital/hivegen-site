@@ -24,33 +24,80 @@ const canonicalTimeZone = (v: string) => {
   try { return new Intl.DateTimeFormat('en-US', { timeZone: v }).resolvedOptions().timeZone; } catch { return undefined; }
 };
 
+/** A lead's public id: 22 URL-safe characters. */
+const PUBLIC_ID = /^[A-Za-z0-9_-]{22}$/;
 const BUYER_TYPES = ['agency', 'videographer', 'agent', 'other'] as const;
 const PAGE_VERSIONS = ['main', 'agencies', 'videographers', 'agents'] as const;
+
+/** The fields the lead form and the inquiry form have in common, so the two cannot drift apart. */
+const email = z.string({ error: wrongType }).trim().min(1, 'required').max(254, 'too_long').pipe(z.email('invalid'));
+const phone = optional(z.string({ error: () => 'invalid' }).trim().min(6, 'invalid').max(30, 'too_long').regex(/^[0-9 +()-]+$/, 'invalid'));
+const footageUrl = optional(z.string({ error: () => 'invalid' }).trim().max(500, 'too_long').refine(isHttpUrl, 'invalid'));
+const pageVersion = z.enum(PAGE_VERSIONS, { error: wrongType });
+const attribution = z.object({
+  utm_source: attributionValue, utm_medium: attributionValue, utm_campaign: attributionValue, utm_term: attributionValue,
+  utm_content: attributionValue, fbclid: attributionValue, gclid: attributionValue,
+}, { error: () => 'invalid' }).optional().transform((a) => a ?? {});
+const cookie = optional(z.string({ error: () => 'invalid' }).trim().max(200, 'too_long'));
+/** Cloudflare's tokens are at most 2048 characters. */
+const turnstileToken = z.string({ error: wrongType }).max(2048, 'too_long');
+/** The honeypot: a field people never see, so only a bot fills it in. */
+const website = z.string({ error: () => 'invalid' }).optional();
 
 /** The lead form. `volumeOptions` are the choices in booking.yaml. Unknown fields (and unknown attribution keys) are dropped. */
 export function leadInputSchema(volumeOptions: readonly string[]) {
   return z.object({
     /** The name goes into the invite title and email subjects, so it carries no control characters. */
     name: required(100).refine((v) => !hasControlCharacter(v), 'invalid'),
-    email: z.string({ error: wrongType }).trim().min(1, 'required').max(254, 'too_long').pipe(z.email('invalid')),
-    phone: optional(z.string({ error: () => 'invalid' }).trim().min(6, 'invalid').max(30, 'too_long').regex(/^[0-9 +()-]+$/, 'invalid')),
+    email,
+    phone,
     buyerType: z.enum(BUYER_TYPES, { error: wrongType }),
     volume: z.string({ error: wrongType }).min(1, 'required').refine((v) => volumeOptions.includes(v), 'invalid'),
-    footageUrl: optional(z.string({ error: () => 'invalid' }).trim().max(500, 'too_long').refine(isHttpUrl, 'invalid')),
-    pageVersion: z.enum(PAGE_VERSIONS, { error: wrongType }),
-    attribution: z.object({
-      utm_source: attributionValue, utm_medium: attributionValue, utm_campaign: attributionValue, utm_term: attributionValue,
-      utm_content: attributionValue, fbclid: attributionValue, gclid: attributionValue,
-    }, { error: () => 'invalid' }).optional().transform((a) => a ?? {}),
-    fbp: optional(z.string({ error: () => 'invalid' }).trim().max(200, 'too_long')),
-    fbc: optional(z.string({ error: () => 'invalid' }).trim().max(200, 'too_long')),
-    /** Cloudflare's tokens are at most 2048 characters. */
-    turnstileToken: z.string({ error: wrongType }).max(2048, 'too_long'),
-    /** The honeypot: a field people never see, so only a bot fills it in. */
-    website: z.string({ error: () => 'invalid' }).optional(),
+    footageUrl,
+    pageVersion,
+    attribution,
+    fbp: cookie,
+    fbc: cookie,
+    turnstileToken,
+    website,
   });
 }
 export type LeadInput = z.output<ReturnType<typeof leadInputSchema>>;
+
+/** Everything but a line break (LF, CR) and a tab: the controls a message cannot carry. */
+const hasForbiddenControl = (v: string) => /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v);
+
+/**
+ * The "Send details" form: only the email is required. The rest is as in the lead form, or optional and kept as given.
+ * `needOptions` are the choices of the "what do you need" question.
+ */
+export function inquiryInputSchema(volumeOptions: readonly string[], needOptions: readonly string[]) {
+  return z.object({
+    email,
+    /** Goes into email subjects, so no control characters. */
+    name: optional(z.string({ error: () => 'invalid' }).trim().max(100, 'too_long').refine((v) => !hasControlCharacter(v), 'invalid')),
+    phone,
+    buyerType: optional(z.enum(BUYER_TYPES, { error: () => 'invalid' })),
+    volume: optional(z.string({ error: () => 'invalid' }).refine((v) => volumeOptions.includes(v), 'invalid')),
+    footageUrl,
+    needs: optional(z.array(z.string({ error: () => 'invalid' }).refine((v) => needOptions.includes(v), 'invalid'), { error: () => 'invalid' })
+      .max(needOptions.length, 'invalid')
+      .refine((list) => new Set(list).size === list.length, 'invalid')),
+    /** Free text: it keeps its line breaks. */
+    message: optional(z.string({ error: () => 'invalid' }).trim().max(2000, 'too_long').refine((v) => !hasForbiddenControl(v), 'invalid')),
+    pageVersion,
+    attribution,
+    fbp: cookie,
+    fbc: cookie,
+    turnstileToken,
+    website,
+    /** The browser's id for this send: a repeat of it is the same send, not a new inquiry. */
+    requestId: z.string({ error: wrongType }).refine(notBlank, 'required').regex(/^[A-Za-z0-9-]{8,64}$/, 'invalid'),
+    /** The lead from an earlier step, when there is one. */
+    leadId: optional(z.string({ error: () => 'invalid' }).regex(PUBLIC_ID, 'invalid')),
+  });
+}
+export type InquiryInput = z.output<ReturnType<typeof inquiryInputSchema>>;
 
 /**
  * A chosen start time, converted to UTC. It has to carry `Z` or an offset: a bare `2026-12-02T14:00:00` would be read
@@ -64,7 +111,7 @@ const startField = z.string({ error: wrongType })
 
 /** Confirming a time: which lead, which slot and the visitor's time zone (anything unknown becomes UTC). */
 export const bookingInputSchema = z.object({
-  leadId: z.string({ error: wrongType }).refine(notBlank, 'required').regex(/^[A-Za-z0-9_-]{22}$/, 'invalid'),
+  leadId: z.string({ error: wrongType }).refine(notBlank, 'required').regex(PUBLIC_ID, 'invalid'),
   start: startField,
   visitorTz: z.unknown().optional().transform((v) => (typeof v === 'string' && v.length <= 64 ? canonicalTimeZone(v) : undefined) ?? 'UTC'),
 });

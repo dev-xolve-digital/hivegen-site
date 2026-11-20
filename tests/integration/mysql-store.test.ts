@@ -81,7 +81,7 @@ describe('MySQL store', () => {
 
 describe('migrations', () => {
   it('the first run applied the schema, and a second run skips it', async () => {
-    expect(firstRun).toEqual(['001_init.sql']);
+    expect(firstRun).toEqual(['001_init.sql', '002_inquiries.sql']);
     expect(await runMigrations(pool)).toEqual([]); // already applied in beforeAll
   });
 
@@ -101,10 +101,10 @@ describe('migrations', () => {
       await write('004_never_reached.sql', 'INSERT INTO migration_probe (note) VALUES (\'fourth\');\n');
       await expect(runMigrations(pool, dir)).rejects.toThrow(/003_broken\.sql/);
       const [applied] = await pool.query<RowDataPacket[]>('SELECT name FROM schema_migrations ORDER BY name');
-      expect(applied.map((r) => r.name)).toEqual(['001_first.sql', '001_init.sql', '002_second.sql']);
+      expect(applied.map((r) => r.name)).toEqual([...firstRun, '001_first.sql', '002_second.sql'].sort());
     } finally {
       await pool.query('DROP TABLE IF EXISTS migration_probe');
-      await pool.query('DELETE FROM schema_migrations WHERE name <> \'001_init.sql\'');
+      await pool.query('DELETE FROM schema_migrations WHERE name NOT IN (?)', [firstRun]); // keep what the real migrations recorded
       await fs.rm(dir, { recursive: true, force: true });
     }
   });

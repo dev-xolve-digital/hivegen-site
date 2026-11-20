@@ -1,5 +1,5 @@
 import {
-  SlotConflictError,
+  DuplicateRequestError, SlotConflictError,
   type Booking, type BookingPatch, type Lead, type NewBooking, type NewLead, type Store, type TrackingRecord,
 } from '../booking/types';
 import { applyBookingPatch } from '../booking/patch';
@@ -29,7 +29,9 @@ export function createMemoryStore(): Store {
 
   return {
     async createLead(l: NewLead, now: Date) {
-      const lead: Lead = { ...copy(l), id: leads.length + 1, createdAt: new Date(now), status: 'started' };
+      // A request id is unique among the leads that have one; leads without one never collide.
+      if (l.requestId !== undefined && leads.some((x) => x.requestId === l.requestId)) throw new DuplicateRequestError();
+      const lead: Lead = { ...copy(l), id: leads.length + 1, createdAt: new Date(now), status: l.status ?? 'started' };
       leads.push(lead);
       return copy(lead);
     },
@@ -39,6 +41,10 @@ export function createMemoryStore(): Store {
     },
     async getLeadByPublicId(publicId) {
       const l = leads.find((x) => x.publicId === publicId);
+      return l ? copy(l) : null;
+    },
+    async getLeadByRequestId(requestId) {
+      const l = leads.find((x) => x.requestId === requestId);
       return l ? copy(l) : null;
     },
     async updateLead(id, patch) {
