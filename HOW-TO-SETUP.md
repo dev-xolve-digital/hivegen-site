@@ -9,7 +9,7 @@ Some steps need Hassan (the Google sign-in in step 1). Some need a change in you
 ## Before you start
 
 - **Two places for settings.** Secret settings (passwords, tokens, keys) go in a file called `.env` on your computer, and in hPanel on Hostinger. Public settings (the Pixel ID, the Turnstile site key, the backup link) go in `content/site.yaml`, which is safe to share. Never put a secret in a content file, and never send a `.env` line to anyone in a chat or an email.
-- **Make your `.env` file once.** In the project folder, copy `.env.example` to a new file called `.env` (in PowerShell: `Copy-Item .env.example .env`). Open it in any text editor. Each line is `NAME=value`, with no spaces around the `=` and no quotes. A line with nothing after the `=` means "not set up yet". The file is never saved to git.
+- **Make your `.env` file once.** In the project folder, copy `.env.example` to a new file called `.env` (in PowerShell: `Copy-Item .env.example .env`). Open it in any text editor. Each line is `NAME=value`, with no spaces around the `=`. **If a value contains a `#` or a space, wrap the whole value in double quotes** (for example `SMTP_PASS="pa#ss word"`): without the quotes, everything from the `#` on is thrown away, so a password would be cut short and the login would fail. Any other value needs no quotes. In hPanel, type each value exactly as it is, **without** quotes. A line with nothing after the `=` means "not set up yet". The file is never saved to git.
 - **Check your work.** Run `npm run check:services` in the project folder at the end of every step. It tries each service you have filled in and says, in plain words, what is wrong and what to do. See "Reading the check" below.
 - **When booking is live.** Booking works for real only when these are all filled in: `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `TURNSTILE_SECRET`, `CRON_SECRET` and `PUBLIC_SITE_URL`. On Hostinger (`NODE_ENV=production`) the five mailbox settings of step 3 are needed too. Until then, your computer shows the demo booking (with its note), and the live site shows a card with Instagram and the backup link instead of the form, so a visitor is never told they are booked when they are not.
 - **Careful when testing.** Once Google is connected, a booking made on your computer creates a real event in Hassan's calendar and sends a real invite. Book with an email address of your own. Without the mailbox settings, your computer does not send emails at all: it saves them as files in a folder called `.outbox`, so you can read them safely.
@@ -146,6 +146,8 @@ What this does: it sends the emails: the confirmation, the reminders, the "your 
 
 Ask Claude which suits you. Whichever you pick, the provider tells you to add a few records to the domain (called SPF and DKIM) in Cloudflare's DNS page. Do that, or the emails will land in spam.
 
+**One rule for the SPF record: a domain may have only one.** It is a TXT record whose text starts with `v=spf1`, and Cloudflare Email Routing may already have added one. If one exists, do **not** add a second: a second SPF record breaks SPF for the whole domain, and the booking emails land in spam. Instead, edit the existing record and add the provider's `include:` part (for example `include:spf.example-provider.com`) before its final `~all` or `-all`. Claude can look at the domain's DNS records for you, with your OK, and tell you exactly what to put. DKIM records are different: add the ones the provider gives you.
+
 **Fill in the five settings**
 
 1. Find your mailbox's **SMTP** settings in the provider's help pages. For a Hostinger mailbox they are usually host `smtp.hostinger.com`, port `465`, and the full mailbox address as the user name.
@@ -158,6 +160,8 @@ Ask Claude which suits you. Whichever you pick, the provider tells you to add a 
    SMTP_PASS=<the mailbox's password>
    MAIL_FROM=HiveGen <connect@hivegen.co>
    ```
+
+   If the password contains a `#` or a space, put the whole value in double quotes in `.env` (`SMTP_PASS="pa#ss"`); in hPanel, type it without quotes.
 
    `MAIL_FROM` is the name and address people see on the emails. Its address should be on `hivegen.co` and be one the provider allows you to send from. Replies go to the address in `content/site.yaml` under `contact:` `replyTo`, which reaches Hassan.
 
@@ -387,6 +391,6 @@ STREAM_SIGNING_KEY_JWK=...
 | The live booking card shows Instagram, not the form | Booking is not connected on the server | Read the app's logs for "Missing settings" and fill those in (step 9) |
 | Every booking becomes "We've got your request" and Hassan gets "Confirm by hand" emails | Google could not make the event, usually an expired sign-in (`invalid_grant`) | Step 1, "If it later says the sign-in has expired" |
 | The form says it could not check you are a person | The Turnstile site key is missing or wrong, or the secret is wrong | Step 6, then `npm run check:services` |
-| No emails arrive | The mailbox settings are wrong, or the mail is in spam | Step 3; also check SPF and DKIM |
+| No emails arrive | The mailbox settings are wrong (a password with a `#` needs double quotes in `.env`), or the mail is in spam | Step 3; also check that the domain has exactly one SPF record, and DKIM |
 | No reminders arrive | The cron job is not running | Step 8: run the call by hand |
 | Videos do not play after switching on signed links | The key is not in hPanel, or the site was not redeployed | Step 7, steps 1 and 2 |

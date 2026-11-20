@@ -8,16 +8,17 @@ import { openBooking, pretendMode } from './helpers';
 // (Demo and offline are the page being told another mode; real bookings are in booking-flow.spec.ts.)
 const b = loadSection('booking');
 const VISITOR_TZ = 'America/New_York';
-// These tests are about the form, not the page's motion. With reduced motion the page keeps its 3D scene, hero video and clips still and
-// jumps to `#book` at once instead of scrolling smoothly, so four pages at a time cannot starve one another (on a busy machine the
-// smooth scroll alone took longer than a test waits for the form to start) and each test starts from a page that is ready.
+// The tests about the form are not about the page's motion. With reduced motion the page keeps its 3D scene, hero video and clips still
+// and jumps to `#book` at once instead of scrolling smoothly, so four pages at a time cannot starve one another on a busy machine.
+// (That only lightens the load: each test still waits for the form to start, with openBooking.) The one test of the "Book a call"
+// buttons opts out below, so the smooth scroll to the form stays covered.
 test.use({ timezoneId: VISITOR_TZ, reducedMotion: 'reduce' });
 /** The clock of every test here: the page believes it is this moment, whatever day the tests really run on. */
 const NOW = new Date('2026-11-23T13:00:00Z');
 test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(NOW); });
 
 test('an empty submit shows the messages from content, and focus goes to the first field to fix', async ({ page }) => {
-  await page.goto('/#book');
+  await openBooking(page, '/#book'); // not before the form has started: it is the form's own handler that shows the messages
   await page.getByRole('button', { name: b.nextLabel }).click();
   await expect(page.getByText(b.errors.name)).toBeVisible();
   await expect(page.getByText(b.errors.email)).toBeVisible();
@@ -29,7 +30,7 @@ test('an empty submit shows the messages from content, and focus goes to the fir
 test('"I am a…" and videos per month are required', async ({ page }) => {
   const leadRequests: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/api/booking/leads')) leadRequests.push(r.url()); });
-  await page.goto('/#book');
+  await openBooking(page, '/#book');
   await page.getByLabel(b.fields.name).fill('Zoë');
   await page.getByLabel(b.fields.email).fill('zoe@example.com');
   await page.getByRole('button', { name: b.nextLabel }).click();
@@ -91,10 +92,14 @@ test('off mode: no form, an offline card with Instagram instead', async ({ page 
   await expect(page.getByTestId('booking-done')).toBeHidden();
 });
 
-test('booking buttons scroll to the booking section', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: loadSection('hero').primaryCta.label }).first().click();
-  await expect(page.getByTestId('booking')).toBeInViewport();
+test.describe('with normal motion', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('booking buttons scroll to the booking section', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: loadSection('hero').primaryCta.label }).first().click();
+    await expect(page.getByTestId('booking')).toBeInViewport({ timeout: 20_000 }); // the page scrolls smoothly, which takes seconds on a long page
+  });
 });
 
 test('the booking server and Cloudflare are asked nothing until the section is near, and nothing before the page has loaded', async ({ page }) => {

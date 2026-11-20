@@ -165,7 +165,7 @@ async function checkSmtp(config: ServerConfig, deps: CheckDeps): Promise<CheckRe
     await deps.verifySmtp(config.smtp);
   } catch (e) {
     const code = codeOf(e);
-    if (code === 'EAUTH') return failed(SERVICES.smtp, 'the mail server refused the login.', `Check SMTP_USER (usually the full address of the mailbox) and SMTP_PASS. ${see(STEP.smtp)}`);
+    if (code === 'EAUTH') return failed(SERVICES.smtp, 'the mail server refused the login.', `Check SMTP_USER (usually the full address of the mailbox) and SMTP_PASS. If the password contains a # or a space, put it in double quotes in .env (SMTP_PASS="pa#ss"), because the # would otherwise cut it short; in hPanel, type it without quotes. ${see(STEP.smtp)}`);
     if (unreachable(e) || ['ECONNECTION', 'ESOCKET', 'EDNS', 'ETLS', 'EPROTOCOL'].includes(code)) {
       return failed(SERVICES.smtp, 'could not connect to the mail server.', `Check SMTP_HOST and SMTP_PORT. 465 is the usual port; if it does not work, try 587. ${see(STEP.smtp)}`);
     }

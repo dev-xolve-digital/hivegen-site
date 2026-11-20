@@ -276,7 +276,7 @@ describe('SMTP', () => {
   });
 
   it.each([
-    ['EAUTH', /refused the login/i, /SMTP_USER.*SMTP_PASS/],
+    ['EAUTH', /refused the login/i, /SMTP_USER.*SMTP_PASS.*password contains a #.*double quotes in \.env/],
     ['ECONNECTION', /could not connect/i, /SMTP_HOST.*SMTP_PORT/],
     ['ETIMEDOUT', /could not connect/i, /465/],
     ['EDNS', /could not connect/i, /SMTP_HOST/],
