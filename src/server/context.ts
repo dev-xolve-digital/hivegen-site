@@ -90,7 +90,8 @@ const FAKE_HASSAN_EMAIL = 'hassan@example.test';
 function loadServiceContent() {
   const { rules, hassanEmail } = loadBookingSite();
   const booking = loadSection('booking');
-  return { rules, hassanEmail, calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions };
+  const needOptions: string[] = []; // set by Task 5: booking.yaml `inquiry.needOptions`
+  return { rules, hassanEmail, calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions, needOptions };
 }
 
 const logOutbox = (dir: string) => console.info(`booking: emails are written to ${path.resolve(dir)} instead of being sent`);
@@ -114,9 +115,9 @@ function fakesContext(config: ServerConfig, outboxDir: string): ServerContext {
     return {
       service: createBookingService({
         store, calendar, notifier, clock, rules: content.rules, siteUrl: config.siteUrl,
-        calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
+        calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions, needOptions: content.needOptions,
         tracker,
-        verifyBot: async (token) => token !== 'fail',
+        verifyBot: async (token) => token !== 'fail', // whatever the action
       }),
       runScheduled: () => runScheduledWork({ store, notifier, retryTracking: async () => false, clock }), // nothing is sent anywhere, so nothing is sent again
     };
@@ -174,7 +175,6 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
       logOutbox(dir);
     }
     const secret = config.turnstileSecret!;
-    const botCheckFor = turnstileExpectation(config.siteUrl);
     const store = createMysqlStore(pool);
     const notifier = createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
     const tracker = chooseTracker(config.meta, readPixelId(), store);
@@ -182,8 +182,8 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
       config, tracker, limits: createLimits(),
       service: createBookingService({
         store, calendar: createGoogleCalendar(config.google!), notifier, tracker,
-        clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
-        verifyBot: (token, ip) => verifyTurnstile(token, ip, secret, botCheckFor),
+        clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions, needOptions: content.needOptions,
+        verifyBot: (token, ip, action) => verifyTurnstile(token, ip, secret, turnstileExpectation(config.siteUrl, action)),
       }),
       runScheduled: () => runScheduledWork({ store, notifier, retryTracking: (r) => tracker.resend(r), clock }),
     };

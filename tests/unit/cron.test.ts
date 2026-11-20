@@ -13,7 +13,7 @@ import { createContext, type ServerContext } from '../../src/server/context';
 import { runScheduledWork } from '../../src/server/cron';
 import { cronHandler, withContext } from '../../src/server/http/handlers';
 import { createMemoryStore } from '../../src/server/store/memory';
-import { NOW, good, withLead } from './helpers/booking';
+import { NOW, addLead, good, withLead } from './helpers/booking';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -436,6 +436,111 @@ describe('retrying emails', () => {
       const stored = await w.row(left.id);
       expect([stored.visitorNotifiedAt, stored.hassanNotifiedAt]).toEqual([undefined, undefined]);
     }
+  });
+});
+
+describe('retrying inquiry emails', () => {
+  const now = new Date('2026-12-05T10:00:00.000Z');
+  /** An inquiry made at `createdAt`; `marks` are the emails that already went out. */
+  async function inquiry(w: ReturnType<typeof world>, createdAt: Date, marks: { hassanNotifiedAt?: Date; visitorNotifiedAt?: Date } = {}) {
+    const l = await w.lead(createdAt, 'inquiry');
+    if (marks.hassanNotifiedAt || marks.visitorNotifiedAt) await w.store.updateLead(l.id, marks, createdAt);
+    return l;
+  }
+  const marksOf = async (w: ReturnType<typeof world>, id: number) => {
+    const l = (await w.store.getLead(id))!;
+    return [l.hassanNotifiedAt, l.visitorNotifiedAt];
+  };
+
+  it('inquiry emails that failed are sent again after 2 minutes', async () => {
+    const w = world();
+    const waiting = await inquiry(w, before(now, 3 * MIN));
+    const fresh = await inquiry(w, before(now, MIN)); // the request may still be sending its own
+    const tooOld = await inquiry(w, before(now, 2 * DAY + 1));
+    const started = await w.lead(before(now, 3 * MIN)); // a call-flow lead has no inquiry emails
+
+    expect(await w.run(now)).toEqual({ ...quiet, emailRetries: 2 });
+    expect(w.sent.map((s) => [s.kind, s.data.lead.id])).toEqual([['hassan-new-inquiry', waiting.id], ['inquiry-received', waiting.id]]);
+    expect(w.sent.every((s) => s.data.booking === undefined)).toBe(true);
+    expect(await marksOf(w, waiting.id)).toEqual([now, now]);
+    for (const left of [fresh, tooOld, started]) expect(await marksOf(w, left.id)).toEqual([undefined, undefined]);
+
+    // Both are marked: nothing is sent again. The young one is taken up once it is 2 minutes old.
+    expect(await w.run(after(now, MIN))).toEqual({ ...quiet, emailRetries: 2 });
+    expect(w.sent.map((s) => s.data.lead.id)).toEqual([waiting.id, waiting.id, fresh.id, fresh.id]);
+    expect(await w.run(after(now, 10 * MIN))).toEqual(quiet);
+    expect(w.sent).toHaveLength(4);
+  });
+
+  it('the edges: 2 minutes old is taken up, a millisecond less is not; so for 2 days', async () => {
+    const w = world();
+    const almost = await inquiry(w, before(now, 2 * MIN - 1));
+    const exactly = await inquiry(w, before(now, 2 * MIN));
+    const lastDay = await inquiry(w, before(now, 2 * DAY));
+    expect(await w.run(now)).toEqual({ ...quiet, emailRetries: 4 });
+    expect([...new Set(w.sent.map((s) => s.data.lead.id))]).toEqual([lastDay.id, exactly.id]);
+    expect(await marksOf(w, almost.id)).toEqual([undefined, undefined]);
+  });
+
+  it('sends only the email that is still unsent; one failing does not stop the other, and its mark stays unset', async () => {
+    const w = world();
+    const hassanDone = await inquiry(w, before(now, 5 * MIN), { hassanNotifiedAt: before(now, 4 * MIN) });
+    const visitorDone = await inquiry(w, before(now, 4 * MIN), { visitorNotifiedAt: before(now, 3 * MIN) });
+    expect(await w.run(now)).toEqual({ ...quiet, emailRetries: 2 });
+    expect(w.sent.map((s) => [s.kind, s.data.lead.id])).toEqual([['inquiry-received', hassanDone.id], ['hassan-new-inquiry', visitorDone.id]]);
+    expect(await marksOf(w, hassanDone.id)).toEqual([before(now, 4 * MIN), now]);
+    expect(await marksOf(w, visitorDone.id)).toEqual([now, before(now, 3 * MIN)]);
+
+    const w2 = world();
+    const both = await inquiry(w2, before(now, 5 * MIN));
+    w2.failing.add('hassan-new-inquiry');
+    expect(await w2.run(now)).toEqual({ ...quiet, emailRetries: 1 });
+    expect(w2.tried.map((t) => t.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']); // the second was tried although the first failed
+    expect(await marksOf(w2, both.id)).toEqual([undefined, now]);
+    expect(warn.mock.calls.flat()).toEqual(['cron: email hassan-new-inquiry not sent (TransportError)']); // nothing about the visitor
+
+    w2.failing.clear();
+    w2.tried.length = 0;
+    expect(await w2.run(after(now, 5 * MIN))).toEqual({ ...quiet, emailRetries: 1 });
+    expect(w2.tried.map((t) => t.kind)).toEqual(['hassan-new-inquiry']);
+    expect(await marksOf(w2, both.id)).toEqual([after(now, 5 * MIN), now]);
+  });
+
+  it('comes before the reminders, as the booking emails do', async () => {
+    const w = world();
+    const soon = after(now, 30 * MIN).toISOString();
+    await w.booking(soon, before(now, 3 * DAY)); // a reminder is due: the 1-hour one
+    await inquiry(w, before(now, 5 * MIN));
+    expect(await w.run(now)).toEqual({ ...quiet, emailRetries: 2, reminders1h: 1 });
+    expect(w.kinds()).toEqual(['hassan-new-inquiry', 'inquiry-received', 'reminder-1h']);
+  });
+
+  it('an inquiry never gets the 30-minute email', async () => {
+    const w = world();
+    const done = await inquiry(w, NOW, { hassanNotifiedAt: NOW, visitorNotifiedAt: NOW });
+    expect(await w.run(after(NOW, 31 * MIN))).toEqual(quiet);
+    expect(w.sent).toEqual([]);
+
+    // One whose own emails were never sent gets those, and still no "new lead" email.
+    const unsent = await inquiry(w, NOW);
+    expect(await w.run(after(NOW, 31 * MIN))).toEqual({ ...quiet, emailRetries: 2 });
+    expect(w.kinds()).toEqual(['hassan-new-inquiry', 'inquiry-received']);
+    expect((await w.store.getLead(done.id))!.newLeadNotifiedAt).toBeUndefined();
+    expect((await w.store.getLead(unsent.id))!.newLeadNotifiedAt).toBeUndefined();
+  });
+
+  it('a call-flow lead told by an inquiry gets no 30-minute email', async () => {
+    const t = await withLead(); // a call-flow lead made at NOW, with no time picked
+    const other = await addLead(t.svc, { email: 'other@example.com' }); // another one, never told
+    expect(await t.svc.sendInquiry({ email: 'v@example.com', pageVersion: 'main', turnstileToken: 'ok', requestId: 'req-00000001', leadId: t.leadId }, {})).toMatchObject({ ok: true });
+    t.sent.length = 0;
+    t.mails.length = 0;
+
+    const at = after(NOW, 31 * MIN);
+    const summary = await runScheduledWork({ store: t.store, notifier: t.deps.notifier, retryTracking: async () => false, clock: { now: () => at } });
+    expect(summary).toEqual({ ...quiet, newLeadEmails: 1 });
+    expect(t.mails.map((m) => [m.kind, m.data.lead.email])).toEqual([['hassan-new-lead', 'other@example.com']]);
+    expect((await t.store.getLeadByPublicId(other))!.newLeadNotifiedAt).toEqual(at);
   });
 });
 

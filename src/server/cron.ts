@@ -6,9 +6,9 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
-/** A booking's first emails are retried only once the booking is this old: before that `book()` may still be sending them. */
+/** A booking's (or an inquiry's) first emails are retried only once it is this old: before that the request may still be sending them. */
 const EMAIL_RETRY_AFTER = 2 * MIN;
-/** Only bookings from this long ago are looked at for unsent first emails; older ones are let go. */
+/** Only bookings and inquiries from this long ago are looked at for unsent first emails; older ones are let go. */
 const EMAIL_RETRY_WINDOW = 2 * DAY;
 /** A lead gets the "no time picked" email to Hassan once it has been waiting this long. */
 const NEW_LEAD_AFTER = 30 * MIN;
@@ -60,6 +60,21 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
     }
     if (!b.hassanNotifiedAt && await trySend(toHassan, { lead, booking: b })) {
       await d.store.updateBooking(b.id, { hassanNotifiedAt: now }, now);
+      summary.emailRetries += 1;
+    }
+  }
+
+  // The same for an inquiry ("Send details"): the email to Hassan and the one to the visitor that `sendInquiry()` could not send. Each is
+  // sent only if its mark is unset, and marked once it went out. Hassan's goes first, as in `sendInquiry()`.
+  for (const lead of await d.store.leadsCreatedBetween(iso(at - EMAIL_RETRY_WINDOW), iso(at - EMAIL_RETRY_AFTER + 1))) {
+    if (lead.status !== 'inquiry' || (lead.hassanNotifiedAt && lead.visitorNotifiedAt)) continue;
+    if (lead.createdAt.getTime() > at - EMAIL_RETRY_AFTER || lead.createdAt.getTime() < at - EMAIL_RETRY_WINDOW) continue;
+    if (!lead.hassanNotifiedAt && await trySend('hassan-new-inquiry', { lead })) {
+      await d.store.updateLead(lead.id, { hassanNotifiedAt: now }, now);
+      summary.emailRetries += 1;
+    }
+    if (!lead.visitorNotifiedAt && await trySend('inquiry-received', { lead })) {
+      await d.store.updateLead(lead.id, { visitorNotifiedAt: now }, now);
       summary.emailRetries += 1;
     }
   }

@@ -13,8 +13,12 @@ export interface LeadInput {
 /** What the visitor's booking turned out as: `booked` (Google made the event) or `requested` (held, confirmed by hand). */
 export interface Booked { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string }
 
+/** The Turnstile actions: one per form, so a token made for one form is refused by the other. */
+export type TurnstileAction = 'booking' | 'inquiry';
 /** The Turnstile action the booking form's widget is rendered with; the server refuses tokens made for any other action. */
 export const TURNSTILE_ACTION = 'booking';
+/** The Turnstile action the "Send details" form's widget is rendered with. */
+export const INQUIRY_TURNSTILE_ACTION = 'inquiry';
 
 export interface BookingApi {
   createLead(i: LeadInput & { turnstileToken: string; website: string }): Promise<{ leadId: string; eventId: string }>;

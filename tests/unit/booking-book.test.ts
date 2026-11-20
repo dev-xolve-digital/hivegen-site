@@ -313,6 +313,24 @@ describe('book', () => {
     expect(t.sent).toEqual([]);
   });
 
+  it('an inquiry lead cannot book a call', async () => {
+    const t = await withLead();
+    const sentInquiry = await t.svc.sendInquiry({ email: 'v@example.com', pageVersion: 'main', turnstileToken: 'ok', requestId: 'req-00000001', website: '' }, {});
+    expect(sentInquiry).toMatchObject({ ok: true });
+    const inquiry = (await t.store.getLeadByRequestId('req-00000001'))!;
+    expect(inquiry.status).toBe('inquiry');
+    forgetEmails(t);
+
+    // It answers as an unknown lead does, and nothing is booked, created or sent.
+    const unknown = await t.svc.book({ leadId: 'A'.repeat(22), start: t.slot.start, visitorTz: 'UTC' }, {});
+    expect(await t.svc.book({ leadId: inquiry.publicId, start: t.slot.start, visitorTz: 'UTC' }, {})).toEqual(unknown);
+    expect(unknown).toEqual({ ok: false, error: 'not_found' });
+    expect(await everyBooking(t.store)).toEqual([]);
+    expect(t.calendar.events.size).toBe(0);
+    expect(t.sent).toEqual([]);
+    expect((await t.store.getLeadByRequestId('req-00000001'))!.status).toBe('inquiry'); // the lead row is not turned into a booked one
+  });
+
   it('builds the manage link from siteUrl with one trailing slash removed', async () => {
     for (const siteUrl of ['https://hivegen.co/', 'https://hivegen.co']) {
       const t = await withLead({ siteUrl });

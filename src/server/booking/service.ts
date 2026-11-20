@@ -1,13 +1,14 @@
 import { randomBytes } from 'node:crypto';
+import type { TurnstileAction } from '../../lib/booking/api-client';
 import type { BookingRules } from '../../lib/content/schemas';
 import { generateSlots } from '../../lib/booking/slots';
 import { bookingEmailKinds, emailSender, logFailure } from './emails';
 import { manageUrl } from './links';
 import { isActive, type ActiveStatus } from './status';
-import { bookingInputSchema, leadInputSchema, parseInput, rescheduleInputSchema } from './validate';
+import { bookingInputSchema, inquiryInputSchema, leadInputSchema, parseInput, rescheduleInputSchema } from './validate';
 import {
-  CalendarUnavailableError, SlotConflictError,
-  type Booking, type BookingPatch, type BookingStatus, type Calendar, type CalendarEventInput, type Clock, type EmailData,
+  CalendarUnavailableError, DuplicateRequestError, SlotConflictError,
+  type Attribution, type Booking, type BookingPatch, type BookingStatus, type Calendar, type CalendarEventInput, type Clock, type EmailData,
   type Interval, type Lead, type Notifier, type Result, type Slot, type Store, type Tracker,
 } from './types';
 
@@ -18,7 +19,10 @@ export interface ServiceDeps {
   calendarCopy: { title: string; description: string };
   /** The "videos per month" choices from booking.yaml. */
   volumeOptions: string[];
-  verifyBot(token: string, ip?: string): Promise<boolean>;
+  /** The "what do you need" choices of the "Send details" form, from booking.yaml. */
+  needOptions: string[];
+  /** Whether the bot check's token is real and was made for `action`: each form has its own. */
+  verifyBot(token: string, ip: string | undefined, action: TurnstileAction): Promise<boolean>;
 }
 
 export type BookOutcome = { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string };
@@ -27,6 +31,8 @@ type RequestMeta = { ip?: string; userAgent?: string; sourceUrl?: string };
 export interface BookingService {
   getSlots(): Promise<{ slots: Slot[]; calendarChecked: boolean }>;
   createLead(raw: unknown, meta: RequestMeta): Promise<Result<{ leadId: string; eventId: string }>>;
+  /** The "Send details" form: one inquiry per `requestId` (a repeat gets the first one's answer), Hassan and the visitor emailed. */
+  sendInquiry(raw: unknown, meta: RequestMeta): Promise<Result<{ status: 'received'; eventId: string }>>;
   book(raw: unknown, meta: RequestMeta): Promise<Result<BookOutcome>>;
   getManaged(token: string): Promise<{ booking: Booking; lead: Lead; canCancel: boolean; canReschedule: boolean } | null>;
   cancel(token: string): Promise<Result<{ status: 'cancelled' }>>;
@@ -43,10 +49,13 @@ const overlaps = (a: Interval, b: Interval) => Date.parse(a.start) < Date.parse(
 /** Copy with {name} and {manageUrl} filled in as plain text, in one pass so a value is never read as a placeholder. */
 const fillCopy = (text: string, values: { name: string; manageUrl: string }) =>
   text.replace(/\{(name|manageUrl)\}/g, (_, key: 'name' | 'manageUrl') => values[key]);
+/** The id of a lead's `Lead` tracking event. The browser is given it too, so Meta can tell the two reports are one. */
+const leadEventId = (publicId: string) => `lead.${publicId}`;
 const withoutUndefined = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string>;
 
 export function createBookingService(d: ServiceDeps): BookingService {
   const leadSchema = leadInputSchema(d.volumeOptions);
+  const inquirySchema = inquiryInputSchema(d.volumeOptions, d.needOptions);
   const manageUrlFor = (token: string) => manageUrl(d.siteUrl, token);
   const scheduleEventId = (lead: Lead) => `schedule.${lead.publicId}`;
   const outcomeOf = (lead: Lead, b: Booking): BookOutcome => ({
@@ -89,6 +98,20 @@ export function createBookingService(d: ServiceDeps): BookingService {
   /** Sends one email. A failure is logged and reported as `false`; it never reaches the visitor. */
   const trySend = emailSender(d.notifier, 'booking');
 
+  /** The Facebook click id as the `fbc` cookie value, when the visitor sent no cookie but arrived from an ad. */
+  const fbcFor = (fbc: string | undefined, attribution: Attribution, now: Date) =>
+    fbc ?? (attribution.fbclid ? `fb.1.${now.getTime()}.${attribution.fbclid}` : undefined);
+
+  /** The answer to a send of the "Send details" form, as the inquiry lead has it stored. */
+  const receivedFor = (lead: Lead): Result<{ status: 'received'; eventId: string }> =>
+    ({ ok: true, value: { status: 'received', eventId: leadEventId(lead.publicId) } });
+
+  /** The call-flow lead with this public id, when it is still waiting for a time to be picked: started, with no active booking. */
+  const waitingLead = async (publicId: string | undefined): Promise<Lead | null> => {
+    const lead = publicId ? await d.store.getLeadByPublicId(publicId) : null;
+    return lead?.status === 'started' && !(await d.store.getActiveBookingForLead(lead.id)) ? lead : null;
+  };
+
   /** The calendar event: the guest sees the title and description, so personal details go in `privateProps` only. */
   const eventFor = (lead: Lead, b: Booking): CalendarEventInput => {
     const values = { name: lead.name ?? '', manageUrl: manageUrlFor(b.manageToken) };
@@ -122,18 +145,18 @@ export function createBookingService(d: ServiceDeps): BookingService {
       const honeypot = (raw as { website?: unknown } | null)?.website;
       if (typeof honeypot === 'string' && honeypot.trim() !== '') {
         const leadId = randomId();
-        return { ok: true, value: { leadId, eventId: `lead.${leadId}` } };
+        return { ok: true, value: { leadId, eventId: leadEventId(leadId) } };
       }
 
       const input = parseInput(leadSchema, raw);
       if (!input.ok) return { ok: false, error: 'invalid', fields: input.fields };
       const v = input.value;
-      if (!(await d.verifyBot(v.turnstileToken, meta.ip))) return { ok: false, error: 'bot_check_failed' };
+      if (!(await d.verifyBot(v.turnstileToken, meta.ip, 'booking'))) return { ok: false, error: 'bot_check_failed' };
 
       const now = d.clock.now();
       const publicId = randomId();
-      const eventId = `lead.${publicId}`;
-      const fbc = v.fbc ?? (v.attribution.fbclid ? `fb.1.${now.getTime()}.${v.attribution.fbclid}` : undefined);
+      const eventId = leadEventId(publicId);
+      const fbc = fbcFor(v.fbc, v.attribution, now);
       const lead = await d.store.createLead({
         publicId, name: v.name, email: v.email, phone: v.phone, buyerType: v.buyerType, volume: v.volume, footageUrl: v.footageUrl,
         pageVersion: v.pageVersion, attribution: v.attribution, fbp: v.fbp, fbc, clientIp: meta.ip, userAgent: meta.userAgent,
@@ -145,12 +168,68 @@ export function createBookingService(d: ServiceDeps): BookingService {
       return { ok: true, value: { leadId: publicId, eventId } };
     },
 
+    async sendInquiry(raw, meta) {
+      // A bot fills the hidden field: say yes, keep nothing.
+      const honeypot = (raw as { website?: unknown } | null)?.website;
+      if (typeof honeypot === 'string' && honeypot.trim() !== '') return { ok: true, value: { status: 'received', eventId: leadEventId(randomId()) } };
+
+      const input = parseInput(inquirySchema, raw);
+      if (!input.ok) return { ok: false, error: 'invalid', fields: input.fields };
+      const v = input.value;
+
+      // The same send again (a double click, a retry after a dropped reply) gets the first one's answer, before the bot check:
+      // its token has been used already. Nothing is stored or sent a second time.
+      const already = await d.store.getLeadByRequestId(v.requestId);
+      if (already) return receivedFor(already);
+      if (!(await d.verifyBot(v.turnstileToken, meta.ip, 'inquiry'))) return { ok: false, error: 'bot_check_failed' };
+
+      const now = d.clock.now();
+      const publicId = randomId();
+      const fbc = fbcFor(v.fbc, v.attribution, now);
+      let lead: Lead;
+      try {
+        lead = await d.store.createLead({
+          publicId, status: 'inquiry', email: v.email, name: v.name, phone: v.phone, buyerType: v.buyerType, volume: v.volume, footageUrl: v.footageUrl,
+          needs: v.needs, message: v.message, requestId: v.requestId,
+          pageVersion: v.pageVersion, attribution: v.attribution, fbp: v.fbp, fbc, clientIp: meta.ip, userAgent: meta.userAgent,
+        }, now);
+      } catch (e) {
+        if (!(e instanceof DuplicateRequestError)) throw e;
+        // Two sends of one request at once: the other one stored it and sends the emails, this one only answers.
+        const winner = await d.store.getLeadByRequestId(v.requestId);
+        if (!winner) throw e;
+        return receivedFor(winner);
+      }
+
+      // A visitor who first filled in the call form and then chose "Send details" is one visitor: the earlier lead is marked as told, so
+      // Hassan gets no "no time picked" email about them, and it is not counted a second time. A lead that booked, an unknown one or
+      // another inquiry changes nothing.
+      const waiting = await waitingLead(v.leadId);
+      if (waiting) {
+        await d.store.updateLead(waiting.id, { newLeadNotifiedAt: now }, now);
+      } else {
+        await d.tracker.send({
+          name: 'Lead', eventId: leadEventId(publicId), time: now, sourceUrl: meta.sourceUrl ?? '', leadId: lead.id,
+          user: { email: v.email, phone: v.phone, externalId: publicId, ip: meta.ip, userAgent: meta.userAgent, fbp: v.fbp, fbc },
+        });
+      }
+
+      // Each email on its own: one that fails stays unmarked, and cron sends it again.
+      const hassanSent = await trySend('hassan-new-inquiry', { lead });
+      const visitorSent = await trySend('inquiry-received', { lead });
+      const sentAt = d.clock.now();
+      if (hassanSent || visitorSent) {
+        await d.store.updateLead(lead.id, { ...(hassanSent && { hassanNotifiedAt: sentAt }), ...(visitorSent && { visitorNotifiedAt: sentAt }) }, sentAt);
+      }
+      return receivedFor(lead);
+    },
+
     async book(raw, meta) {
       const input = parseInput(bookingInputSchema, raw);
       if (!input.ok) return { ok: false, error: 'invalid', fields: input.fields };
       const { leadId, start, visitorTz } = input.value;
       const lead = await d.store.getLeadByPublicId(leadId);
-      if (!lead) return { ok: false, error: 'not_found' };
+      if (!lead || lead.status === 'inquiry') return { ok: false, error: 'not_found' }; // an inquiry has no call to book
 
       // Confirming twice (a double click, a retry after a dropped reply) gives back the booking the lead already has.
       const existing = await d.store.getActiveBookingForLead(lead.id);

@@ -28,7 +28,7 @@ export function setup(overrides: Partial<ServiceDeps> = {}) {
   const clock = { now: () => current, set: (at: Date) => { current = at; } };
   const deps: ServiceDeps = {
     store, calendar, clock, rules, siteUrl: 'https://hivegen.co',
-    calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions,
+    calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions, needOptions: [],
     notifier: { send: async (kind, data) => { sent.push(kind); mails.push({ kind, data }); } },
     tracker: { send: async (e) => { tracked.push(e); } },
     verifyBot: async (token, ip) => { botChecks.push({ token, ip }); return token === 'ok'; },

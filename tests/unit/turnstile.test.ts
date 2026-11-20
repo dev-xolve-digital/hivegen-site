@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { TURNSTILE_ACTION } from '../../src/lib/booking/api-client';
+import { INQUIRY_TURNSTILE_ACTION, TURNSTILE_ACTION } from '../../src/lib/booking/api-client';
 import { turnstileExpectation, verifyTurnstile } from '../../src/server/booking/turnstile';
 
 type Call = { url: string; method?: string; form: URLSearchParams };
@@ -98,6 +98,22 @@ describe('turnstileExpectation', () => {
     expect(turnstileExpectation('https://hivegen.co')).toEqual({ action: TURNSTILE_ACTION, hostname: 'hivegen.co' });
     expect(turnstileExpectation('https://hivegen.co/some/path')).toEqual({ action: TURNSTILE_ACTION, hostname: 'hivegen.co' });
     expect(turnstileExpectation('http://localhost:4321')).toEqual({ action: TURNSTILE_ACTION, hostname: 'localhost' });
+  });
+
+  it('turnstileExpectation takes the action', () => {
+    expect(turnstileExpectation('https://hivegen.co', 'inquiry')).toEqual({ action: 'inquiry', hostname: 'hivegen.co' });
+    expect(turnstileExpectation('https://hivegen.co', 'booking')).toEqual({ action: 'booking', hostname: 'hivegen.co' });
+    expect(turnstileExpectation('https://hivegen.co')).toEqual({ action: 'booking', hostname: 'hivegen.co' }); // the default
+    expect(INQUIRY_TURNSTILE_ACTION).toBe('inquiry');
+    expect(INQUIRY_TURNSTILE_ACTION).toMatch(/^[A-Za-z0-9_-]{1,32}$/);
+  });
+
+  it('a token made for one action does not pass for the other', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const answer = () => json({ success: true, action: 'inquiry', hostname: 'hivegen.co' });
+    expect(await verifyTurnstile('tok', undefined, 'sec', turnstileExpectation('https://hivegen.co', 'inquiry'), fakeFetch(answer).fn)).toBe(true);
+    expect(await verifyTurnstile('tok', undefined, 'sec', turnstileExpectation('https://hivegen.co', 'booking'), fakeFetch(answer).fn)).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1); // only the refused one says so
   });
 
   it('an address that is not a URL expects no host, so nothing passes', () => {

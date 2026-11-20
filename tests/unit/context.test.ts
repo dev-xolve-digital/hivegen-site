@@ -72,6 +72,15 @@ describe('createContext in fakes mode', () => {
     expect(await ctx.service!.createLead({ ...form, turnstileToken: 'fail' }, {})).toEqual({ ok: false, error: 'bot_check_failed' });
   });
 
+  it('sends an inquiry: its bot check passes unless the token is "fail", and both emails go to the outbox', async () => {
+    const dir = tempDir();
+    const ctx = await createContext(config({ HIVEGEN_FAKES: '1', NODE_ENV: 'test' }), { outboxDir: dir });
+    const inquiry = { email: 'zoe@example.com', pageVersion: 'main', turnstileToken: 'anything', requestId: 'req-00000001' };
+    expect(await ctx.service!.sendInquiry(inquiry, {})).toMatchObject({ ok: true, value: { status: 'received' } });
+    expect(ctx.fakes!.mailer.sent.map((m) => [m.tag, m.to])).toEqual([['hassan-new-inquiry', 'hassan@example.test'], ['inquiry-received', 'zoe@example.com']]);
+    expect(await ctx.service!.sendInquiry({ ...inquiry, turnstileToken: 'fail', requestId: 'req-00000002' }, {})).toEqual({ ok: false, error: 'bot_check_failed' });
+  });
+
   it('never reaches a real service, even when real credentials are set', async () => {
     const fetchSpy = vi.fn(async () => new Response('{}'));
     vi.stubGlobal('fetch', fetchSpy);

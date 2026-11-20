@@ -1,24 +1,24 @@
-import { TURNSTILE_ACTION } from '../../lib/booking/api-client';
+import { TURNSTILE_ACTION, type TurnstileAction } from '../../lib/booking/api-client';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-/** What a token must have been made for: the booking form's action, on this site's own address. */
+/** What a token must have been made for: one form's action, on this site's own address. */
 export interface TurnstileExpected { action: string; hostname: string }
 
-/** The booking form's action on the host of `siteUrl` (PUBLIC_SITE_URL). An address that is not a URL expects no host, so nothing passes. */
-export function turnstileExpectation(siteUrl: string): TurnstileExpected {
+/** A form's action (the booking form's unless told otherwise) on the host of `siteUrl` (PUBLIC_SITE_URL). An address that is not a URL expects no host, so nothing passes. */
+export function turnstileExpectation(siteUrl: string, action: TurnstileAction = TURNSTILE_ACTION): TurnstileExpected {
   let hostname = '';
   try {
     hostname = new URL(siteUrl).hostname;
   } catch { /* not a URL */ }
-  return { action: TURNSTILE_ACTION, hostname };
+  return { action, hostname };
 }
 
 /** A value from Cloudflare's answer, made safe for one log line. */
 const shown = (v: unknown) => JSON.stringify(String(v ?? '').slice(0, 100));
 
 /**
- * Asks Cloudflare whether a Turnstile token is real, and made by the booking form on this site's address (the widget also allows
+ * Asks Cloudflare whether a Turnstile token is real, and made by the expected form on this site's address (the widget also allows
  * localhost, so a token from a copy of the site on someone's computer must not count here). Any failure (no answer, a bad answer,
  * a network error, a slow reply) counts as "not verified": it never throws.
  */
