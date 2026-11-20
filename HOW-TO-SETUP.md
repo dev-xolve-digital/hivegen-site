@@ -118,7 +118,7 @@ What this does: it keeps the leads and the bookings. It lives on Hostinger.
    npm run db:migrate
    ```
 
-   It says "Applied: 001_init.sql". It is safe to run again: it only applies what is new. (The live site also does this by itself when it starts.)
+   On a new database it says "Applied: 001_init.sql, 002_inquiries.sql" (both files in the `db/migrations` folder). It is safe to run again: it only applies what is new, so a database that already has the first file gets only the new one, and one that is up to date says "Nothing to apply". (The live site also does this by itself when it starts.)
 
 **On the live server** the same line goes in hPanel (step 9), with `localhost` as the host name unless hPanel's database page shows another one for connecting from the website itself.
 
