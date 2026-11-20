@@ -9,12 +9,13 @@ import { readServerConfig } from '../../src/server/config';
 import { createContext, type ServerContext } from '../../src/server/context';
 import { clientIp } from '../../src/server/http/client-ip';
 import {
-  MAX_BODY_BYTES, bookingsHandler, cancelHandler, configHandler, eventsHandler, leadsHandler, rescheduleHandler, slotsHandler,
+  MAX_BODY_BYTES, bookingsHandler, cancelHandler, configHandler, eventsHandler, inquiriesHandler, leadsHandler, rescheduleHandler, slotsHandler,
   testCalendarHandler, testEventsHandler, testOutboxHandler, testResetHandler, withContext,
 } from '../../src/server/http/handlers';
 import { removeTempContent, tempContent } from '../helpers/temp-content';
 
 const SITE = 'https://hivegen.co';
+const inquiry = { email: 'vic@example.com', pageVersion: 'main', turnstileToken: 'ok', requestId: 'req-00000001', website: '' };
 const lead = { name: 'Zoë O’Brien', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
   footageUrl: 'https://drive.google.com/x', pageVersion: 'agents', attribution: { utm_source: 'facebook' }, turnstileToken: 'ok', website: '' };
 
@@ -228,6 +229,78 @@ describe('leads', () => {
     await leadsHandler(post('/api/booking/leads', lead, { 'user-agent': `Mozilla/5.0 ${'x'.repeat(2000)}` }), ctx);
     expect(ctx.fakes!.tracked[0].user.userAgent).toHaveLength(500);
     expect(ctx.fakes!.tracked[0].user.userAgent).toMatch(/^Mozilla\/5\.0 x/);
+  });
+});
+
+describe('inquiries', () => {
+  const send = (ctx: ServerContext, over: Record<string, unknown> = {}, headers?: Record<string, string>) =>
+    inquiriesHandler(post('/api/booking/inquiries', { ...inquiry, ...over }, headers), ctx);
+
+  it('POST inquiries stores an inquiry and answers 200 { status: received, eventId }', async () => {
+    const ctx = await fakesContext();
+    const res = await send(ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = await res.json() as { status: string; eventId: string };
+    expect(body).toEqual({ status: 'received', eventId: expect.stringMatching(/^lead\.[A-Za-z0-9_-]{22}$/) });
+    expect(ctx.fakes!.tracked.map((e) => [e.name, e.eventId])).toEqual([['Lead', body.eventId]]);
+    expect(ctx.fakes!.mailer.sent.map((m) => m.tag)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
+  });
+
+  it('answers 400 with fields for a bad email', async () => {
+    const ctx = await fakesContext();
+    const res = await send(ctx, { email: 'nope' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid', fields: { email: 'invalid' } });
+  });
+
+  it('bad JSON is a 400 invalid, with no fields', async () => {
+    const ctx = await fakesContext();
+    const res = await inquiriesHandler(post('/api/booking/inquiries', 'not json'), ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid' });
+  });
+
+  it('a failed bot check is a 403 bot_check_failed', async () => {
+    const ctx = await fakesContext();
+    const res = await send(ctx, { turnstileToken: 'fail' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'bot_check_failed' });
+  });
+
+  it('answers 503 not_connected without a service', async () => {
+    const ctx = await notConnectedContext();
+    expect(ctx.service).toBeNull();
+    const res = await send(ctx);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'not_connected' });
+  });
+
+  it('the 11th lead-or-inquiry from one address in an hour is 429: they share one allowance', async () => {
+    const ctx = await fakesContext();
+    const ip = { 'cf-connecting-ip': '203.0.113.9' };
+    for (let i = 1; i <= 10; i += 1) {
+      const res = i % 2 === 0
+        ? await leadsHandler(post('/api/booking/leads', lead, ip), ctx)
+        : await send(ctx, { requestId: `req-0000000${i}` }, ip);
+      expect(res.status, `request ${i}`).toBe(200);
+    }
+    for (const blocked of [await send(ctx, { requestId: 'req-00000011' }, ip), await leadsHandler(post('/api/booking/leads', lead, ip), ctx)]) {
+      expect(blocked.status).toBe(429);
+      expect(await blocked.json()).toEqual({ error: 'rate_limited' });
+    }
+    expect((await send(ctx, { requestId: 'req-00000012' }, { 'cf-connecting-ip': '203.0.113.10' })).status).toBe(200);
+  });
+
+  it('an unexpected failure is a 500 server_error, logged by route and kind only', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const service = { sendInquiry: async () => { throw new Error('vic@example.com'); } } as unknown as BookingService;
+    const res = await send({ ...(await fakesContext()), service });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'server_error' });
+    const logged = errors.mock.calls.flat().join(' ');
+    expect(logged).toContain('inquiries');
+    expect(logged).not.toContain('vic@');
   });
 });
 

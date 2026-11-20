@@ -11,6 +11,7 @@ const unusedApi = (): BookingApi => ({
   createLead: vi.fn(() => Promise.reject(new Error('not expected'))),
   getSlots: vi.fn(() => Promise.reject(new Error('not expected'))),
   confirm: vi.fn(() => Promise.reject(new Error('not expected'))),
+  sendInquiry: vi.fn(() => Promise.reject(new Error('not expected'))),
 });
 
 describe('booking modes', () => {

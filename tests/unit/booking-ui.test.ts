@@ -20,12 +20,13 @@ const bookedFor = (slot: Slot, over: Partial<Booked> = {}): Booked => ({
   manageUrl: 'https://hivegen.test/booking/tok', eventId: 'schedule.x', ...over,
 });
 
-/** An api whose three calls are spies: they answer as the test says (or like a healthy server) and record what they were asked. */
+/** An api whose calls are spies: they answer as the test says (or like a healthy server) and record what they were asked. */
 function fakeApi(over: Partial<BookingApi> = {}) {
   return {
     createLead: vi.fn<BookingApi['createLead']>(over.createLead ?? (async () => ({ leadId: LEAD_ID, eventId: `lead.${LEAD_ID}` }))),
     getSlots: vi.fn<BookingApi['getSlots']>(over.getSlots ?? (async () => ({ slots: slotsOf(), calendarChecked: true }))),
     confirm: vi.fn<BookingApi['confirm']>(over.confirm ?? (async (_id, slot) => bookedFor(slot))),
+    sendInquiry: vi.fn<BookingApi['sendInquiry']>(over.sendInquiry ?? (async () => ({ eventId: `lead.${LEAD_ID}` }))),
   };
 }
 

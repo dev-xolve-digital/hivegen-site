@@ -10,6 +10,11 @@ export interface LeadInput {
   name: string; email: string; phone?: string; buyerType: BuyerType; volume: string;
   footageUrl?: string; pageVersion: string; attribution: Attribution; fbp?: string; fbc?: string;
 }
+/** What the "Send details" form sends: an email and whatever else the visitor chose to say (everything but the email and the page is optional). */
+export interface InquiryInput {
+  email: string; name?: string; phone?: string; buyerType?: BuyerType; volume?: string; needs?: string[];
+  footageUrl?: string; message?: string; pageVersion: string; attribution: Attribution; fbp?: string; fbc?: string;
+}
 /** What the visitor's booking turned out as: `booked` (Google made the event) or `requested` (held, confirmed by hand). */
 export interface Booked { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string }
 
@@ -24,6 +29,8 @@ export interface BookingApi {
   createLead(i: LeadInput & { turnstileToken: string; website: string }): Promise<{ leadId: string; eventId: string }>;
   getSlots(): Promise<{ slots: Slot[]; calendarChecked: boolean }>;
   confirm(leadId: string, slot: Slot, visitorTz: string): Promise<Booked>;
+  /** Sends the details without a call. `requestId` is one per form fill, so a resend after a failure is the same inquiry; `leadId` is the visitor's earlier lead, if there is one. */
+  sendInquiry(i: InquiryInput & { turnstileToken: string; website: string; requestId: string; leadId?: string }): Promise<{ eventId: string }>;
 }
 
 /** What the manage page does with one booking (the token is the link's own): the offered times, cancelling, and moving the call. */
@@ -114,6 +121,11 @@ export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_
       return { leadId: out.leadId, eventId: out.eventId };
     },
     getSlots: () => readSlots(call),
+    async sendInquiry(input) {
+      const out = await postJson(call, '/api/booking/inquiries', input);
+      if (out.status !== 'received' || typeof out.eventId !== 'string') throw new NetworkError();
+      return { eventId: out.eventId };
+    },
     async confirm(leadId, slot, visitorTz) {
       const out = await postJson(call, '/api/booking/bookings', { leadId, start: slot.start, visitorTz });
       const { status, start, end, meetUrl, manageUrl, eventId } = out;
@@ -149,6 +161,7 @@ export function demoApi(rules: BookingRules, now: () => Date = () => new Date())
   let n = 0;
   return {
     async createLead() { n += 1; return { leadId: `demo-${n}`, eventId: `demo-lead-${n}` }; },
+    async sendInquiry() { n += 1; return { eventId: `demo-inquiry-${n}` }; },
     async getSlots() { return { slots: generateSlots(rules, now()).filter((s) => !taken.has(s.start)), calendarChecked: true }; },
     async confirm(leadId, slot) {
       if (taken.has(slot.start)) throw new SlotTakenError();

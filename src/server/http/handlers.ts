@@ -147,6 +147,16 @@ export const leadsHandler: Handler = (request, ctx, _params, socketIp) => guarde
   return answer(await ctx.service.createLead(body.value, metaOf(request, ctx, ip)));
 });
 
+/** POST /api/booking/inquiries: the "Send details" form. It shares the leads' allowance: a visitor sends one or the other, and a flood of either is a flood. */
+export const inquiriesHandler: Handler = (request, ctx, _params, socketIp) => guarded('inquiries', async () => {
+  if (!ctx.service) return fail('not_connected');
+  const ip = clientIp(request, socketIp);
+  if (!allowed(ctx.limits.leads, ip)) return fail('rate_limited');
+  const body = await readJson(request);
+  if (!body.ok) return fail('invalid');
+  return answer(await ctx.service.sendInquiry(body.value, metaOf(request, ctx, ip)));
+});
+
 /** POST /api/booking/bookings */
 export const bookingsHandler: Handler = (request, ctx, _params, socketIp) => guarded('bookings', async () => {
   if (!ctx.service) return fail('not_connected');

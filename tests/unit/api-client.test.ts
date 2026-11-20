@@ -9,6 +9,10 @@ const lead = {
   name: 'Zoë', email: 'zoe@example.com', buyerType: 'agent' as const, volume: '6–15', pageVersion: 'agents', attribution: { utm_source: 'facebook' },
   turnstileToken: 'tok', website: '',
 };
+const inquiry = {
+  email: 'vic@example.com', name: 'Vic', needs: ['Editing'], message: 'Two listings a week.', pageVersion: 'main', attribution: { utm_source: 'facebook' },
+  turnstileToken: 'tok', website: '', requestId: 'req-00000001',
+};
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 /** An api over a fetch that answers `answer` and records what it was asked. */
@@ -79,6 +83,42 @@ describe('httpApi', () => {
     await expect(wrongShape.getSlots()).rejects.toBeInstanceOf(NetworkError);
     await expect(apiAnswering(() => reply({})).api.confirm('abc', slot, 'UTC')).rejects.toBeInstanceOf(NetworkError);
   });
+  it('sendInquiry posts the input to /api/booking/inquiries and returns the eventId', async () => {
+    const { api, fetchFn } = apiAnswering(() => reply({ status: 'received', eventId: 'lead.abc' }));
+    expect(await api.sendInquiry(inquiry)).toEqual({ eventId: 'lead.abc' });
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe('/api/booking/inquiries');
+    expect(init?.method).toBe('POST');
+    expect(new Headers(init?.headers).get('content-type')).toBe('application/json');
+    expect(JSON.parse(String(init?.body))).toEqual(inquiry);
+  });
+
+  it.each([
+    ['400 with fields', 400, { error: 'invalid', fields: { email: 'invalid' } }, FieldsError],
+    ['403 bot_check_failed', 403, { error: 'bot_check_failed' }, BotCheckError],
+    ['429 rate_limited', 429, { error: 'rate_limited' }, RateLimitedError],
+    ['503 not_connected', 503, { error: 'not_connected' }, NetworkError],
+    ['500 server_error', 500, { error: 'server_error' }, NetworkError],
+  ])('sendInquiry: %s becomes the matching error', async (_name, status, body, errorClass) => {
+    const { api } = apiAnswering(() => reply(body, status));
+    await expect(api.sendInquiry(inquiry)).rejects.toBeInstanceOf(errorClass);
+  });
+
+  it('sendInquiry: a FieldsError carries the fields the server named', async () => {
+    const { api } = apiAnswering(() => reply({ error: 'invalid', fields: { email: 'required', needs: 'invalid' } }, 400));
+    const error = await api.sendInquiry(inquiry).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FieldsError);
+    expect((error as FieldsError).fields).toEqual({ email: 'required', needs: 'invalid' });
+  });
+
+  it('sendInquiry: a body that is not { status: received, eventId } is a NetworkError, so the page never claims a send that was not confirmed', async () => {
+    for (const bad of [{}, { eventId: 'lead.abc' }, { status: 'received' }, { status: 'received', eventId: 7 }, { status: 'sent', eventId: 'lead.abc' }, [], 'ok']) {
+      const { api } = apiAnswering(() => reply(bad));
+      await expect(api.sendInquiry(inquiry), JSON.stringify(bad)).rejects.toBeInstanceOf(NetworkError);
+    }
+    await expect(apiAnswering(() => new Response('<html>Bad gateway</html>', { status: 200 })).api.sendInquiry(inquiry)).rejects.toBeInstanceOf(NetworkError);
+    await expect(httpApi(vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); })).sendInquiry(inquiry)).rejects.toBeInstanceOf(NetworkError);
+  });
 });
 
 /** A fetch that never answers, but gives up when its signal says so (as the browser's does). */
@@ -92,6 +132,7 @@ describe('httpApi: a stalled connection', () => {
     await expect(api.createLead(lead)).rejects.toBeInstanceOf(NetworkError);
     await expect(api.getSlots()).rejects.toBeInstanceOf(NetworkError);
     await expect(api.confirm('abc', slot, 'UTC')).rejects.toBeInstanceOf(NetworkError);
+    await expect(api.sendInquiry(inquiry)).rejects.toBeInstanceOf(NetworkError);
   });
 
   it('every request carries a signal, with a 15 second limit by default', async () => {
@@ -200,6 +241,15 @@ describe('demoApi', () => {
     expect(calendarChecked).toBe(true);
     expect(slots[0].start).toBe('2026-11-23T14:00:00.000Z');
     expect(await api.confirm(leadId, slots[0], 'UTC')).toMatchObject({ status: 'booked', start: slots[0].start, end: slots[0].end, manageUrl: '#book' });
+  });
+
+  it('sendInquiry resolves a demo event id and makes no request', async () => {
+    const fetchFn = vi.spyOn(globalThis, 'fetch');
+    const api = demo();
+    expect(await api.sendInquiry(inquiry)).toEqual({ eventId: 'demo-inquiry-1' });
+    expect(await api.sendInquiry(inquiry)).toEqual({ eventId: 'demo-inquiry-2' });
+    expect(fetchFn).not.toHaveBeenCalled();
+    fetchFn.mockRestore();
   });
 
   it('a time booked is no longer offered, and booking it again is "taken"', async () => {
