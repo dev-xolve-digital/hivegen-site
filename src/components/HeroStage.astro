@@ -1,12 +1,12 @@
 ---
 import { getVideo, loadSection, loadSite } from '../lib/content/load';
-import { resolveVideo, heroLoopSrc, imageUrl } from '../lib/media';
+import { resolveVideo, lightboxJson, heroLoopSrc, imageUrl } from '../lib/media';
 import Three3D from './Three3D.astro';
 const hero = loadSection('hero');
 const settings = loadSite().settings;
 const reel = getVideo(settings.heroLoop.videoId);
 const { play } = resolveVideo(reel, settings);
-const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: reel.orientation, title: reel.title });
+const lightbox = lightboxJson(reel, play);
 ---
 <div class="stage">
   <Three3D slot="hero-pause" kind="pause" finish="lime" behind />

@@ -1,7 +1,8 @@
 # Every video on the site.
 # id          short name used in pages/*.yaml and testimonials.yaml (letters, numbers, dashes)
 # label       text on the card ("label · duration")
-# source      the original file under references/ (used by `npm run media` for the poster)
+# source      the original file under references/ (used by `npm run media` for the poster); leave it out when there is none:
+#             `npm run media` then saves Stream's own frame at posterTime as the poster (the client videos)
 # posterTime  second of the video used for the poster image
 # streamUid   the video's ID in Cloudflare Stream
 # host        optional: local = play the prepared file instead of Stream

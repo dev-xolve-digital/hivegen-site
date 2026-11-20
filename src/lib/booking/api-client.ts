@@ -86,6 +86,17 @@ async function readSlots(call: ReturnType<typeof caller>): Promise<{ slots: Slot
   return { slots: out.slots, calendarChecked: out.calendarChecked };
 }
 
+/**
+ * The address a video plays from, asked of the server each time a video is opened: with signed links on, the address holds a token
+ * that stops working an hour later, so it cannot be put in the page. Fails like every other call (a NetworkError for an unknown video,
+ * a server that is not set up or a connection that does not answer in time; a RateLimitedError when asked too often).
+ */
+export async function fetchVideoSrc(videoId: string, fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): Promise<string> {
+  const out = await caller(fetchFn, timeoutMs)(`/api/video/${encodeURIComponent(videoId)}`, { cache: 'no-store' });
+  if (typeof out.src !== 'string' || !out.src) throw new NetworkError();
+  return out.src;
+}
+
 /** The booking server's own API (`/api/booking/*`). Every failure, a call that takes too long included, becomes one of the errors above. */
 export function httpApi(fetchFn: typeof fetch = fetch, timeoutMs = CALL_TIMEOUT_MS): BookingApi {
   const call = caller(fetchFn, timeoutMs);

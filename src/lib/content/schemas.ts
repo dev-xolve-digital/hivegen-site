@@ -68,6 +68,15 @@ export const bookingSiteSchema = z.looseObject({
   contact: z.looseObject({ notificationEmail: siteSchema.shape.contact.shape.notificationEmail }),
 });
 
+/** Just the site.yaml values the video route needs: where videos play from, and whether their links are signed. The rest of the file is not looked at. */
+export const streamSiteSchema = z.looseObject({
+  settings: z.looseObject({
+    videoSource: siteSchema.shape.settings.shape.videoSource,
+    streamCustomerCode: siteSchema.shape.settings.shape.streamCustomerCode,
+    streamSignedUrls: siteSchema.shape.settings.shape.streamSignedUrls,
+  }),
+});
+
 /** Just the site.yaml values the booking server needs for tracking: whether there is a Meta Pixel. The rest of the file is not looked at. */
 export const trackingSiteSchema = z.looseObject({ tracking: trackingSchema.optional() });
 
@@ -115,7 +124,7 @@ export const sectionSchemas = {
   nav: z.strictObject({ links: z.array(link), cta: link }),
   hero: z.strictObject({
     primaryCta: link, instagramCta: z.strictObject({ label: text }), videoLabel: text, videoDuration: text,
-    videoAriaLabel: text, floatTitle: text, floatText: text, closeVideoLabel: text,
+    videoAriaLabel: text, floatTitle: text, floatText: text, closeVideoLabel: text, videoErrorText: text,
   }),
   'recent-edits': z.strictObject({ heading: text, subline: text, verticalLabel: text, horizontalLabel: text, prevLabel: text, nextLabel: text }),
   'who-its-for': z.strictObject({

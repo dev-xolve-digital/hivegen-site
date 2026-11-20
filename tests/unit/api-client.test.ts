@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  BotCheckError, FieldsError, NetworkError, RateLimitedError, SlotTakenError, TooLateError, demoApi, httpApi, httpManageApi, type BookingApi,
+  BotCheckError, FieldsError, NetworkError, RateLimitedError, SlotTakenError, TooLateError, demoApi, fetchVideoSrc, httpApi, httpManageApi, type BookingApi,
 } from '../../src/lib/booking/api-client';
 import { loadSite } from '../../src/lib/content/load';
 
@@ -208,5 +208,37 @@ describe('demoApi', () => {
     await api.confirm('demo-1', slots[0], 'UTC');
     expect((await api.getSlots()).slots.map((s) => s.start)).not.toContain(slots[0].start);
     await expect(api.confirm('demo-2', slots[0], 'UTC')).rejects.toBeInstanceOf(SlotTakenError);
+  });
+});
+
+describe('fetchVideoSrc', () => {
+  const answering = (answer: () => Response | Promise<Response>) => vi.fn<typeof fetch>(async () => answer());
+
+  it('asks the server for the video by id and gives back the address it answers with', async () => {
+    const fetchFn = answering(() => reply({ src: 'https://customer-abc.cloudflarestream.com/tok.en.x/iframe?autoplay=true' }));
+    expect(await fetchVideoSrc('v-portfolio-reel', fetchFn)).toBe('https://customer-abc.cloudflarestream.com/tok.en.x/iframe?autoplay=true');
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe('/api/video/v-portfolio-reel');
+    expect(init?.cache).toBe('no-store');
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('puts the id in the address as one path piece', async () => {
+    const fetchFn = answering(() => reply({ src: 'x' }));
+    await fetchVideoSrc('a/b?c', fetchFn);
+    expect(fetchFn.mock.calls[0][0]).toBe('/api/video/a%2Fb%3Fc');
+  });
+
+  it('every failure is an error the pop-up can answer with its message: 404, 503, 429, a bad answer, a dead connection', async () => {
+    for (const bad of [reply({ error: 'not_found' }, 404), reply({ error: 'not_connected' }, 503), reply({ error: 'server_error' }, 500), reply({ nope: 1 }), reply({ src: 7 }), reply([])]) {
+      await expect(fetchVideoSrc('v', answering(() => bad.clone()))).rejects.toBeInstanceOf(Error);
+    }
+    await expect(fetchVideoSrc('v', answering(() => reply({ error: 'rate_limited' }, 429)))).rejects.toBeInstanceOf(RateLimitedError);
+    await expect(fetchVideoSrc('v', answering(() => reply({ error: 'x' }, 503)))).rejects.toBeInstanceOf(NetworkError);
+    await expect(fetchVideoSrc('v', vi.fn<typeof fetch>(async () => { throw new TypeError('Failed to fetch'); }))).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it('gives up after the timeout, like every other call', async () => {
+    await expect(fetchVideoSrc('v', stalledFetch(), 30)).rejects.toBeInstanceOf(NetworkError);
   });
 });

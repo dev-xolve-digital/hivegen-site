@@ -1,12 +1,37 @@
+import { fetchVideoSrc } from '../lib/booking/api-client';
 import { trackViewContent } from './tracking';
 
-export interface LightboxItem { kind: 'file' | 'stream'; src: string; orientation: 'vertical' | 'horizontal'; title: string }
+/** What a card hands the pop-up (its data-lightbox): a Stream video by its id (the server gives its link), or a local file. */
+export type LightboxItem =
+  | { kind: 'stream'; videoId: string; orientation: 'vertical' | 'horizontal'; title: string }
+  | { kind: 'file'; src: string; orientation: 'vertical' | 'horizontal'; title: string };
 
 let opener: HTMLElement | null = null;
 // The pop-up adds one history step, so the phone's Back button (or swipe-back) closes it
 // instead of leaving the site.
 let ownsHistoryStep = false;
+// Which opening is on screen. A link that arrives after the pop-up was closed, or after another video was opened, is dropped.
+let opening = 0;
 const root = () => document.querySelector<HTMLElement>('[data-testid="lightbox"]');
+
+/** The player, once the server has given its address. */
+function playStream(media: HTMLElement, src: string, title: string): void {
+  const f = document.createElement('iframe');
+  f.src = src;
+  f.title = title;
+  f.allow = 'autoplay; encrypted-media; fullscreen';
+  f.allowFullscreen = true;
+  media.replaceChildren(f);
+}
+
+/** The pop-up's own words for a video whose link could not be had (they come from content/sections/hero.yaml, in data-error). */
+function showError(lb: HTMLElement, media: HTMLElement): void {
+  const message = document.createElement('p');
+  message.className = 'hglb-msg';
+  message.setAttribute('role', 'alert');
+  message.textContent = lb.dataset.error ?? '';
+  media.replaceChildren(message);
+}
 
 export function openLightbox(item: LightboxItem): void {
   const lb = root();
@@ -14,15 +39,15 @@ export function openLightbox(item: LightboxItem): void {
   const box = lb.querySelector<HTMLElement>('.hglb-in')!;
   const media = lb.querySelector<HTMLElement>('[data-media]')!;
   opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const mine = ++opening;
   box.classList.toggle('wide', item.orientation === 'horizontal');
   lb.setAttribute('aria-label', item.title);
   if (item.kind === 'stream') {
-    const f = document.createElement('iframe');
-    f.src = item.src;
-    f.title = item.title;
-    f.allow = 'autoplay; encrypted-media; fullscreen';
-    f.allowFullscreen = true;
-    media.replaceChildren(f);
+    media.replaceChildren(); // the pop-up opens at once; the player comes when the server has given its link
+    fetchVideoSrc(item.videoId).then(
+      (src) => { if (mine === opening) playStream(media, src, item.title); },
+      () => { if (mine === opening) showError(lb, media); },
+    );
   } else {
     const v = document.createElement('video');
     v.src = item.src;
@@ -49,6 +74,7 @@ export function openLightbox(item: LightboxItem): void {
 export function closeLightbox(): void {
   const lb = root();
   if (!lb || lb.hidden) return;
+  opening += 1; // a link still on its way is not wanted any more
   const media = lb.querySelector<HTMLElement>('[data-media]')!;
   media.querySelector('video')?.pause();
   media.replaceChildren();

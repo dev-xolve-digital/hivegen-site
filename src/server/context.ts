@@ -20,13 +20,14 @@ import { createMetaTracker } from './tracking/meta';
 
 const HOUR = 3_600_000;
 
-/** The server's rate limits, each per client address: lead posts, booking and manage posts, reads (slots; video requests later) and tracking events. */
-export interface RateLimits { leads: RateLimiter; writes: RateLimiter; reads: RateLimiter; events: RateLimiter }
+/** The server's rate limits, each per client address: lead posts, booking and manage posts, reads (slots), tracking events and video link requests. */
+export interface RateLimits { leads: RateLimiter; writes: RateLimiter; reads: RateLimiter; events: RateLimiter; video: RateLimiter }
 const createLimits = (): RateLimits => ({
   leads: createRateLimiter({ limit: 10, windowMs: HOUR }),
   writes: createRateLimiter({ limit: 10, windowMs: HOUR }),
   reads: createRateLimiter({ limit: 120, windowMs: HOUR }),
   events: createRateLimiter({ limit: 120, windowMs: HOUR }),
+  video: createRateLimiter({ limit: 120, windowMs: HOUR }),
 });
 
 export type OutboxMailer = ReturnType<typeof createOutboxMailer>;

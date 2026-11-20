@@ -1,14 +1,14 @@
 import { test, expect } from './fixtures';
 import { loadTestimonials, getVideo } from '../../src/lib/content/load';
 const t = loadTestimonials();
-test('client video cards come from testimonials.yaml, carry no Sample tag, and show a frame from Stream', async ({ page }) => {
+test('client video cards come from testimonials.yaml, carry no Sample tag, and show a frame saved as a file of the site', async ({ page }) => {
   await page.goto('/');
   const cards = page.getByTestId('testimonial-card');
   await expect(cards).toHaveCount(t.videos.length);
   await expect(cards).toContainText(t.videos.map((v) => v.role));
   await expect(cards.getByText('Sample', { exact: true })).toHaveCount(0);
   for (const [i, tv] of t.videos.entries()) {
-    await expect(cards.nth(i).locator('img')).toHaveAttribute('src', new RegExp(`\\.cloudflarestream\\.com/${getVideo(tv.videoId).streamUid}/thumbnails/thumbnail\\.jpg\\?time=`));
+    await expect(cards.nth(i).locator('img')).toHaveAttribute('src', new RegExp(`/media/posters/${tv.videoId}\\.jpg$`));
   }
 });
 test('tapping a client video plays it from Stream', async ({ page }) => {

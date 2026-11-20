@@ -76,11 +76,12 @@ All 31 portfolio videos play from Cloudflare Stream. Each one has an entry in `c
 
 **To change a card image**, change `posterTime` and run `npm run media`. Then upload the new image to Cloudflare Images and replace its ID in `images.yaml`, or delete its line there so the site serves the new image itself.
 
-**Client videos (section 06)** play from Stream too. Their entries in `videos.yaml` have ids starting with `t-` and no `source:`, because their card image is Stream's own frame at `posterTime`. To add one:
+**Client videos (section 06)** play from Stream too. Their entries in `videos.yaml` have ids starting with `t-` and no `source:`, because their card image is Stream's own frame at `posterTime`, saved as a file by `npm run media`. To add one:
 
 1. Upload it to Cloudflare Stream and copy its video ID.
 2. Add an entry to `videos.yaml` with `id`, `title`, `label`, `duration`, `orientation`, `posterTime` and `streamUid`.
-3. Add it under `videos:` in `content/testimonials.yaml`. `role:` is the name shown under the card.
+3. Run `npm run media` to save its card image (`public/media/posters/<id>.jpg`). If you change `posterTime` later, run `npm run media -- --force`.
+4. Add it under `videos:` in `content/testimonials.yaml`. `role:` is the name shown under the card.
 
 **To remove a video**, delete its `id` from every page's `videoOrder`. You can also delete its entry in `videos.yaml`.
 

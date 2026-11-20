@@ -1,10 +1,13 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { loadTurnstileSiteKey } from '../../lib/content/load';
+import { findVideo, loadStreamSettings, loadTurnstileSiteKey } from '../../lib/content/load';
+import { playsFromStream, streamCode } from '../../lib/media';
+import { streamIframeUrl } from '../../lib/stream-urls';
 import { bookingConfigResponse } from '../booking-config';
 import type { RateLimiter } from '../booking/rate-limit';
 import type { ErrorCode, FieldCode, Interval, Result } from '../booking/types';
 import { getContext, type ServerContext } from '../context';
 import { parsePageView } from '../booking/validate';
+import { signStreamToken } from '../stream/sign';
 import { clientIp } from './client-ip';
 
 /** One handler per route. `params` are the route's `[brackets]`; `socketIp` is the address the connection came from. */
@@ -190,6 +193,25 @@ export const eventsHandler: Handler = (request, ctx, _params, socketIp) => guard
     user: { ip: meta.ip, userAgent: meta.userAgent, fbp: view.fbp, fbc: view.fbc },
   });
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+});
+
+/**
+ * GET /api/video/[id]: where to play a portfolio video from, asked by the pop-up each time one is opened. With signed links off it is the
+ * plain player address; on, it carries a token made now (good for an hour) in place of the video's ID. Needs only the signing key, not
+ * the booking service: the videos play whether or not booking is connected. 404 for an unknown id or a video that is not on Stream;
+ * 503 when links are signed and there is no key.
+ */
+export const videoHandler: Handler = (request, ctx, params, socketIp) => guarded('video', async () => {
+  if (!allowed(ctx.limits.video, clientIp(request, socketIp))) return fail('rate_limited');
+  const video = params?.id ? findVideo(params.id) : undefined;
+  if (!video?.streamUid) return fail('not_found');
+  const settings = loadStreamSettings();
+  if (!playsFromStream(video, settings)) return fail('not_found');
+  const code = streamCode(settings);
+  if (!settings.streamSignedUrls) return json({ src: streamIframeUrl(code, video.streamUid) });
+  if (!ctx.config.stream) return fail('not_connected');
+  const token = signStreamToken({ uid: video.streamUid, ...ctx.config.stream, now: new Date() });
+  return json({ src: streamIframeUrl(code, token) });
 });
 
 /** The secrets are hashed first: the comparison then takes the same time whatever their lengths, and never stops at the first difference. */

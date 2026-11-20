@@ -7,7 +7,7 @@ import { ContentError } from './errors';
 import type { EmailKind } from '../../server/booking/types';
 import { allowedPlaceholders, splitPlaceholders } from './placeholders';
 import {
-  siteSchema, emailSiteSchema, bookingSiteSchema, trackingSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
+  siteSchema, emailSiteSchema, bookingSiteSchema, trackingSiteSchema, streamSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
   type Site, type BookingRules, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
 } from './schemas';
 
@@ -26,9 +26,12 @@ const publicDir = () => process.env.PUBLIC_DIR ?? 'public';
 /** Where a site path such as "/brand/logo.png" or "media/clips/x.mp4" lives on disk. */
 const inPublic = (sitePath: string) => path.join(publicDir(), sitePath.replace(/^\//, ''));
 
+/** Whether a file of the site (a site path such as "media/posters/t-x.jpg") is in public/. */
+export const publicFileExists = (sitePath: string): boolean => fs.existsSync(inPublic(sitePath));
+
 /** Stops the build when a file the page needs is not in public/, naming the content file and field. */
 function requirePublic(sitePath: string, rel: string, field: string, message: string): void {
-  if (!fs.existsSync(inPublic(sitePath))) throw new ContentError(`${shown(rel)}: ${message} (field ${field})`, shown(rel), field);
+  if (!publicFileExists(sitePath)) throw new ContentError(`${shown(rel)}: ${message} (field ${field})`, shown(rel), field);
 }
 const runMedia = (sitePath: string) => `public/${sitePath.replace(/^\//, '')} is missing; run npm run media`;
 
@@ -103,6 +106,11 @@ export function loadImages(): Images {
   return parse(imagesSchema, 'images.yaml');
 }
 
+/** One video by id, or undefined when there is none, for the running server: just videos.yaml, with none of loadVideos()'s checks of public/. */
+export function findVideo(id: string): Video | undefined {
+  return parse(videosFileSchema, 'videos.yaml').videos.find((v) => v.id === id);
+}
+
 export function getVideo(id: string): Video {
   const v = loadVideos().find((x) => x.id === id);
   if (!v) throw new ContentError(`${shown('videos.yaml')}: no video with id "${id}"`, shown('videos.yaml'), 'videos');
@@ -124,6 +132,14 @@ export function loadSite(): Site {
 export function loadTurnstileSiteKey(): string | undefined {
   const key = (readYaml('site.yaml') as { settings?: { turnstileSiteKey?: unknown } } | null)?.settings?.turnstileSiteKey;
   return typeof key === 'string' ? key.trim() || undefined : undefined;
+}
+
+/**
+ * Where videos play from and whether their links are signed, for the running server: one small file read,
+ * with none of loadSite()'s build-time checks (other content files, files in public/).
+ */
+export function loadStreamSettings(): Pick<Site['settings'], 'videoSource' | 'streamCustomerCode' | 'streamSignedUrls'> {
+  return parse(streamSiteSchema, 'site.yaml').settings;
 }
 
 /**
