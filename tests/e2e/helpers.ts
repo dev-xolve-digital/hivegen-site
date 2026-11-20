@@ -2,6 +2,9 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 /** Helpers for the browser tests that change server state (tests/e2e/booking-flow.spec.ts), over the test server's HTTP API. */
 
+/** The call booking's panel. The "Send details" form has fields with the same labels, so the call form's fields are looked up inside this panel. */
+export const callPanel = (page: Page) => page.locator('[data-flow]');
+
 export interface Slot { start: string; end: string }
 export interface Booked { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string }
 export interface Mail { kind: string; to: string; subject: string; text: string }

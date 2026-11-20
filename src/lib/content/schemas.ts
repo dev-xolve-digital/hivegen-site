@@ -166,6 +166,26 @@ export const sectionSchemas = {
     bullets: z.array(text),
     instagramLine: text,
     steps: z.strictObject({ details: text, time: text }),
+    /** The switch at the top of the form panel. `label` is read out by screen readers only. */
+    switch: z.strictObject({ label: text, call: text, details: text }),
+    /** The "Send details" form. Only the email is required. */
+    inquiry: z.strictObject({
+      heading: text,
+      subline: text,
+      note: text,
+      fields: z.strictObject({ email: text, name: text, phone: text, buyer: text, volume: text, needs: text, footage: text, footageHint: text, message: text }),
+      optionalTag: text,
+      needsTag: text,
+      footageTag: text,
+      messagePlaceholder: text,
+      /** The choices of "What do you need?". The server accepts only these. */
+      needOptions: z.array(text).min(1),
+      submitLabel: text,
+      consentLine: text,
+      /** {email} is the address the visitor typed. */
+      done: z.strictObject({ heading: text, text: text.refine((s) => s.includes('{email}'), 'must keep the {email} placeholder') }),
+      errors: z.strictObject({ email: text, phone: text, footage: text, message: text }),
+    }),
     fields: z.strictObject({ name: text, email: text, phone: text, buyer: text, volume: text, footage: text, footageHint: text }),
     buyerOptions: z.array(z.strictObject({ value: z.enum(['agency', 'videographer', 'agent', 'other']), label: text })),
     volumeOptions: z.array(text).min(1),

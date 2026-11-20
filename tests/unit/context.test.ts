@@ -81,6 +81,15 @@ describe('createContext in fakes mode', () => {
     expect(await ctx.service!.sendInquiry({ ...inquiry, turnstileToken: 'fail', requestId: 'req-00000002' }, {})).toEqual({ ok: false, error: 'bot_check_failed' });
   });
 
+  it('an inquiry accepts the "What do you need?" choices of booking.yaml, and only those', async () => {
+    const ctx = await createContext(config({ HIVEGEN_FAKES: '1', NODE_ENV: 'test' }), { outboxDir: tempDir() });
+    const inquiry = { email: 'zoe@example.com', pageVersion: 'main', turnstileToken: 'anything', requestId: 'req-00000003' };
+    const { needOptions } = loadSection('booking').inquiry;
+    expect(await ctx.service!.sendInquiry({ ...inquiry, needs: needOptions }, {})).toMatchObject({ ok: true });
+    expect(await ctx.service!.sendInquiry({ ...inquiry, requestId: 'req-00000004', needs: ['Not on the list'] }, {}))
+      .toEqual({ ok: false, error: 'invalid', fields: { needs: 'invalid' } });
+  });
+
   it('never reaches a real service, even when real credentials are set', async () => {
     const fetchSpy = vi.fn(async () => new Response('{}'));
     vi.stubGlobal('fetch', fetchSpy);

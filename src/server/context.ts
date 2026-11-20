@@ -90,8 +90,7 @@ const FAKE_HASSAN_EMAIL = 'hassan@example.test';
 function loadServiceContent() {
   const { rules, hassanEmail } = loadBookingSite();
   const booking = loadSection('booking');
-  const needOptions: string[] = []; // set by Task 5: booking.yaml `inquiry.needOptions`
-  return { rules, hassanEmail, calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions, needOptions };
+  return { rules, hassanEmail, calendarCopy: booking.calendarEvent, volumeOptions: booking.volumeOptions, needOptions: booking.inquiry.needOptions };
 }
 
 const logOutbox = (dir: string) => console.info(`booking: emails are written to ${path.resolve(dir)} instead of being sent`);

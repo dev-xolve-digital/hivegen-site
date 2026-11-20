@@ -442,3 +442,19 @@ canvas.c3d{display:none}
 @keyframes float3d{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-8px) rotate(-2deg)}}
 @media (max-width:1060px){html:not(.live3d) .c3d-still{display:block}}
 @media (prefers-reduced-motion:reduce){.c3d-still{animation:none}}
+
+/* The switch at the top of the booking card's form panel ("Book a call" / "Send details"), and the "Send details" form */
+.switch{display:flex;gap:4px;padding:4px;margin:0 0 18px;border-radius:999px;background:rgba(14,18,51,.06)}
+.switch [role=tab]{flex:1;min-width:0;border:0;border-radius:999px;padding:10px 12px;font:600 13px/1.2 var(--font-body);background:transparent;color:var(--ink2);cursor:pointer;white-space:nowrap}
+.switch [role=tab][aria-selected=true]{background:var(--ink);color:#FFF9EB}
+.switch .nudge[aria-selected=false]{background:var(--lime);color:var(--ink);box-shadow:0 6px 18px rgba(160,200,20,.35)}
+.switch [role=tab]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.switch .shake{animation:switch-shake .7s ease-in-out}
+@keyframes switch-shake{0%,100%{transform:none}20%{transform:translateX(-5px) rotate(-1.5deg)}35%{transform:translateX(5px) rotate(1.5deg)}50%{transform:translateX(-4px) rotate(-1deg)}65%{transform:translateX(4px) rotate(1deg)}80%{transform:translateX(-2px)}}
+@media (prefers-reduced-motion:reduce){.switch .shake{animation:none}}
+.inq textarea.inp{height:auto;min-height:104px;padding:12px 14px;display:block;width:100%;font:inherit;font-size:14px;resize:vertical}
+/* The message box looks and behaves like the form's one-line fields, and "(pick any)" is as quiet as the other tags */
+.inq textarea.inp{color:var(--ink);outline:none}
+.inq textarea.inp:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px rgba(28,69,245,.18)}
+.inq textarea.inp[aria-invalid="true"]{border-color:#B42318}
+.inq legend span{font-weight:500;color:var(--ink3)}

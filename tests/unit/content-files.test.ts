@@ -32,3 +32,12 @@ it('the manage-booking words: the rescheduled text must keep {when}, and a missi
   process.env.CONTENT_DIR = tempContent({ 'sections/manage-booking.yaml': (s) => s.replace(/^tooLateText:.*\n/m, '') });
   expect(() => loadSection('manage-booking')).toThrow(/manage-booking\.yaml: "tooLateText" is missing \(field tooLateText\)/);
 });
+it('the inquiry words: done.text must keep {email}, and needOptions cannot be empty', () => {
+  process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^(    text: We'll reply to )\{email\}/m, '$1you') });
+  expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.done\.text" must keep the \{email\} placeholder \(field inquiry\.done\.text\)/);
+  process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^(  needOptions:).*$/m, '$1 []') });
+  expect(() => loadSection('booking')).toThrow(/booking\.yaml: .*inquiry\.needOptions/);
+  // a word left out is named with its field, as everywhere else
+  process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^  submitLabel:.*\n/m, '') });
+  expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.submitLabel" is missing \(field inquiry\.submitLabel\)/);
+});

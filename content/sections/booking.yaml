@@ -9,6 +9,41 @@ instagramLine: Prefer to chat? Message us on Instagram
 steps:
   details: Your details
   time: Pick a time
+# The switch at the top of the form panel: the call (selected when the page opens) or the form below.
+switch:
+  label: How would you like to reach us?   # read out by screen readers only
+  call: Book a call
+  details: Send details
+# The form for visitors who would rather not have a call. Only the email is required.
+inquiry:
+  heading: Send us your details
+  subline: Rather not have a call? Tell us about your listings and we'll reply by email. Your first edit is still free.
+  note: Only your email is required. The rest helps us reply with the right answer.
+  fields:
+    email: Email
+    name: Name
+    phone: Phone or WhatsApp
+    buyer: I am a…
+    volume: Videos per month
+    needs: What do you need?
+    footage: Raw footage link
+    footageHint: A Google Drive, Dropbox or WeTransfer link is fine.
+    message: Message
+  optionalTag: (optional)
+  needsTag: (pick any)
+  footageTag: (optional, for your free edit)
+  messagePlaceholder: Your listings, the style you like, deadlines, or any question.
+  needOptions: ["Listing videos", "Reels for social", "3D & AI hooks", "Not sure yet"]
+  submitLabel: Send my details
+  consentLine: We'll reply by email, usually within a day. We only use your details to answer you and make your free edit.   # [confirm: "usually within a day"]
+  done:
+    heading: Thanks, we've got your details.
+    text: We'll reply to {email}, usually within a day.   # {email} is the address they typed; keep it
+  errors:
+    email: Please enter a valid email.
+    phone: Please check the phone number. Use digits, spaces, + ( ) or -.
+    footage: Please paste the full link, starting with https://.
+    message: Please keep your message under 2,000 characters.
 fields:
   name: Name
   email: Email

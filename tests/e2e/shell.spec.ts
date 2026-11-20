@@ -37,7 +37,7 @@ test('phone: mobile bar hides while the booking form is on screen', async ({ pag
   const bar = page.getByTestId('mobile-bar');
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(bar).toBeVisible();
-  await page.getByTestId('booking').locator('form').scrollIntoViewIfNeeded();
+  await page.getByTestId('booking').locator('[data-flow] form').scrollIntoViewIfNeeded();
   await expect(bar).toBeHidden();
 });
 test('the footer email is a hivegen.co address, and the private Gmail is on no page', async ({ page, isMobile }) => {

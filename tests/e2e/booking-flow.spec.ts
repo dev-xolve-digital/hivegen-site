@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 import { loadSection } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime, groupByLocalDay } from '../../src/lib/booking/format';
 import { fillPlaceholders } from '../../src/lib/text';
-import { book, bookNewLead, createLead, enableTracking, getSlots, goodLead, outbox, resetServer, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
+import { book, bookNewLead, callPanel, createLead, enableTracking, getSlots, goodLead, outbox, resetServer, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
 
 const b = loadSection('booking');
 const mg = loadSection('manage-booking');
@@ -18,8 +18,8 @@ test.beforeEach(async ({ request }) => { await resetServer(request); });
 
 /** Fills step 1 the way a visitor would. Anything left out is a good default. */
 async function fillDetails(page: Page, who: { name?: string; email?: string; buyer?: string; volume?: string } = {}): Promise<void> {
-  await page.getByLabel(b.fields.name).fill(who.name ?? 'Zoë O’Brien');
-  await page.getByLabel(b.fields.email).fill(who.email ?? 'zoe+ui@example.com');
+  await callPanel(page).getByLabel(b.fields.name).fill(who.name ?? 'Zoë O’Brien');
+  await callPanel(page).getByLabel(b.fields.email).fill(who.email ?? 'zoe+ui@example.com');
   // The radio itself is hidden and its pill is the control: click the pill, which waits for the page to settle (a forced check on the
   // hidden radio could miss it when the layout was still moving).
   const choose = (name: string) => page.locator('label').filter({ has: page.getByRole('radio', { name, exact: true }) }).click();
@@ -225,7 +225,7 @@ test('a network failure on step 1 keeps the visitor on step 1 with a clear messa
 
   await expect(page.getByText(b.errors.network)).toBeVisible();
   await expect(page.getByRole('heading', { name: b.timeHeading })).toBeHidden();
-  await expect(page.getByLabel(b.fields.name)).toBeVisible();
+  await expect(callPanel(page).getByLabel(b.fields.name)).toBeVisible();
   await expect(page.getByRole('button', { name: b.nextLabel })).toBeEnabled();
   expect(await outbox(request)).toEqual([]);
 

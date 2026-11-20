@@ -11,6 +11,12 @@ const backupUrl = site.booking.backupUrl;
 // What the script needs to say, as JSON. The calendar note is built here instead: its {backupLink} becomes a real link.
 const copy = scriptJson({ errors: b.errors, timeNote: b.timeNote, noSlots: b.noSlots, confirmation: b.confirmation, requested: b.requested });
 const rules = scriptJson(site.booking);
+const inq = b.inquiry;
+// The words of the "Send details" form. Its network, bot-check and rate-limit errors are the booking form's own.
+const inquiryCopy = scriptJson({
+  errors: { ...inq.errors, network: b.errors.network, botCheck: b.errors.botCheck, rateLimited: b.errors.rateLimited },
+  done: inq.done,
+});
 const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
 ---
 <section class="sec" id="book" data-testid="booking">
@@ -20,16 +26,23 @@ const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
   <div class="in book glass" data-booking data-page={page.slug || 'main'}>
     <script type="application/json" data-booking-copy set:html={copy} />
     <script type="application/json" data-booking-rules set:html={rules} />
+    <script type="application/json" data-inquiry-copy set:html={inquiryCopy} />
     <div>
-      <h2 class="disp" set:html={keepHyphenated(b.heading)} />
-      <p class="sub">{b.subline}</p>
+      <h2 class="disp" data-heading="call" set:html={keepHyphenated(b.heading)} />
+      <h2 class="disp" data-heading="details" set:html={keepHyphenated(inq.heading)} hidden />
+      <p class="sub" data-subline="call">{b.subline}</p>
+      <p class="sub" data-subline="details" hidden>{inq.subline}</p>
       <ul>{b.bullets.map((x) => <li><span class="ck" aria-hidden="true">✓</span>{x}</li>)}</ul>
       <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.instagramLine}</a>
     </div>
     <div class="fwrap">
       <div class="form">
+        <div class="switch" data-switch role="tablist" aria-label={b.switch.label}>
+          <button type="button" role="tab" id="bk-tab-call" data-view="call" aria-selected="true" aria-controls="bk-panel-call" tabindex="0">{b.switch.call}</button>
+          <button type="button" role="tab" id="bk-tab-details" class="nudge" data-view="details" aria-selected="false" aria-controls="bk-panel-details" tabindex="-1">{b.switch.details}</button>
+        </div>
         <p class="draft-note" data-demo-note hidden>{b.demoNote}</p>
-        <div data-flow>
+        <div data-flow id="bk-panel-call" role="tabpanel" aria-labelledby="bk-tab-call">
           <div class="stepper" data-stepper aria-hidden="true">
             <span data-n="1" class="on"><span class="n">1</span>{b.steps.details}</span><span>→</span>
             <span data-n="2"><span class="n">2</span>{b.steps.time}</span>
@@ -84,6 +97,50 @@ const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
             <div class="time-actions">
               <a class="btn" data-calendar href="#" target="_blank" rel="noopener">{b.confirmation.addToCalendar}</a>
               <a class="u" data-manage href="#book">{b.confirmation.manageLabel}</a>
+              <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="inq" data-inquiry id="bk-panel-details" role="tabpanel" aria-labelledby="bk-tab-details" hidden>
+          <form data-inquiry-form method="post" action="#book">
+            <p class="calnote">{inq.note}</p>
+            <div class="row2">
+              <div class="fld" data-inq-field="email"><label for="iq-email">{inq.fields.email}</label><input class="inp" id="iq-email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="iq-email-err" /><span class="err" id="iq-email-err" data-inq-error="email" role="alert" hidden></span></div>
+              <div class="fld" data-inq-field="name"><label for="iq-name">{inq.fields.name} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-name" name="name" autocomplete="name" aria-describedby="iq-name-err" /><span class="err" id="iq-name-err" data-inq-error="name" role="alert" hidden></span></div>
+            </div>
+            <div class="fld" data-inq-field="phone"><label for="iq-phone">{inq.fields.phone} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="iq-phone-err" /><span class="err" id="iq-phone-err" data-inq-error="phone" role="alert" hidden></span></div>
+            <fieldset class="fld" role="radiogroup" data-inq-field="buyer" aria-describedby="iq-buyer-err"><legend>{inq.fields.buyer}</legend>
+              <div class="seg">{b.buyerOptions.map((o) => (
+                <label><input type="radio" name="buyer" value={o.value} checked={page.preselectBuyer === o.value} /><span>{o.label}</span></label>
+              ))}</div>
+              <span class="err" id="iq-buyer-err" data-inq-error="buyer" role="alert" hidden></span>
+            </fieldset>
+            <fieldset class="fld" role="radiogroup" data-inq-field="volume" aria-describedby="iq-volume-err"><legend>{inq.fields.volume}</legend>
+              <div class="seg">{b.volumeOptions.map((v) => (
+                <label><input type="radio" name="volume" value={v} /><span>{v}</span></label>
+              ))}</div>
+              <span class="err" id="iq-volume-err" data-inq-error="volume" role="alert" hidden></span>
+            </fieldset>
+            <fieldset class="fld" data-inq-field="needs" aria-describedby="iq-needs-err"><legend>{inq.fields.needs} <span>{inq.needsTag}</span></legend>
+              <div class="seg">{inq.needOptions.map((n) => (
+                <label><input type="checkbox" name="needs" value={n} /><span>{n}</span></label>
+              ))}</div>
+              <span class="err" id="iq-needs-err" data-inq-error="needs" role="alert" hidden></span>
+            </fieldset>
+            <div class="fld" data-inq-field="footage"><label for="iq-footage">{inq.fields.footage} <span>{inq.footageTag}</span></label><input class="inp" id="iq-footage" name="footage" type="url" inputmode="url" aria-describedby="iq-footage-hint iq-footage-err" /><small class="hint" id="iq-footage-hint">{inq.fields.footageHint}</small><span class="err" id="iq-footage-err" data-inq-error="footage" role="alert" hidden></span></div>
+            <div class="fld" data-inq-field="message"><label for="iq-message">{inq.fields.message} <span>{inq.optionalTag}</span></label><textarea class="inp" id="iq-message" name="message" rows="4" maxlength="2000" placeholder={inq.messagePlaceholder} aria-describedby="iq-message-err"></textarea><span class="err" id="iq-message-err" data-inq-error="message" role="alert" hidden></span></div>
+            <div class="hp" aria-hidden="true"><label>{b.honeypotLabel}<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <div data-inq-turnstile></div>
+            <button type="submit" class="btn" data-inq-submit disabled>{inq.submitLabel} <span class="arr" aria-hidden="true">→</span></button>
+            <p class="err" data-inq-form-error role="alert" hidden></p>
+            <p class="consent">{inq.consentLine}</p>
+          </form>
+
+          <div class="done" data-inquiry-done tabindex="-1" hidden>
+            <h3 class="disp" data-inq-done-heading></h3>
+            <p data-inq-done-text></p>
+            <div class="time-actions">
               <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
             </div>
           </div>

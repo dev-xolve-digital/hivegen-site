@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import { loadSection, loadSite } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime } from '../../src/lib/booking/format';
 import { generateSlots } from '../../src/lib/booking/slots';
-import { openBooking, pretendMode } from './helpers';
+import { callPanel, openBooking, pretendMode } from './helpers';
 
 // This file runs on both devices, in parallel, against one test server: so every test here leaves the server's state alone.
 // (Demo and offline are the page being told another mode; real bookings are in booking-flow.spec.ts.)
@@ -24,15 +24,15 @@ test('an empty submit shows the messages from content, and focus goes to the fir
   await expect(page.getByText(b.errors.email)).toBeVisible();
   await expect(page.getByText(b.errors.buyer)).toBeVisible();
   await expect(page.getByText(b.errors.volume)).toBeVisible();
-  await expect(page.getByLabel(b.fields.name)).toBeFocused();
+  await expect(callPanel(page).getByLabel(b.fields.name)).toBeFocused();
 });
 
 test('"I am a…" and videos per month are required', async ({ page }) => {
   const leadRequests: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/api/booking/leads')) leadRequests.push(r.url()); });
   await openBooking(page, '/#book');
-  await page.getByLabel(b.fields.name).fill('Zoë');
-  await page.getByLabel(b.fields.email).fill('zoe@example.com');
+  await callPanel(page).getByLabel(b.fields.name).fill('Zoë');
+  await callPanel(page).getByLabel(b.fields.email).fill('zoe@example.com');
   await page.getByRole('button', { name: b.nextLabel }).click();
   await expect(page.getByText(b.errors.buyer)).toBeVisible();
   await expect(page.getByText(b.errors.volume)).toBeVisible();
@@ -59,8 +59,8 @@ test('demo mode: international details, the first offered time in the visitor ti
   await pretendMode(page, 'demo');
   await openBooking(page, '/#book');
   await expect(page.getByText(b.demoNote)).toBeVisible();
-  await page.getByLabel(b.fields.name).fill("José María O'Brien-Núñez");
-  await page.getByLabel(b.fields.email).fill('jose+listing@example.co.uk');
+  await callPanel(page).getByLabel(b.fields.name).fill("José María O'Brien-Núñez");
+  await callPanel(page).getByLabel(b.fields.email).fill('jose+listing@example.co.uk');
   await page.getByRole('radio', { name: 'Videographer' }).check({ force: true });
   await page.getByRole('radio', { name: b.volumeOptions[1], exact: true }).check({ force: true });
   await page.getByRole('button', { name: b.nextLabel }).click();
@@ -76,7 +76,7 @@ test('demo mode: international details, the first offered time in the visitor ti
 
 test('the demo note shows only in demo mode', async ({ page }) => {
   await openBooking(page, '/#book'); // the test server says "live"
-  await expect(page.getByTestId('booking').locator('form')).toBeVisible();
+  await expect(callPanel(page).locator('form')).toBeVisible();
   await expect(page.getByText(b.demoNote)).toBeHidden();
 });
 
@@ -87,7 +87,7 @@ test('off mode: no form, an offline card with Instagram instead', async ({ page 
   await expect(card).toBeVisible();
   await expect(card.getByRole('heading', { name: b.offline.heading })).toBeVisible();
   await expect(card.getByRole('link', { name: b.confirmation.instagramLabel })).toHaveAttribute('href', loadSite().contact.instagramUrl);
-  await expect(page.getByTestId('booking').locator('form')).toBeHidden();
+  await expect(callPanel(page).locator('form')).toBeHidden();
   await expect(page.getByText(b.demoNote)).toBeHidden();
   await expect(page.getByTestId('booking-done')).toBeHidden();
 });
@@ -129,13 +129,13 @@ test.describe('without JavaScript', () => {
 
   test('without JavaScript the form cannot be submitted, so nothing lands in the URL', async ({ page }) => {
     await page.goto('/#book');
-    const form = page.getByTestId('booking').locator('form');
+    const form = callPanel(page).locator('form');
     await expect(form).toHaveAttribute('method', 'post');
     await expect(form).toHaveAttribute('action', '#book');
     await expect(page.getByRole('button', { name: b.nextLabel })).toBeDisabled();
-    await page.getByLabel(b.fields.name).fill('Zoe Private');
-    await page.getByLabel(b.fields.email).fill('zoe.private@example.com');
-    await page.getByLabel(b.fields.email).press('Enter');
+    await callPanel(page).getByLabel(b.fields.name).fill('Zoe Private');
+    await callPanel(page).getByLabel(b.fields.email).fill('zoe.private@example.com');
+    await callPanel(page).getByLabel(b.fields.email).press('Enter');
     await expect(page).toHaveURL(/\/#book$/);
     expect(page.url()).not.toMatch(/zoe/i);
     await expect(page.getByText(b.demoNote)).toBeHidden();
