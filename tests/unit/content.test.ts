@@ -14,6 +14,7 @@ it('headlines match the copy deck', () => {
   expect(loadPage('agents').hero.headline).toEqual(['You list.', 'We edit.', 'You stand out.']);
 });
 it('booking rules match the spec', () => {
+  process.env.CONTENT_DIR = tempContent(); // the real file also holds the backup link, once it is set
   expect(loadSite().booking).toEqual({ timeZone: 'Asia/Karachi', days: ['mon', 'tue', 'wed', 'thu', 'fri'],
     windowStart: '19:00', windowEnd: '02:00', slotMinutes: 15, bufferMinutes: 5, minNoticeMinutes: 60, horizonDays: 14 });
 });
@@ -38,9 +39,13 @@ it('slider mode without a slider block names the missing field', () => {
 const withTracking = (lines: Record<string, string>) => tempContent({
   'site.yaml': (t) => Object.entries(lines).reduce((text, [key, value]) => text.replace(new RegExp(`^  ${key}: ""`, 'm'), `  ${key}: "${value}"`), t),
 });
-it('the real site.yaml has no tracking ids yet, so every tracker is off', () => {
+it('with every tracking id empty, every tracker is off', () => {
+  process.env.CONTENT_DIR = tempContent(); // not the real file: it gets the real ids when the site goes live
   expect(Object.values(loadSite().tracking ?? {}).filter(Boolean)).toEqual([]);
   expect(loadMetaPixelId()).toBeUndefined();
+});
+it('the real site.yaml, with whatever tracking ids it holds, passes the shape checks', () => {
+  expect(() => loadSite()).not.toThrow(); // each id is checked when the file is read: a pasted snippet would fail here
 });
 it('tracking ids are read as written, and an empty one is none', () => {
   process.env.CONTENT_DIR = withTracking({ metaPixelId: ' 123456789012345 ', googleTagId: 'G-ABC123XYZ4', googleAdsId: 'AW-987654321', googleAdsScheduleLabel: 'AbC-D_efG-h' });

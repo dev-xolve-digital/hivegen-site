@@ -1,12 +1,20 @@
 import { test, expect } from './fixtures';
 import { loadSection, loadSite } from '../../src/lib/content/load';
-import { pretendMode } from './helpers';
+import { formatSlotLong, formatSlotTime } from '../../src/lib/booking/format';
+import { generateSlots } from '../../src/lib/booking/slots';
+import { openBooking, pretendMode } from './helpers';
 
 // This file runs on both devices, in parallel, against one test server: so every test here leaves the server's state alone.
 // (Demo and offline are the page being told another mode; real bookings are in booking-flow.spec.ts.)
 const b = loadSection('booking');
-test.use({ timezoneId: 'America/New_York' });
-test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-11-23T13:00:00Z')); });
+const VISITOR_TZ = 'America/New_York';
+// These tests are about the form, not the page's motion. With reduced motion the page keeps its 3D scene, hero video and clips still and
+// jumps to `#book` at once instead of scrolling smoothly, so four pages at a time cannot starve one another (on a busy machine the
+// smooth scroll alone took longer than a test waits for the form to start) and each test starts from a page that is ready.
+test.use({ timezoneId: VISITOR_TZ, reducedMotion: 'reduce' });
+/** The clock of every test here: the page believes it is this moment, whatever day the tests really run on. */
+const NOW = new Date('2026-11-23T13:00:00Z');
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(NOW); });
 
 test('an empty submit shows the messages from content, and focus goes to the first field to fix', async ({ page }) => {
   await page.goto('/#book');
@@ -44,36 +52,36 @@ test('versions preselect the buyer type', async ({ page }) => {
   await expect(page.getByRole('radio', { name: 'Media agency' })).toBeChecked();
 });
 
-test('demo mode: international details, first slot at 9:00 AM New York time, confirmation', async ({ page }) => {
+test('demo mode: international details, the first offered time in the visitor time zone, confirmation', async ({ page }) => {
+  // What the demo offers first, worked out from the same clock and booking rules the page uses (not a date typed in here).
+  const [first] = generateSlots(loadSite().booking, NOW);
   await pretendMode(page, 'demo');
-  await page.goto('/#book');
+  await openBooking(page, '/#book');
   await expect(page.getByText(b.demoNote)).toBeVisible();
   await page.getByLabel(b.fields.name).fill("José María O'Brien-Núñez");
   await page.getByLabel(b.fields.email).fill('jose+listing@example.co.uk');
   await page.getByRole('radio', { name: 'Videographer' }).check({ force: true });
   await page.getByRole('radio', { name: b.volumeOptions[1], exact: true }).check({ force: true });
   await page.getByRole('button', { name: b.nextLabel }).click();
-  const first = page.getByTestId('slot').first();
-  await expect(first).toHaveText('9:00 AM');
-  await first.click();
+  const firstSlot = page.getByTestId('slot').first();
+  await expect(firstSlot).toHaveText(formatSlotTime(first, VISITOR_TZ));
+  await firstSlot.click();
   await page.getByRole('button', { name: b.confirmLabel }).click();
   const done = page.getByTestId('booking-done');
-  await expect(done).toContainText('Monday, November 23, 9:00 AM EST');
+  await expect(done).toContainText(formatSlotLong(first, VISITOR_TZ));
   await expect(done).toContainText('jose+listing@example.co.uk');
   await expect(done.getByRole('link', { name: b.confirmation.manageLabel })).toBeVisible();
 });
 
 test('the demo note shows only in demo mode', async ({ page }) => {
-  const config = page.waitForResponse('**/api/booking/config');
-  await page.goto('/#book'); // the test server says "live"
-  await config;
+  await openBooking(page, '/#book'); // the test server says "live"
   await expect(page.getByTestId('booking').locator('form')).toBeVisible();
   await expect(page.getByText(b.demoNote)).toBeHidden();
 });
 
 test('off mode: no form, an offline card with Instagram instead', async ({ page }) => {
   await pretendMode(page, 'off');
-  await page.goto('/#book');
+  await openBooking(page, '/#book');
   const card = page.getByTestId('booking-offline');
   await expect(card).toBeVisible();
   await expect(card.getByRole('heading', { name: b.offline.heading })).toBeVisible();

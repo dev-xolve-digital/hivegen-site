@@ -88,6 +88,19 @@ export async function pretendMode(page: Page, mode: 'live' | 'demo' | 'off'): Pr
   await page.route('**/api/booking/config', (route) => route.fulfill({ json: mode === 'live' ? { mode, turnstileSiteKey: '1x00000000000000000000AA' } : { mode } }));
 }
 
+/**
+ * Opens a page and waits until its booking form has started (it asked the server for the booking mode and set itself up for it).
+ * The form starts once its section is within 600 px of the screen, and the address `/#book` only gets there by the page's smooth scroll,
+ * which takes seconds (more when the machine is busy): so this jumps to the section at once and then waits for the server's answer,
+ * instead of counting on a few seconds being enough.
+ */
+export async function openBooking(page: Page, path = '/'): Promise<void> {
+  const started = page.waitForResponse('**/api/booking/config');
+  await page.goto(path);
+  await page.getByTestId('booking').scrollIntoViewIfNeeded();
+  await started;
+}
+
 /** Tracking ids as a real site would have them (the site's content has none yet). */
 export const TRACKING_IDS = { metaPixelId: '123456789012345', googleTagId: 'G-ABC123XYZ4', googleAdsId: 'AW-987654321', googleAdsScheduleLabel: 'AbC-D_efG-h' };
 

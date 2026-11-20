@@ -24,7 +24,7 @@ afterEach(() => {
   removeTempContent();
   for (const dir of publicDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
-const base = loadSite().settings;
+const base = { ...loadSite().settings, streamSignedUrls: false }; // signing is on in the real file from launch; each test says when it wants it
 const stream = { ...base, videoSource: 'stream' as const, streamCustomerCode: 'abc123' };
 const CF = 'https://imagedelivery.net/VqmzJppFb-FqShL8TBqhpw';
 

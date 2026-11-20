@@ -41,6 +41,7 @@ describe('loadTurnstileSiteKey', () => {
   afterEach(() => { delete process.env.CONTENT_DIR; delete process.env.PUBLIC_DIR; removeTempContent(); });
 
   it('is undefined while the setting is empty, and the key once it is filled in', () => {
+    process.env.CONTENT_DIR = tempContent(); // not the real file: it gets its key when the site goes live
     expect(loadTurnstileSiteKey()).toBeUndefined();
     process.env.CONTENT_DIR = tempContent({ 'site.yaml': (t) => t.replace('turnstileSiteKey: ""', 'turnstileSiteKey: "0xABC"') });
     expect(loadTurnstileSiteKey()).toBe('0xABC');

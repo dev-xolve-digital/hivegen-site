@@ -18,6 +18,9 @@ const SITE = 'https://hivegen.co';
 const lead = { name: 'Zoë O’Brien', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
   footageUrl: 'https://drive.google.com/x', pageVersion: 'agents', attribution: { utm_source: 'facebook' }, turnstileToken: 'ok', website: '' };
 
+/** The tests that make over a hundred requests to find the rate limit: with every test file running at once, 5 seconds is not always enough. */
+const LOOP_TIMEOUT_MS = 30_000;
+
 const tempDirs: string[] = [];
 function tempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hg-http-'));
@@ -342,7 +345,7 @@ describe('events (POST /api/events: the server half of a PageView)', () => {
     expect(ctx.fakes!.tracked.filter((e) => e.name === 'PageView')).toHaveLength(121);
     ctx.fakes!.reset();
     expect((await eventsHandler(post('/api/events', view(), ip), ctx)).status).toBe(204); // a reset starts the count again
-  });
+  }, LOOP_TIMEOUT_MS);
 
   it('works when booking is not connected: the event is dropped (there is no Meta to send it to) and the answer is 204', async () => {
     const ctx = await notConnectedContext();
@@ -552,7 +555,7 @@ describe('slots and bookings', () => {
 
     for (let i = 0; i < 119; i += 1) await slotsHandler(get('/api/booking/slots', ip), ctx);
     expect((await slotsHandler(get('/api/booking/slots', ip), ctx)).status).toBe(429);
-  });
+  }, LOOP_TIMEOUT_MS);
 });
 
 describe('managing a booking', () => {

@@ -72,6 +72,7 @@ describe('GET /api/video/[id]', () => {
   beforeEach(() => {
     vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    process.env.CONTENT_DIR = tempContent(); // signing off, as it is until launch (the real site.yaml turns it on at launch)
   });
   afterEach(() => {
     vi.restoreAllMocks();

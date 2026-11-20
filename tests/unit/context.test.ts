@@ -397,7 +397,8 @@ describe('the tracker', () => {
   });
 
   it('the pixel id comes from site.yaml; an unreadable file means none, said once in the log without anything from the file', () => {
-    expect(readPixelId()).toBeUndefined(); // the real content has none yet
+    process.env.CONTENT_DIR = tempContent(); // no id in site.yaml (the real file gets one when the site goes live)
+    expect(readPixelId()).toBeUndefined();
     process.env.CONTENT_DIR = tempContent({ 'site.yaml': (t) => t.replace('metaPixelId: ""', 'metaPixelId: "123456789012345"') });
     expect(readPixelId()).toBe('123456789012345');
     process.env.CONTENT_DIR = tempContent({ 'site.yaml': (t) => t.replace('metaPixelId: ""', 'metaPixelId: "not-a-pixel"') });

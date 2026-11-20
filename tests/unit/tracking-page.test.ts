@@ -22,7 +22,8 @@ const tracking = (html: string) => /<script type="application\/json" data-tracki
 const THIRD_PARTY = /facebook|fbevents|googletagmanager|gtag\/js|google-analytics|doubleclick/i;
 
 describe('the tracking ids in a page', () => {
-  it('the real content has none, so the page has no tracking element and names no third-party script', async () => {
+  it('with no ids in site.yaml, the page has no tracking element and names no third-party script', async () => {
+    withIds({}); // content with every id empty, not the real file: it gets the real ids when the site goes live
     const html = await render();
     expect(tracking(html)).toBeUndefined();
     expect(html).not.toContain('data-tracking');

@@ -18,7 +18,7 @@ async function captureBeacons(page: Parameters<typeof enableTracking>[0]): Promi
   return beacons;
 }
 
-test('the site\'s real content has no tracking ids yet, so no tracker loads at all', async ({ page }) => {
+test('with no tracking ids in the content, no tracker loads at all', async ({ page }) => { // the test server runs on content with none, whatever the real site.yaml holds (scripts/e2e-content.ts)
   const hits: string[] = [];
   const beacons: string[] = [];
   page.on('request', (r) => {

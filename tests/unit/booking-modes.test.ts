@@ -15,7 +15,8 @@ const unusedApi = (): BookingApi => ({
 
 describe('booking modes', () => {
   it('off mode hides the form and shows the offline card with Instagram', async () => {
-    const m = mount(await mainHtml());
+    process.env.CONTENT_DIR = tempContent(); // a site.yaml with no backupUrl (the real one gets it when the site goes live)
+    const m = mount(await renderBooking(''));
     expect(m.$('[data-offline]').hidden).toBe(true); // until the script knows
     initBooking(m.root, unusedApi(), { mode: 'off' });
 
@@ -25,7 +26,7 @@ describe('booking modes', () => {
     expect(card.textContent).toContain(b.offline.heading);
     expect(card.textContent).toContain(b.offline.text);
     expect(card.querySelector(`a[href="${site.contact.instagramUrl}"]`)).not.toBeNull();
-    expect(card.querySelector('[data-backup]')).toBeNull(); // site.yaml has no backupUrl
+    expect(card.querySelector('[data-backup]')).toBeNull(); // no backupUrl
     expect(m.$('[data-demo-note]').hidden).toBe(true);
   });
 
