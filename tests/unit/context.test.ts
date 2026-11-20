@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parseEnv } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { loadBookingSite, loadSection, loadSite } from '../../src/lib/content/load';
 import { clientMode, readServerConfig } from '../../src/server/config';
@@ -23,6 +24,22 @@ const full = {
 const smtp = { SMTP_HOST: 'smtp.example.test', SMTP_PORT: '465', SMTP_USER: 'u', SMTP_PASS: 'p', MAIL_FROM: 'HiveGen <connect@hivegen.co>' };
 const config = (env: Record<string, string>) => readServerConfig(env);
 
+/**
+ * Every setting the server reads (the keys of .env.example). A test that runs the real context starts from none of them, so nothing outside
+ * the test decides its result: not the developer's shell, and not their .env file, which Astro puts into process.env (PUBLIC_ settings) and
+ * the real loadDotEnv fills in for everything else.
+ */
+const SETTING_KEYS = Object.keys(parseEnv(fs.readFileSync('.env.example', 'utf8')));
+
+/** A fresh copy of the context module with only the settings given; `loadDotEnv` is stood in for, because the real one reads the developer's .env file. */
+async function freshContextModule(env: Record<string, string | undefined>, loadDotEnv: () => void = () => {}) {
+  vi.resetModules();
+  vi.doMock('../../src/server/env', () => ({ loadDotEnv }));
+  for (const key of SETTING_KEYS) vi.stubEnv(key, undefined);
+  for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+  return import('../../src/server/context');
+}
+
 let info: MockInstance, warn: MockInstance, error: MockInstance;
 beforeEach(() => {
   info = vi.spyOn(console, 'info').mockImplementation(() => {});
@@ -31,6 +48,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.doUnmock('../../src/server/env');
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   delete process.env.CONTENT_DIR;
@@ -245,10 +263,7 @@ describe('startup warning for a public address outside production', () => {
 
 describe('getContext', () => {
   it('is one context for the whole process, made once', async () => {
-    vi.resetModules();
-    vi.stubEnv('HIVEGEN_FAKES', '1');
-    vi.stubEnv('NODE_ENV', 'test');
-    const { getContext } = await import('../../src/server/context');
+    const { getContext } = await freshContextModule({ HIVEGEN_FAKES: '1', NODE_ENV: 'test' });
     const [a, b] = await Promise.all([getContext(), getContext()]);
     expect(a).toBe(b);
     expect(await getContext()).toBe(a);
@@ -257,31 +272,21 @@ describe('getContext', () => {
   });
 
   it('reads the .env file once, through loadDotEnv, before reading the settings', async () => {
-    vi.resetModules();
     const calls: string[] = [];
-    vi.doMock('../../src/server/env', () => ({ loadDotEnv: () => { calls.push('loadDotEnv'); vi.stubEnv('HIVEGEN_FAKES', '1'); } }));
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('HIVEGEN_FAKES', '');
-    const { getContext } = await import('../../src/server/context');
+    const { getContext } = await freshContextModule({ NODE_ENV: 'test', HIVEGEN_FAKES: '' }, () => { calls.push('loadDotEnv'); vi.stubEnv('HIVEGEN_FAKES', '1'); });
     const ctx = await getContext();
     await getContext();
     expect(calls).toEqual(['loadDotEnv']);
     expect(ctx.config.mode).toBe('fakes'); // the setting came from "the .env file"
-    vi.doUnmock('../../src/server/env');
   });
 });
 
 describe('getContext on a built server', () => {
-  /** A fresh module, started as the built site is (import.meta.env.PROD true) or as astro dev is, with the .env file stood in for. */
+  /** A fresh module, started as the built site is (import.meta.env.PROD true) or as astro dev is, with only the settings given. */
   async function freshContext(built: boolean, env: Record<string, string | undefined>) {
-    vi.resetModules();
-    vi.doMock('../../src/server/env', () => ({ loadDotEnv: () => {} }));
     vi.stubEnv('PROD', built);
-    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
-    const { getContext } = await import('../../src/server/context');
-    const ctx = await getContext();
-    vi.doUnmock('../../src/server/env');
-    return ctx;
+    const { getContext } = await freshContextModule(env);
+    return getContext();
   }
 
   it('NODE_ENV forgotten: production, so not connected with the loud error and the offline card (not the demo)', async () => {
@@ -291,6 +296,14 @@ describe('getContext on a built server', () => {
     expect(clientMode(ctx.config)).toBe('off');
     expect(error).toHaveBeenCalledTimes(1);
     expect(logged(error)).toContain('NOT CONNECTED in production');
+  });
+
+  it('settings from outside the test never reach it: a mailbox already in the environment is not seen', async () => {
+    // What a leak looks like: the developer's shell, their .env file or an earlier test left a full mailbox in the environment.
+    for (const [key, value] of Object.entries(smtp)) vi.stubEnv(key, value);
+    const ctx = await freshContext(true, { ...full, NODE_ENV: undefined, HIVEGEN_FAKES: undefined });
+    expect(ctx.service).toBeNull();
+    expect(logged(error)).toContain('SMTP_HOST');
   });
 
   it('NODE_ENV forgotten with the live settings but no mailbox: not connected, no outbox', async () => {
