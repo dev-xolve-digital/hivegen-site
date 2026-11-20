@@ -13,7 +13,7 @@
 
 **Tech Stack:** Astro 7.4 with @astrojs/node, TypeScript strict, Zod 4, mysql2, nodemailer, Vitest 5 (jsdom for DOM tests), Playwright 1.65.
 
-**Spec:** `docs/design/2026-11-20-inquiry-form-and-full-section-05-design.md`. Only the form part is in this plan. Section 05 waits for the owner's choice and gets its own small plan.
+**Spec:** `docs/design/2026-11-20-inquiry-form-and-full-section-05-design.md`. Tasks 1–7 are the form. Task 8 is section 05; the owner chose the slider over the whole minute on 2026-11-21.
 
 ## Global Constraints
 
@@ -591,3 +591,71 @@ The schema gains the strict `switch` and `inquiry` objects. `needOptions` is `.m
   - one line saying the lime button shakes until the visitor uses the card, never for visitors with reduced motion.
 - [ ] **Step 5: Run the full suite.** Run `npm test`, `npm run check`, `npm run test:db` and `npx playwright test`. Expected: all pass, with 0 failed.
 - [ ] **Step 6: Commit.** `test(inquiry): browser tests for the switch, the form and the phone layout; HOW-TO-EDIT covers the form and its emails`
+
+### Task 8: Section 05 plays the whole raw and edited videos
+
+The owner's choice, 2026-11-21: the slider stays, on desktop and phone, but both sides now play the whole 60.5-second videos, served by the site. The "Watch the full edit" Stream button goes. The two videos are a re-cut, not frame-aligned, and the owner accepted that.
+
+**Files:**
+- Modify:
+  - `content/sections/before-after.yaml`
+  - `content/videos.yaml`: remove `v-before-after-edit` and its comment.
+  - `src/lib/content/schemas.ts`: `clip.duration` becomes optional; `slider.posterAt` is new.
+  - `scripts/prepare-media.mjs`
+  - `HOW-TO-EDIT.md`: the section 05 paragraph.
+- Regenerate with `npm run media`, and commit:
+  - `public/media/clips/ba-before.mp4` and `ba-after.mp4`
+  - `public/media/posters/ba-before.jpg` and `ba-after.jpg`
+- Test:
+  - `tests/e2e/sections.spec.ts`: replace the "Watch the full edit" test.
+  - `tests/unit/components.test.ts:56-64` and `tests/unit/stream-sign.test.ts:174`: stop using `v-before-after-edit`.
+  - The content rules in `tests/unit/content-files.test.ts`.
+
+**Interfaces:** none shared with Tasks 1–7. The optional `fullVideoId` feature stays in the code, unused by the content.
+
+- [ ] **Step 1: Write the failing tests.**
+  - **Content** (`content-files.test.ts`, with `tempContent`):
+    - `a slider clip without a duration is the whole video`: it loads with `duration` undefined.
+    - `posterAt, when given, is 0 or more`: `-1` is refused with `(field slider.posterAt)`.
+    - `a duration, when given, is still positive`.
+  - **`sections.spec.ts`:** `section 05 plays both whole videos from the site, with no Stream`:
+    - the two `video` elements in `#ba [data-ba-slider]` have a `src` under `/media/clips/`;
+    - after `el.load()` and `loadedmetadata`, each `duration` is between 60 and 61;
+    - `#ba` has no button and no `iframe`;
+    - opening section 05 opens no lightbox.
+    - Keep the existing slider drag tests unchanged.
+  - **`components.test.ts`:** the hero-card half of the "pop-up video ids" test stays; the "Watch the full edit" half goes. `stream-sign.test.ts:174` uses another vertical Stream video id that exists in `videos.yaml`.
+- [ ] **Step 2: Run and see them fail.**
+- [ ] **Step 3: Implement.**
+  - **Schema:** `clip.duration` is optional and stays `.positive()` when given. `slider.posterAt` is `z.number().min(0).optional()`.
+  - **`prepare-media.mjs`:**
+    - It leaves out `-t` when a clip has no duration.
+    - Slider posters are taken at `posterAt`, or else at the middle of the clip when there is a duration, or else at 0.
+    - With `boomerang: false` there is no reverse filter, as today.
+  - **`content/sections/before-after.yaml`:** the slider block becomes, exactly:
+
+```yaml
+slider:
+  before: { source: final-videos/Section-05/raw-section-5.mp4, start: 0 }
+  after: { source: final-videos/Section-05/edited-section-5.mp4, start: 0 }
+  boomerang: false
+  posterAt: 2.5
+```
+
+    - The words: `subline: Drag the handle to compare the raw footage with our finished edit.` and `ariaLabel: Compare the raw footage with HiveGen's edit`. The heading is unchanged.
+    - Rewrite the header comment so it says:
+      - the clips are the whole videos unless `start` and `duration` cut them;
+      - `posterAt` is the still's moment in seconds;
+      - `boomerang` suits only short clips;
+      - after changing anything under `slider:`, run `npm run media`.
+    - Remove `fullVideoId` and `fullVideoLabel`.
+- [ ] **Step 4: Regenerate the clips.** Run `npm run media`, which needs ffmpeg and the files under `references/`; both are on this computer. Expected:
+  - `ba-before.mp4` and `ba-after.mp4` are each about 60.5 s, 540×960, with no audio stream. Check with `ffprobe`.
+  - Together they are roughly 10–15 MB; note the sizes in the report.
+  - The two posters show the opening shot.
+- [ ] **Step 5: Update the owner's guide.** In `HOW-TO-EDIT.md`, the section 05 paragraph says:
+  - the slider plays the whole raw video under the whole edit;
+  - because the edit is a re-cut, the two sides sometimes show different shots;
+  - how to swap in new videos (keep them the same length; set `posterAt`; run `npm run media`).
+- [ ] **Step 6: Run the full suite.** Run `npm test`, `npm run check`, `npm run test:db` and `npx playwright test`. Expected: all pass, with 0 failed.
+- [ ] **Step 7: Commit.** `feat(section-05): the slider plays the whole raw and edited videos from the site; no Stream button`

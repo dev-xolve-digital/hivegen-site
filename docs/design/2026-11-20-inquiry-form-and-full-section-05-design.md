@@ -4,7 +4,7 @@ Date: 2026-11-20, updated 2026-11-21 · Branch: `inquiry-form`, made from `phase
 
 **Status:**
 - **The form** is approved. On 2026-11-21 the owner said "lets bake it i am ok with you", after seeing the mockups. Claude's calls are marked as such below.
-- **Section 05** waits for the owner's choice: the builder check found that the two videos don't line up (see that section).
+- **Section 05** is decided. On 2026-11-21, after hearing that the two videos don't line up, the owner picked mockup M1: the slider over the whole minute, on desktop and phone. See "The owner's decision" in that section.
 
 ## Why
 
@@ -100,7 +100,21 @@ Any of these makes the work a failure, even if it technically runs:
 - **A. Inside the booking card. Picked by the owner.** A two-option switch at the top of the card's form panel.
 - B. Its own block under the booking card. Easier to spot, but it competes with the call and makes the page longer.
 
-## Section 05: the whole videos (waiting for the owner's choice)
+## Section 05: the whole videos
+
+### The owner's decision (2026-11-21)
+
+The owner chose a slider over the whole minute, on desktop and phone (mockup M1), knowing the two sides show different rooms for much of it.
+
+**What it plays:** both clips are the whole source videos, played as a plain loop, from the site's own files. Nothing in section 05 uses Stream.
+
+**The still image (Claude's call):** taken at 2.5 s into both videos, the opening shot. There the two sides really are the same shot: the plain sky against the storm edit. Playback also starts from that opening, so the still and the first frames agree.
+
+**The words (Claude's call):** the heading "Same footage. Different result." stays. The other two lines stop claiming "the same shot":
+- subline: "Drag the handle to compare the raw footage with our finished edit."
+- label: "Compare the raw footage with HiveGen's edit".
+
+**What goes:** the "Watch the full edit" button and the Stream video `v-before-after-edit`.
 
 ### What the builder check found (2026-11-21)
 
