@@ -16,6 +16,22 @@ function statementsOf(sql: string): string[] {
 }
 
 /**
+ * The `.sql` files in `dir` that are not yet listed in `schema_migrations`, in name order: what `runMigrations` would apply.
+ * Reads only, and changes nothing. A database that has no `schema_migrations` table yet has every file still to apply.
+ */
+export async function pendingMigrations(pool: Pick<Pool, 'query'>, dir = 'db/migrations'): Promise<string[]> {
+  const files = (await fs.readdir(dir)).filter((name) => name.endsWith('.sql')).sort();
+  let applied = new Set<string>();
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT name FROM schema_migrations');
+    applied = new Set(rows.map((row) => String(row.name)));
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+  return files.filter((file) => !applied.has(file));
+}
+
+/**
  * Applies the `.sql` files in `dir` that are not yet listed in `schema_migrations`, in name order, and returns the names applied.
  * MySQL cannot undo a half-run schema change, so write each file to be safe to run again (`CREATE TABLE IF NOT EXISTS`):
  * a file that fails is not recorded, the run stops there, and the next run starts with that file again.

@@ -111,6 +111,12 @@ export function findVideo(id: string): Video | undefined {
   return parse(videosFileSchema, 'videos.yaml').videos.find((v) => v.id === id);
 }
 
+/** The first video that has a Stream ID, for `npm run check:services` to try a signed link on: just videos.yaml, with none of loadVideos()'s checks of public/. */
+export function loadFirstStreamVideo(): { id: string; uid: string } | undefined {
+  const video = parse(videosFileSchema, 'videos.yaml').videos.find((v) => v.streamUid);
+  return video?.streamUid ? { id: video.id, uid: video.streamUid } : undefined;
+}
+
 export function getVideo(id: string): Video {
   const v = loadVideos().find((x) => x.id === id);
   if (!v) throw new ContentError(`${shown('videos.yaml')}: no video with id "${id}"`, shown('videos.yaml'), 'videos');
