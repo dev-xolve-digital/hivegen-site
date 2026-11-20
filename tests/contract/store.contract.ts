@@ -84,6 +84,16 @@ export function storeContract(make: Make): void {
     expect((await store.leadsCreatedBetween(at(-60).toISOString(), at(60).toISOString())).map((l) => l.id)).toEqual([first.id, other.id, plainA.id, plainB.id]);
   }));
 
+  it('request ids match exactly: letters of a different case are a different id', () => withStore(make, async (store) => {
+    const upper = await store.createLead(lead(1, { requestId: 'req-ABC-00001' }), T0);
+    const lower = await store.createLead(lead(2, { requestId: 'req-abc-00001' }), T0);
+    expect(lower.id).not.toBe(upper.id);
+    expect(await store.getLeadByRequestId('req-ABC-00001')).toEqual(upper);
+    expect(await store.getLeadByRequestId('req-abc-00001')).toEqual(lower);
+    expect(await store.getLeadByRequestId('req-Abc-00001')).toBeNull();
+    await expect(store.createLead(lead(3, { requestId: 'req-abc-00001' }), T0)).rejects.toBeInstanceOf(DuplicateRequestError);
+  }));
+
   it('getLeadByRequestId of an unknown id is null', () => withStore(make, async (store) => {
     await store.createLead(lead(1), T0);
     await store.createLead(lead(2, { requestId: 'req-00000001' }), T0);
