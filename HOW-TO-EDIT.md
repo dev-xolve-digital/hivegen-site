@@ -176,6 +176,8 @@ Words in `{curly braces}` are filled in when the email is sent. Each email may u
 
 What they stand for: `{when}` is the call time in the visitor's own zone (for example "Monday, December 7, 9:00 AM EST") and `{timezone}` is the name of that zone (for example "America/New York"); `{whenPakistan}` is the same time in Hassan's zone; `{manageUrl}` is the visitor's private reschedule and cancel page; `{source}` is where the visitor came from (for example an ad).
 
+**Every email to the visitor except the cancellation carries the reschedule and cancel link** (`{manageUrl}`, or the button that goes to it), so a visitor can always move or cancel the call. Keep it when you change the wording. The cancellation leaves it out on purpose: the booking is gone.
+
 **A line that starts with `#` is a note for you.** Many email files have `# [confirm] ...` notes. A `[confirm]` note means: "this wording assumes something that only you or Hassan can check". For example, `connect@hivegen.co reaches Hassan, so "reply to this email" works`. Check it. When it is true, delete the note; when it is not, change the wording. A note such as `[confirm: how fast Hassan replies]` marks a line that promises something about timing: only keep it if you can keep it.
 
 After editing an email, run `npm run build` (or just reload the site while `npm run dev` is running). The site renders every email with sample values, and if one has a mistake it stops and names the file and field (see "When something is wrong"). To see how an email really looks, book a test call on your own computer once the booking is set up (`HOW-TO-SETUP.md`). While no mailbox is set up, the emails are not sent: they are saved as files in the `.outbox` folder, and you can open the `.html` ones in a browser.

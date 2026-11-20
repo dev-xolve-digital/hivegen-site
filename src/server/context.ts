@@ -7,7 +7,7 @@ import { verifyTurnstile } from './booking/turnstile';
 import type { ServerEvent, Store, Tracker, TrackingRecord } from './booking/types';
 import { createFakeCalendar, type FakeCalendar } from './calendar/fake';
 import { createGoogleCalendar } from './calendar/google';
-import { readServerConfig, type ServerConfig } from './config';
+import { LOCAL_HOSTS, isLocalSite, readServerConfig, type ServerConfig } from './config';
 import { runScheduledWork, type ScheduledSummary } from './cron';
 import { loadDotEnv } from './env';
 import { createOutboxMailer, createSmtpMailer, type Mailer } from './mail/mailer';
@@ -85,7 +85,6 @@ export function readPixelId(): string | undefined {
 
 /** The test server's stand-in for Hassan's inbox: the test services never mail the real one. */
 const FAKE_HASSAN_EMAIL = 'hassan@example.test';
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /** The words and rules the service needs, from the content files. A mistake in them is a ContentError naming the file. */
 function loadServiceContent() {
@@ -152,6 +151,8 @@ const reasonOf = (e: unknown) => {
 
 /** The real services. Throws when they cannot be set up (a broken content file, no migrations, a database that does not answer). */
 async function liveContext(config: ServerConfig, options: ContextOptions): Promise<ServerContext> {
+  // The settings never allow this (see readServerConfig); the check is here too, where the mailer is chosen, so a mistake elsewhere cannot send real visitors' emails to a folder.
+  if (!config.smtp && !isLocalSite(config.siteUrl)) throw new Error('no mailbox is set up (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM) and the site address is public: the outbox is only for this computer');
   const content = loadServiceContent();
 
   // The app is started from the repository root, so the folder is looked up from the working directory.
@@ -167,7 +168,7 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
     let mailer: Mailer;
     if (config.smtp) {
       mailer = createSmtpMailer(config.smtp);
-    } else { // development without a mailbox
+    } else { // development on this computer without a mailbox
       const dir = options.outboxDir ?? '.outbox';
       mailer = createOutboxMailer(dir);
       logOutbox(dir);
@@ -191,7 +192,7 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
   }
 }
 
-/** Warns when the settings look like a real site that would show the demo booking (NODE_ENV forgotten). */
+/** Warns when the settings look like a real site that is not running as production (NODE_ENV wrong or forgotten). */
 function warnAboutPublicSite(config: ServerConfig): void {
   if (config.production) return;
   let host: string;
@@ -200,7 +201,7 @@ function warnAboutPublicSite(config: ServerConfig): void {
   } catch {
     return;
   }
-  if (!LOCAL_HOSTS.has(host)) console.warn('booking: NODE_ENV is not production on a public site — the demo booking would show');
+  if (!LOCAL_HOSTS.has(host)) console.warn('booking: NODE_ENV is not production on a public site — check NODE_ENV in the host settings');
 }
 
 /**
@@ -210,8 +211,8 @@ function warnAboutPublicSite(config: ServerConfig): void {
 export async function createContext(config: ServerConfig, options: ContextOptions = {}): Promise<ServerContext> {
   if (!options.retry) warnAboutPublicSite(config);
   if (config.mode === 'not_connected') {
-    if (config.production) {
-      console.error(`booking: NOT CONNECTED in production. Missing settings: ${config.missing.join(', ')}. The site shows the offline booking card (Instagram and the backup link) until they are set.`);
+    if (config.production || !isLocalSite(config.siteUrl)) { // a public site's visitors get the offline card too, so the log says why
+      console.error(`booking: NOT CONNECTED ${config.production ? 'in production' : 'on a public site (NODE_ENV is not production)'}. Missing settings: ${config.missing.join(', ')}. The site shows the offline booking card (Instagram and the backup link) until they are set.`);
     }
     return notConnected(config, config.missing);
   }
@@ -263,7 +264,8 @@ export function createContextProvider(create: (retry: boolean) => Promise<Server
 
 const provider = createContextProvider((retry) => {
   if (!retry) loadDotEnv(); // the .env file is read once; a new try runs on the same settings
-  return createContext(readServerConfig(process.env), { retry });
+  // import.meta.env.PROD is true in the built site and false in `astro dev`: a built server counts as production unless NODE_ENV says otherwise.
+  return createContext(readServerConfig(process.env, { builtDefault: import.meta.env.PROD }), { retry });
 });
 
 /** The server's one context: the settings (the `.env` file is read first, once) and the services wired for their mode. */

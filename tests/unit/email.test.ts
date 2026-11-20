@@ -229,6 +229,19 @@ describe('createNotifier', () => {
     expect(m.text).toContain('Zoë O’Brien');
   });
 
+  it('every visitor email except the cancellation carries the reschedule/cancel link (as text and as a link), whether or not there is a Meet link', async () => {
+    const link = `${SITE}/booking/tok-123`;
+    const visitorKinds = KINDS.filter((k) => !k.startsWith('hassan-') && k !== 'booking-cancelled');
+    expect(visitorKinds).toEqual(['booking-confirmed', 'booking-requested', 'reminder-24h', 'reminder-1h', 'booking-rescheduled']);
+    for (const kind of visitorKinds) {
+      for (const b of [booking, bookingWithoutMeet]) {
+        const m = await sendOne(kind, {}, b);
+        expect(m.text, `${kind} (text)`).toContain(link);
+        expect(m.html, `${kind} (html)`).toContain(`href="${link}"`);
+      }
+    }
+  });
+
   it("Hassan's booking email shows Pakistan time, phone, volume, footage link and ad source", async () => {
     const m = await sendOne('hassan-new-booking');
     expect(m).toMatchObject({ to: HASSAN, replyTo: 'connect@hivegen.co', tag: 'hassan-new-booking' });

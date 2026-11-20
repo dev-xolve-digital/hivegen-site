@@ -7,6 +7,8 @@ body: |
   Hi {name},
 
   See you at {when} ({timezone}). The Google Meet link is in your calendar invite.
+
+  Can't make it? Reschedule or cancel: {manageUrl}
 button:
   label: Join the call
   link: meet

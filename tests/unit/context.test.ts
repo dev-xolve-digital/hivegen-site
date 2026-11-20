@@ -189,11 +189,38 @@ describe('createContext in live mode', () => {
   }, 30_000);
 });
 
+describe('the outbox mailer is never used on a public site', () => {
+  it('live settings without a mailbox on a public address (outside production): not connected, nothing written to an outbox, the offline card', async () => {
+    const dir = tempDir();
+    const ctx = await createContext(config({ ...full, NODE_ENV: 'development' }), { outboxDir: dir, migrationsDir: dir });
+    expect(ctx.service).toBeNull();
+    expect(ctx.config.mode).toBe('not_connected');
+    expect(clientMode(ctx.config)).toBe('off');
+    expect(logged(info)).not.toContain('instead of being sent');
+    expect(fs.readdirSync(dir)).toEqual([]);
+    expect(logged(error)).toContain('SMTP_HOST');
+  });
+
+  it('even when a live config reaches the services with no mailbox, the outbox is not chosen for a public address', async () => {
+    const dir = tempDir();
+    const handMade = { ...config({ ...full, ...smtp, NODE_ENV: 'development' }), smtp: undefined }; // mode live, public address, no mailbox
+    expect(handMade.mode).toBe('live');
+    const ctx = await createContext(handMade, { outboxDir: dir, migrationsDir: dir });
+    expect(ctx.service).toBeNull();
+    expect(ctx.config.mode).toBe('not_connected');
+    expect(clientMode(ctx.config)).toBe('off');
+    expect(ctx.failedAt).toBeTypeOf('number');
+    expect(logged(info)).not.toContain('instead of being sent');
+    expect(logged(error)).toMatch(/mailbox|SMTP/);
+    for (const secret of ['hgsecretpw', 'gsecret', 'grefresh', 'tsecret', 'csecret']) expect(logged(error)).not.toContain(secret);
+  });
+});
+
 describe('startup warning for a public address outside production', () => {
   it('warns once when PUBLIC_SITE_URL is a public host but NODE_ENV is not production', async () => {
     await createContext(config({ HIVEGEN_FAKES: '1', NODE_ENV: 'test', PUBLIC_SITE_URL: 'https://hivegen.co' }), { outboxDir: tempDir() });
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(logged(warn)).toContain('NODE_ENV is not production on a public site — the demo booking would show');
+    expect(logged(warn)).toContain('NODE_ENV is not production on a public site');
   });
 
   it('warns when NODE_ENV is not set at all', async () => {
@@ -241,6 +268,54 @@ describe('getContext', () => {
     expect(calls).toEqual(['loadDotEnv']);
     expect(ctx.config.mode).toBe('fakes'); // the setting came from "the .env file"
     vi.doUnmock('../../src/server/env');
+  });
+});
+
+describe('getContext on a built server', () => {
+  /** A fresh module, started as the built site is (import.meta.env.PROD true) or as astro dev is, with the .env file stood in for. */
+  async function freshContext(built: boolean, env: Record<string, string | undefined>) {
+    vi.resetModules();
+    vi.doMock('../../src/server/env', () => ({ loadDotEnv: () => {} }));
+    vi.stubEnv('PROD', built);
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+    const { getContext } = await import('../../src/server/context');
+    const ctx = await getContext();
+    vi.doUnmock('../../src/server/env');
+    return ctx;
+  }
+
+  it('NODE_ENV forgotten: production, so not connected with the loud error and the offline card (not the demo)', async () => {
+    const ctx = await freshContext(true, { NODE_ENV: undefined, HIVEGEN_FAKES: undefined, PUBLIC_SITE_URL: undefined });
+    expect(ctx.config.production).toBe(true);
+    expect(ctx.config.mode).toBe('not_connected');
+    expect(clientMode(ctx.config)).toBe('off');
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(logged(error)).toContain('NOT CONNECTED in production');
+  });
+
+  it('NODE_ENV forgotten with the live settings but no mailbox: not connected, no outbox', async () => {
+    const ctx = await freshContext(true, { ...full, NODE_ENV: undefined, HIVEGEN_FAKES: undefined });
+    expect(ctx.service).toBeNull();
+    expect(clientMode(ctx.config)).toBe('off');
+    expect(logged(error)).toContain('SMTP_HOST');
+    expect(logged(info)).not.toContain('instead of being sent');
+  });
+
+  it('NODE_ENV=test (the Playwright server) is still not production, and its test services still run', async () => {
+    const ctx = await freshContext(true, { NODE_ENV: 'test', HIVEGEN_FAKES: '1', PUBLIC_SITE_URL: 'http://127.0.0.1:4322' });
+    expect(ctx.config).toMatchObject({ production: false, mode: 'fakes' });
+  });
+
+  it('astro dev (not built) with NODE_ENV unset is not production', async () => {
+    const ctx = await freshContext(false, { NODE_ENV: undefined, HIVEGEN_FAKES: undefined, PUBLIC_SITE_URL: undefined });
+    expect(ctx.config).toMatchObject({ production: false, mode: 'not_connected' });
+    expect(clientMode(ctx.config)).toBe('demo');
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('a NODE_ENV with a trailing space still counts as production', async () => {
+    const ctx = await freshContext(false, { NODE_ENV: 'production ', HIVEGEN_FAKES: '1', PUBLIC_SITE_URL: undefined });
+    expect(ctx.config).toMatchObject({ production: true, mode: 'not_connected' });
   });
 });
 

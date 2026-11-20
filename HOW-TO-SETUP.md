@@ -11,7 +11,7 @@ Some steps need Hassan (the Google sign-in in step 1). Some need a change in you
 - **Two places for settings.** Secret settings (passwords, tokens, keys) go in a file called `.env` on your computer, and in hPanel on Hostinger. Public settings (the Pixel ID, the Turnstile site key, the backup link) go in `content/site.yaml`, which is safe to share. Never put a secret in a content file, and never send a `.env` line to anyone in a chat or an email.
 - **Make your `.env` file once.** In the project folder, copy `.env.example` to a new file called `.env` (in PowerShell: `Copy-Item .env.example .env`). Open it in any text editor. Each line is `NAME=value`, with no spaces around the `=`. **If a value contains a `#` or a space, wrap the whole value in double quotes** (for example `SMTP_PASS="pa#ss word"`): without the quotes, everything from the `#` on is thrown away, so a password would be cut short and the login would fail. Any other value needs no quotes. In hPanel, type each value exactly as it is, **without** quotes. A line with nothing after the `=` means "not set up yet". The file is never saved to git.
 - **Check your work.** Run `npm run check:services` in the project folder at the end of every step. It tries each service you have filled in and says, in plain words, what is wrong and what to do. See "Reading the check" below.
-- **When booking is live.** Booking works for real only when these are all filled in: `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `TURNSTILE_SECRET`, `CRON_SECRET` and `PUBLIC_SITE_URL`. On Hostinger (`NODE_ENV=production`) the five mailbox settings of step 3 are needed too. Until then, your computer shows the demo booking (with its note), and the live site shows a card with Instagram and the backup link instead of the form, so a visitor is never told they are booked when they are not.
+- **When booking is live.** Booking works for real only when these are all filled in: `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `TURNSTILE_SECRET`, `CRON_SECRET` and `PUBLIC_SITE_URL`. On Hostinger (`NODE_ENV=production`), and on any computer whose `PUBLIC_SITE_URL` is a public address, the five mailbox settings of step 3 are needed too. Until then, your computer shows the demo booking (with its note), and the live site shows a card with Instagram and the backup link instead of the form, so a visitor is never told they are booked when they are not.
 - **Careful when testing.** Once Google is connected, a booking made on your computer creates a real event in Hassan's calendar and sends a real invite. Book with an email address of your own. Without the mailbox settings, your computer does not send emails at all: it saves them as files in a folder called `.outbox`, so you can read them safely.
 
 ## Reading the check
@@ -296,12 +296,23 @@ What this does: some work has to happen even when nobody is on the site: the rem
 node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
 ```
 
-Put it in `.env` and in hPanel as:
+Put it in `.env` (on this computer) and in hPanel (the live site). The two places differ in one line, the site's address:
 
-```
-CRON_SECRET=<the secret>
-PUBLIC_SITE_URL=https://hivegen.co
-```
+- **In `.env`**, the address is your own computer's, because until the site is deployed there is nothing at `https://hivegen.co` to answer, and the links in test emails and `npm run cron` must stay on your computer:
+
+  ```
+  CRON_SECRET=<the secret>
+  PUBLIC_SITE_URL=http://localhost:4321
+  ```
+
+- **In hPanel**, the address is the real site:
+
+  ```
+  CRON_SECRET=<the secret>
+  PUBLIC_SITE_URL=https://hivegen.co
+  ```
+
+Do not put `https://hivegen.co` in `.env`: manage links in your test emails would point at the live site, and `npm run cron` would call it. (A public address in `.env` also needs the five mailbox settings of step 3, as on the live site.)
 
 **Make the job.** In hPanel, open **Advanced > Cron Jobs**, choose a custom job, and fill in:
 
@@ -352,10 +363,10 @@ STREAM_SIGNING_KEY_ID=...
 STREAM_SIGNING_KEY_JWK=...
 ```
 
-- **`NODE_ENV=production` is what makes the live site safe.** Without it, a site with missing settings would show the demo booking to the public. In production, missing settings keep the booking switched off and show Instagram and the backup link instead. Leave `META_TEST_EVENT_CODE` out.
+- **`NODE_ENV=production` is what makes the live site safe.** The built site also treats a missing `NODE_ENV` as production, but set it anyway so nothing depends on that. In production, missing settings keep the booking switched off and show Instagram and the backup link instead of the demo booking. The same happens if the bot check's public key (`turnstileSiteKey` in `content/site.yaml`, step 6) is empty: the log says so, and the form stays off. Leave `META_TEST_EVENT_CODE` out.
 - **Build and start.** The build command is `npm run build` and the start command is `node dist/server/entry.mjs`. Choose Node.js 24 (the site needs version 24). **Start the app from the repository's main folder:** the site reads `content/`, `public/` and `db/migrations/` from the folder it starts in, so it must not be started from inside `dist/`.
 - **Settings are read when the app starts.** After you change a setting in hPanel, restart the app (or redeploy).
-- **After editing `content/site.yaml` or `content/booking.yaml` on a running server, restart the app.** The booking part of the site reads them once, when it starts. (Normally you edit on your computer and redeploy, which rebuilds the pages and restarts the app by itself.)
+- **After editing `content/site.yaml` or `content/sections/booking.yaml` on a running server, restart the app.** The booking part of the site reads them once, when it starts. (Normally you edit on your computer and redeploy, which rebuilds the pages and restarts the app by itself.)
 - **The startup messages appear on the first visit.** The site wakes up when the first visit arrives (Hostinger stops an idle app). Open the site once, then read the app's logs in hPanel. Lines that start with `booking:` say whether booking is connected. "NOT CONNECTED in production. Missing settings: ..." lists exactly what to fill in.
 - **The site must be reachable only through Cloudflare.** To count visits per person (so nobody can fill the form again and again), the site trusts the visitor address that Cloudflare adds (the `CF-Connecting-IP` header). Keep the orange cloud on for `hivegen.co` in Cloudflare, and do not share the server's own address or Hostinger's temporary web address. Ask Claude if you want to also restrict the server to Cloudflare's addresses.
 
