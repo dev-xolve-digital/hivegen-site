@@ -1,6 +1,10 @@
 # Inquiry form and full-length section 05: design
 
-Date: 2026-11-20 · Status: written for approval · Branch: `inquiry-form`, made from `phase-2` (PR #3 is not merged yet, and both changes build on Phase 2)
+Date: 2026-11-20, updated 2026-11-21 · Branch: `inquiry-form`, made from `phase-2` (PR #3 is not merged yet, and both changes build on Phase 2)
+
+**Status:**
+- **The form** is approved. On 2026-11-21 the owner said "lets bake it i am ok with you", after seeing the mockups. Claude's calls are marked as such below.
+- **Section 05** waits for the owner's choice: the builder check found that the two videos don't line up (see that section).
 
 ## Why
 
@@ -23,7 +27,7 @@ The mockups are in `.superpowers/mockups/2026-11-20-inquiry-form/`, a git-ignore
 
 ## Goals
 
-- Section 05 plays both videos in full, in step with each other, from the site's own files.
+- Section 05 plays both videos in full, from the site's own files.
 - Visitors who don't want a call can send their details and a message from the booking card.
 - Hassan gets each message by email at once, and the visitor gets a confirmation email.
 - The "Send details" option is easy to notice, but the call stays the main path.
@@ -96,33 +100,52 @@ Any of these makes the work a failure, even if it technically runs:
 - **A. Inside the booking card. Picked by the owner.** A two-option switch at the top of the card's form panel.
 - B. Its own block under the booking card. Easier to spot, but it competes with the call and makes the page longer.
 
-## Section 05: the whole videos
+## Section 05: the whole videos (waiting for the owner's choice)
+
+### What the builder check found (2026-11-21)
+
+The edited video is a re-cut of the raw one, not the same shots with colour work.
+
+- **Length:** both are 60.5 s (1813 frames at 30 fps, 1080×1920).
+- **What the edit changes:** it adds effects (a storm sky, a second copy of the presenter, "BEST builder" text) and re-orders the shots.
+- **Where they match:** only about a third of the minute shows the same moment: around 14–15 s, 29 s, 34–40 s (this includes today's porch moment at 38.17 s), 50–52 s and 55–60 s.
+- **Where they don't:** elsewhere they show different rooms. At 30 s the raw shows a bedroom and the edit a bathroom vanity.
+
+So a slider over the two full videos would mostly compare unrelated shots. Its words ("Same footage. Different result.", "Drag the handle to compare", and "the same shot" in its label) would then be untrue.
+
+### The options shown to the owner
+
+The mockups are in `.superpowers/mockups/2026-11-21-section-05/`.
+
+- **Side by side (Claude's recommendation).**
+  - The raw minute on the left and the edit on the right, both playing in full from the site's own files, started together.
+  - Labelled "Raw footage" and "HiveGen edit"; the subline says what the visitor is looking at.
+  - Mockups: S1 (desktop) and S2 (phone, two half-width videos).
+  - It is honest about the re-cut and shows the whole transformation.
+- **A slider over the whole videos.** As today, but mismatched most of the time. Mockup M1 shows the slider at 30 s.
+- **A slider over the longest stretch that matches** (about 34–41 s). It always matches, but it isn't the whole video.
+
+### True whichever is picked
 
 **The source files:**
-- The clips are the full source videos, `references/final-videos/Section-05/raw-section-5.mp4` and `edited-section-5.mp4`.
-- Each is 60.5 s, 1080×1920 at 30 fps, and both are exactly the same length.
-- `npm run media` cuts them as it does today, and the site serves them as `public/media/clips/ba-before.mp4` and `ba-after.mp4`.
+- `references/final-videos/Section-05/raw-section-5.mp4` and `edited-section-5.mp4`.
+- `npm run media` cuts them as today; the site serves them from `public/media/clips/`.
 
 **Encoding:**
-- Same as the current clips: 540×960, CRF 30, no sound, faststart.
-- Expect roughly 10–15 MB for the pair; the browser loads it as it plays.
+- The same as the current clips: 540×960, CRF 30, no sound, faststart.
+- Roughly 10–15 MB for the pair, which the browser loads as it plays.
 
 **Playback:**
 - A plain loop instead of the forward-then-backward boomerang.
-- Unchanged:
-  - preload none;
-  - plays only while section 05 is on screen and pauses off screen;
-  - the existing drift check keeps the two videos in step;
-  - visitors who prefer reduced motion see the still images.
-- The still images stay the middle frame. With full-length videos that is the 30-second mark.
+- Preload none.
+- The videos play only while section 05 is on screen.
+- Visitors who prefer reduced motion see still images. Each still is taken at a moment chosen to look right, not simply the middle frame. For side by side, that's the opening seconds, where the storm edit shows the difference best.
 
 **Removing Stream from section 05:**
-- The "Watch the full edit" button goes from section 05, with its Stream video (`fullVideoId: v-before-after-edit`).
-- Whether `v-before-after-edit` also leaves `content/videos.yaml` depends on whether anything else uses it.
+- The "Watch the full edit" button and its Stream video, `v-before-after-edit`, go.
+- `v-before-after-edit` also leaves `content/videos.yaml`: only section 05's button and two tests use it.
 
-**Docs:**
-- `content/sections/before-after.yaml` says "the whole video" for both clips.
-- `HOW-TO-EDIT.md` explains how to swap the two videos.
+**Docs:** `HOW-TO-EDIT.md` explains how to swap the two videos.
 
 ## The form
 
@@ -212,6 +235,14 @@ All are optional except the email. Fields the booking form also has use the same
 - **Field errors:** shown under each field, as in the booking form.
 - **A network or server failure:** keeps what the visitor typed, shows the error text and lets them try again.
 - **Once stored, it counts as sent.** The visitor sees success even if an email still has to be retried.
+
+### Calls made after the builder check (Claude's)
+
+- **One visitor, one lead.** The call flow saves a lead after its first step. If a visitor starts it and then sends the form instead, Hassan gets one inquiry. There is no 30-minute "no time picked yet" email for the earlier lead, and Meta gets no second "Lead" for the same person.
+- **A retried send never doubles.** Each send carries an id made in the browser. Say the reply is lost (the browser gives up after 15 s) and the visitor presses Send again. The server recognises the repeat, so there is one inquiry and one email to Hassan.
+- **The confirmation email repeats nothing the visitor typed:** no name, link or message. That way nobody can use the form to send an email with their own words to someone else's address. The bot check and rate limits stay.
+- **Retrying failed emails** follows the booking emails' retry rules.
+- **Migration 002** is portable SQL in the existing migrations runner, like migration 001.
 
 ### The database
 
