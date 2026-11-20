@@ -13,6 +13,9 @@ export interface LeadInput {
 /** What the visitor's booking turned out as: `booked` (Google made the event) or `requested` (held, confirmed by hand). */
 export interface Booked { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string }
 
+/** The Turnstile action the booking form's widget is rendered with; the server refuses tokens made for any other action. */
+export const TURNSTILE_ACTION = 'booking';
+
 export interface BookingApi {
   createLead(i: LeadInput & { turnstileToken: string; website: string }): Promise<{ leadId: string; eventId: string }>;
   getSlots(): Promise<{ slots: Slot[]; calendarChecked: boolean }>;

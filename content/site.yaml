@@ -28,7 +28,7 @@ settings:
   videoSource: stream         # stream = Cloudflare Stream; local = files from `npm run media`
   streamCustomerCode: yph9uum1du6x869b
   streamSignedUrls: false     # true = video links are signed, so a copied link stops working (turn on at launch)
-  turnstileSiteKey: ""        # public site key from Cloudflare Turnstile (the bot check on the booking form)
+  turnstileSiteKey: "0x4AAAAAAGKJgtTrU9QaH6z_"  # public site key from Cloudflare Turnstile (the bot check on the booking form)
   live3dOnMobile: false       # true = phones get the live 3D objects instead of still images
   showBeforeAfter: true       # false hides section 05
   heroLoop:                   # the short silent loop at the top (served by the site, not Stream)

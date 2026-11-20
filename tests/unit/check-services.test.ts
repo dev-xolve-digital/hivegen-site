@@ -93,11 +93,12 @@ describe('Turnstile secret classification', () => {
     expect(classifyTurnstile({ success: false, 'error-codes': ['missing-input-secret'] }).ok).toBe(false);
   });
 
-  it('success for a made-up token is Cloudflare\'s always-pass test secret: it works, but must be replaced before launch', () => {
+  it('success for a made-up token is Cloudflare\'s always-pass test secret: a failure, since the booking form refuses its answers (they name example.com)', () => {
     const c = classifyTurnstile({ success: true });
-    expect(c.ok).toBe(true);
+    expect(c.ok).toBe(false);
     expect(c.detail).toMatch(/test secret/i);
-    expect(c.fix).toMatch(/real|before launch/i);
+    expect(c.detail).toMatch(/refuses every booking/i);
+    expect(c.fix).toMatch(/real widget's Secret key/i);
   });
 
   it('any other answer is a failure that shows only Cloudflare\'s own error words', () => {

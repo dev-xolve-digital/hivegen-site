@@ -254,7 +254,9 @@ settings:
 
 If you change `turnstileSiteKey` on a running server, restart the app (see step 9).
 
-**Check it:** `npm run check:services`. Two lines: "Turnstile bot check (secret)" asks Cloudflare whether the secret is right, and "(site key)" checks that the key is filled in. If the secret line says Cloudflare accepted a made-up token, you are using one of Cloudflare's test secrets, which lets everyone through: fine for trying things out, but replace it with the real one before launch.
+**The check only counts on the site's own address.** The server accepts a passed check only if Cloudflare says it was made by the booking form on the host in `PUBLIC_SITE_URL`: `hivegen.co` on the live site, `localhost` on your computer. The widget also allows `localhost`, so without this, a check passed on a copy of the site on someone's computer would also be accepted by the live site. Keep `PUBLIC_SITE_URL` exactly the address visitors use (`https://hivegen.co`, without `www`). If it is not, every booking is refused and the app log says `bot check refused` along with both addresses.
+
+**Check it:** `npm run check:services`. Two lines: "Turnstile bot check (secret)" asks Cloudflare whether the secret is right, and "(site key)" checks that the key is filled in. If the secret line says Cloudflare accepted a made-up token, you are using one of Cloudflare's test secrets. Their answers name `example.com`, so the booking form refuses every booking. Use the real widget's Secret key, which also works on `localhost`.
 
 ---
 
@@ -401,7 +403,7 @@ STREAM_SIGNING_KEY_JWK=...
 |---|---|---|
 | The live booking card shows Instagram, not the form | Booking is not connected on the server | Read the app's logs for "Missing settings" and fill those in (step 9) |
 | Every booking becomes "We've got your request" and Hassan gets "Confirm by hand" emails | Google could not make the event, usually an expired sign-in (`invalid_grant`) | Step 1, "If it later says the sign-in has expired" |
-| The form says it could not check you are a person | The Turnstile site key is missing or wrong, or the secret is wrong | Step 6, then `npm run check:services` |
+| The form says it could not check you are a person | The Turnstile site key is missing or wrong, the secret is wrong, or `PUBLIC_SITE_URL` is not the address visitors use (the log says `bot check refused`) | Step 6, then `npm run check:services` |
 | No emails arrive | The mailbox settings are wrong (a password with a `#` needs double quotes in `.env`), or the mail is in spam | Step 3; also check that the domain has exactly one SPF record, and DKIM |
 | No reminders arrive | The cron job is not running | Step 8: run the call by hand |
 | Videos do not play after switching on signed links | The key is not in hPanel, or the site was not redeployed | Step 7, steps 1 and 2 |

@@ -189,7 +189,7 @@ export function classifyTurnstile(answer: unknown): { ok: boolean; detail: strin
     return { ok: true, detail: 'Cloudflare accepted the secret (it only refused the made-up visitor token, as expected).' };
   }
   if (body.success === true) {
-    return { ok: true, detail: "Cloudflare accepted a made-up token, so this is one of Cloudflare's test secrets, which lets every visitor through.", fix: `That is fine for trying things out. Before launch, replace it with the real widget's Secret key. ${see(STEP.turnstile)}` };
+    return { ok: false, detail: "Cloudflare accepted a made-up token, so this is one of Cloudflare's test secrets. Its answers name example.com, so the booking form refuses every booking.", fix: `Use the real widget's Secret key (it also works on localhost). ${see(STEP.turnstile)}` };
   }
   return { ok: false, detail: `Cloudflare gave an unexpected answer${codes.length ? ` (${codes.join(', ')})` : ''}.`, fix: see(STEP.turnstile) };
 }

@@ -1,3 +1,5 @@
+import { TURNSTILE_ACTION } from '../lib/booking/api-client';
+
 const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 /** How long a submit waits for the bot check before giving up. */
 const WAIT_MS = 10_000;
@@ -44,6 +46,7 @@ export function loadTurnstile(siteKey: string, container: HTMLElement): { getTok
   const render = () => {
     widget = win.turnstile!.render(container, {
       sitekey: siteKey,
+      action: TURNSTILE_ACTION,
       appearance: 'interaction-only',
       callback: onToken,
       'expired-callback': () => { token = null; },

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { loadBookingSite, loadMetaPixelId, loadSection } from '../lib/content/load';
 import { createBookingService, type BookingService } from './booking/service';
 import { createRateLimiter, type RateLimiter } from './booking/rate-limit';
-import { verifyTurnstile } from './booking/turnstile';
+import { turnstileExpectation, verifyTurnstile } from './booking/turnstile';
 import type { ServerEvent, Store, Tracker, TrackingRecord } from './booking/types';
 import { createFakeCalendar, type FakeCalendar } from './calendar/fake';
 import { createGoogleCalendar } from './calendar/google';
@@ -174,6 +174,7 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
       logOutbox(dir);
     }
     const secret = config.turnstileSecret!;
+    const botCheckFor = turnstileExpectation(config.siteUrl);
     const store = createMysqlStore(pool);
     const notifier = createNotifier({ mailer, hassanEmail: content.hassanEmail, siteUrl: config.siteUrl, hassanTz: content.rules.timeZone });
     const tracker = chooseTracker(config.meta, readPixelId(), store);
@@ -182,7 +183,7 @@ async function liveContext(config: ServerConfig, options: ContextOptions): Promi
       service: createBookingService({
         store, calendar: createGoogleCalendar(config.google!), notifier, tracker,
         clock, rules: content.rules, siteUrl: config.siteUrl, calendarCopy: content.calendarCopy, volumeOptions: content.volumeOptions,
-        verifyBot: (token, ip) => verifyTurnstile(token, ip, secret),
+        verifyBot: (token, ip) => verifyTurnstile(token, ip, secret, botCheckFor),
       }),
       runScheduled: () => runScheduledWork({ store, notifier, retryTracking: (r) => tracker.resend(r), clock }),
     };

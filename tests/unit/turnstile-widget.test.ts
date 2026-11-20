@@ -28,7 +28,7 @@ function page() {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('loadTurnstile', () => {
-  it('loads Cloudflare\'s script (async, once) and renders an invisible-unless-needed widget with the site key', () => {
+  it('loads Cloudflare\'s script (async, once) and renders an invisible-unless-needed widget with the site key and the booking action', () => {
     const p = page();
     loadTurnstile('0xKEY', p.container);
     const scripts = p.window.document.querySelectorAll('script');
@@ -39,7 +39,8 @@ describe('loadTurnstile', () => {
     p.scriptLoads();
     expect(p.fake.render).toHaveBeenCalledTimes(1);
     expect(p.fake.render.mock.calls[0][0]).toBe(p.container);
-    expect(p.fake.options).toMatchObject({ sitekey: '0xKEY', appearance: 'interaction-only' });
+    // The server only accepts tokens made for this action (src/server/booking/turnstile.ts).
+    expect(p.fake.options).toMatchObject({ sitekey: '0xKEY', appearance: 'interaction-only', action: 'booking' });
   });
 
   it('getToken waits for the token, and gives it once', async () => {
