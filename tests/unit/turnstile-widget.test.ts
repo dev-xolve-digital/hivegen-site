@@ -204,6 +204,105 @@ describe('loadTurnstile', () => {
     expect(await retryInquiry).toBe('i');
   });
 
+  describe('a script that is broken does not leave the widgets stuck', () => {
+    /** What a promise came to, as soon as the microtasks have run: 'pending', 'resolved: …' or the error's message. */
+    function outcomeOf(promise: Promise<string>) {
+      let outcome = 'pending';
+      promise.then((t) => { outcome = `resolved: ${t}`; }, (e: Error) => { outcome = e.message; });
+      return async () => { await new Promise((r) => setTimeout(r, 0)); return outcome; };
+    }
+    /** The script element's load event fires, but Cloudflare's code never defined `window.turnstile`. */
+    const loadsEmpty = (p: ReturnType<typeof page>) => p.window.document.querySelector('script')!.dispatchEvent(new p.window.Event('load'));
+    const scriptCount = (p: ReturnType<typeof page>) => p.window.document.querySelectorAll('script').length;
+
+    it('a script that loads without defining turnstile counts as a failure: the waiting getToken rejects at once, and the next one adds a fresh script', async () => {
+      const p = page();
+      const ts = loadTurnstile('k', p.container);
+      const first = outcomeOf(ts.getToken());
+      loadsEmpty(p);
+      expect(await first()).toBe('turnstile_unavailable');
+      expect(p.fake.render).not.toHaveBeenCalled();
+      expect(scriptCount(p)).toBe(0); // the dead element is gone
+
+      const retry = outcomeOf(ts.getToken());
+      expect(scriptCount(p)).toBe(1); // a fresh script
+      p.scriptLoads();
+      expect(p.fake.render).toHaveBeenCalledTimes(1);
+      p.token('second-chance');
+      expect(await retry()).toBe('resolved: second-chance');
+    });
+
+    it('it fails every widget that waited for it, and both load the next script together', async () => {
+      const p = page();
+      const second = p.window.document.createElement('div');
+      const booking = loadTurnstile('k', p.container);
+      const inquiry = loadTurnstile('k', second, 'inquiry');
+      const a = outcomeOf(booking.getToken());
+      const b = outcomeOf(inquiry.getToken());
+      loadsEmpty(p);
+      expect(await a()).toBe('turnstile_unavailable');
+      expect(await b()).toBe('turnstile_unavailable');
+
+      const callbacks: Array<(t: string) => void> = [];
+      p.fake.render.mockImplementation((_el: unknown, options: Record<string, unknown>) => { callbacks.push(options.callback as (t: string) => void); return `widget-${callbacks.length}`; });
+      const retryBooking = outcomeOf(booking.getToken());
+      const retryInquiry = outcomeOf(inquiry.getToken());
+      expect(scriptCount(p)).toBe(1);
+      p.scriptLoads();
+      expect(callbacks).toHaveLength(2);
+      callbacks[0]('b');
+      callbacks[1]('i');
+      expect(await retryBooking()).toBe('resolved: b');
+      expect(await retryInquiry()).toBe('resolved: i');
+    });
+
+    it('a render that throws for one widget does not stop the other from rendering', async () => {
+      const p = page();
+      const second = p.window.document.createElement('div');
+      const callbacks: Array<(t: string) => void> = [];
+      p.fake.render.mockImplementation((el: unknown, options: Record<string, unknown>) => {
+        if (el === p.container) throw new Error('render failed');
+        callbacks.push(options.callback as (t: string) => void);
+        return 'widget-inquiry';
+      });
+      const booking = loadTurnstile('k', p.container);
+      const inquiry = loadTurnstile('k', second, 'inquiry');
+      const a = outcomeOf(booking.getToken());
+      const b = outcomeOf(inquiry.getToken());
+      p.scriptLoads();
+      expect(p.fake.render).toHaveBeenCalledTimes(2); // the second was still tried
+      expect(await a()).toBe('turnstile_unavailable'); // nobody waits for a widget that is not there
+      callbacks[0]('for-the-inquiry');
+      expect(await b()).toBe('resolved: for-the-inquiry');
+    });
+
+    it('a widget whose render threw is not "rendered": the next getToken renders it again, without a second script', async () => {
+      const p = page();
+      p.fake.render.mockImplementationOnce(() => { throw new Error('render failed'); });
+      const ts = loadTurnstile('k', p.container);
+      const first = outcomeOf(ts.getToken());
+      p.scriptLoads();
+      expect(await first()).toBe('turnstile_unavailable');
+
+      const retry = outcomeOf(ts.getToken()); // Cloudflare's script is there: only the widget is made again
+      expect(p.fake.render).toHaveBeenCalledTimes(2);
+      expect(scriptCount(p)).toBe(1);
+      p.token('now');
+      expect(await retry()).toBe('resolved: now');
+    });
+
+    it('a render that throws on the very first try, with the script already on the page, is a rejected getToken, not a thrown error', async () => {
+      const p = page();
+      (p.window as unknown as { turnstile: unknown }).turnstile = p.fake;
+      p.fake.render.mockImplementationOnce(() => { throw new Error('render failed'); });
+      const ts = loadTurnstile('k', p.container); // does not throw
+      const first = outcomeOf(ts.getToken()); // renders again, and this time it works
+      expect(p.fake.render).toHaveBeenCalledTimes(2);
+      p.token('here');
+      expect(await first()).toBe('resolved: here');
+    });
+  });
+
   it('uses the Turnstile that is already on the page instead of loading the script again', async () => {
     const p = page();
     (p.window as unknown as { turnstile: unknown }).turnstile = p.fake;

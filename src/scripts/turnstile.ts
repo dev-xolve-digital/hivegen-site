@@ -18,8 +18,9 @@ const loadingScripts = new WeakMap<Document, Set<ScriptWaiter>>();
 
 /**
  * Calls `waiter.loaded()` once Cloudflare's script is on the page (at once when it already is), or `waiter.failed()` when it cannot load.
- * The script is added once per document, however many widgets ask while it loads. A script that fails (blocked, offline, a blip) is taken
- * out again, so the next ask adds a fresh one. The answers come in the script's own load and error events, so a widget renders right then.
+ * The script is added once per document, however many widgets ask while it loads. A script that fails (blocked, offline, a blip), or that
+ * loads without defining `window.turnstile`, is taken out again, so the next ask adds a fresh one. The answers come in the script's own
+ * load and error events, so a widget renders right then. Each waiter is called on its own: one that throws does not stop the others.
  */
 function whenScriptReady(doc: Document, waiter: ScriptWaiter): void {
   if ((doc.defaultView as TurnstileWindow).turnstile) { waiter.loaded(); return; }
@@ -31,8 +32,15 @@ function whenScriptReady(doc: Document, waiter: ScriptWaiter): void {
   script.src = SRC;
   script.async = true;
   script.defer = true;
-  script.addEventListener('load', () => { loadingScripts.delete(doc); joined.forEach((w) => w.loaded()); });
-  script.addEventListener('error', () => { loadingScripts.delete(doc); script.remove(); joined.forEach((w) => w.failed()); });
+  const settle = (ok: boolean) => {
+    loadingScripts.delete(doc);
+    if (!ok) script.remove();
+    for (const w of joined) {
+      try { if (ok) w.loaded(); else w.failed(); } catch { /* the other widgets still get their answer */ }
+    }
+  };
+  script.addEventListener('load', () => settle(Boolean((doc.defaultView as TurnstileWindow).turnstile)));
+  script.addEventListener('error', () => settle(false));
   doc.head.append(script);
 }
 
@@ -71,7 +79,7 @@ export function loadTurnstile(siteKey: string, container: HTMLElement, action: T
   };
 
   const render = () => {
-    rendered = true;
+    // `rendered` is set only once Cloudflare has made the widget: a render that throws leaves it unset, so the next getToken tries again.
     widget = win.turnstile!.render(container, {
       sitekey: siteKey,
       action,
@@ -80,6 +88,13 @@ export function loadTurnstile(siteKey: string, container: HTMLElement, action: T
       'expired-callback': () => { token = null; },
       'error-callback': () => { token = null; },
     });
+    rendered = true;
+  };
+
+  /** Nobody should wait for a token that cannot come: every getToken that waits is told at once. */
+  const failWaiting = () => {
+    for (const w of waiting) { clearTimeout(w.timer); w.reject(new Error('turnstile_unavailable')); }
+    waiting.clear();
   };
 
   /** Asks for the script, to render once it is there. Does nothing while an ask is on its way or the widget is up. */
@@ -87,12 +102,11 @@ export function loadTurnstile(siteKey: string, container: HTMLElement, action: T
     if (asking || rendered) return;
     asking = true;
     whenScriptReady(doc, {
-      loaded: () => { asking = false; render(); },
-      failed: () => {
+      loaded: () => {
         asking = false;
-        for (const w of waiting) { clearTimeout(w.timer); w.reject(new Error('turnstile_unavailable')); }
-        waiting.clear(); // nobody should wait for a token that cannot come
+        try { render(); } catch { failWaiting(); } // a widget that cannot be made is a failure too, never a throw into the page
       },
+      failed: () => { asking = false; failWaiting(); },
     });
   };
 
@@ -102,14 +116,15 @@ export function loadTurnstile(siteKey: string, container: HTMLElement, action: T
     getToken() {
       const ready = take();
       if (ready !== null) return Promise.resolve(ready);
-      start(); // the first try failed: try the script again
-      return new Promise<string>((resolve, reject) => {
+      const answer = new Promise<string>((resolve, reject) => {
         const w = {
           resolve, reject,
           timer: setTimeout(() => { waiting.delete(w); reject(new Error('turnstile_timeout')); }, WAIT_MS),
         };
         waiting.add(w);
       });
+      start(); // the first try failed (no script, or no widget): try again. After the wait is set up, so a failure that comes at once rejects it
+      return answer;
     },
   };
 }
