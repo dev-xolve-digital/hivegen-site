@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { describe, it, expect, afterEach } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import BeforeAfter from '../../src/components/BeforeAfter.astro';
@@ -176,5 +177,15 @@ describe('the booking card: the switch and the "Send details" form', () => {
       errors: { ...bookingWords.inquiry.errors, network: errors.network, botCheck: errors.botCheck, rateLimited: errors.rateLimited },
       done: { heading: bookingWords.inquiry.done.heading, text: bookingWords.inquiry.done.text },
     });
+  });
+});
+
+describe('site.css', () => {
+  it('the message box has one base rule, with its colour and outline in it', () => {
+    const css = fs.readFileSync('src/styles/site.css', 'utf8');
+    const base = css.split('\n').filter((line) => line.startsWith('.inq textarea.inp{'));
+    expect(base).toHaveLength(1);
+    expect(base[0]).toContain('color:var(--ink)');
+    expect(base[0]).toContain('outline:none');
   });
 });

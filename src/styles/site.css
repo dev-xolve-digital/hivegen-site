@@ -452,9 +452,8 @@ canvas.c3d{display:none}
 .switch .shake{animation:switch-shake .7s ease-in-out}
 @keyframes switch-shake{0%,100%{transform:none}20%{transform:translateX(-5px) rotate(-1.5deg)}35%{transform:translateX(5px) rotate(1.5deg)}50%{transform:translateX(-4px) rotate(-1deg)}65%{transform:translateX(4px) rotate(1deg)}80%{transform:translateX(-2px)}}
 @media (prefers-reduced-motion:reduce){.switch .shake{animation:none}}
-.inq textarea.inp{height:auto;min-height:104px;padding:12px 14px;display:block;width:100%;font:inherit;font-size:14px;resize:vertical}
 /* The message box looks and behaves like the form's one-line fields, and "(pick any)" is as quiet as the other tags */
-.inq textarea.inp{color:var(--ink);outline:none}
+.inq textarea.inp{height:auto;min-height:104px;padding:12px 14px;display:block;width:100%;font:inherit;font-size:14px;resize:vertical;color:var(--ink);outline:none}
 .inq textarea.inp:focus-visible{border-color:var(--blue);box-shadow:0 0 0 3px rgba(28,69,245,.18)}
 .inq textarea.inp[aria-invalid="true"]{border-color:#B42318}
 .inq legend span{font-weight:500;color:var(--ink3)}

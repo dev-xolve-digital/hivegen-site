@@ -242,6 +242,8 @@ Next to the 15-minute call, the card has a second way in for visitors who would 
 | `call:` | The button for the call (the one that is selected when the page opens) |
 | `details:` | The lime button for the form |
 
+Keep `call:` and `details:` short, about 14 characters each (the length of "Book a call" and "Send details"): both buttons sit side by side in the switch, and a longer word runs out of its button on a phone.
+
 **`inquiry:`** is the form. Only the email is required; everything else helps Hassan reply with the right answer.
 
 | Word | What it controls |
@@ -255,13 +257,13 @@ Next to the 15-minute call, the card has a second way in for visitors who would 
 | `submitLabel:` | The send button |
 | `consentLine:` | The line under the button. It promises a reply time, so it has a `[confirm]` note: only keep "usually within a day" if you can keep it |
 | `done:` | The thank-you after a send: `heading:` and `text:`. Keep `{email}` in `text:`: it becomes the address the visitor typed |
-| `errors:` | The messages for a wrong email, phone number, link or too long a message |
+| `errors:` | The messages for a wrong email, name, phone number, link or too long a message |
 
-**`needOptions` is a list you can edit.** Each line is one tick box under "What do you need?": add a line, delete a line or reword one, and keep at least one. The visitor may tick any of them, and Hassan's email shows what they ticked next to "Needs". Write each choice once. The server accepts only the choices in this list, so after changing it on a running server, redeploy and restart the app (see "On the live site"). The "I am a…" and "Videos per month" choices are the same lists as in the call form (`buyerOptions:` and `volumeOptions:`), so changing them there changes them here.
+**`needOptions` is a list you can edit.** Each line is one tick box under "What do you need?": add a line, delete a line or reword one, and keep at least one. The visitor may tick any of them, and Hassan's email shows what they ticked next to "Needs". Write each choice once: a list that repeats a choice is reported as an error when the site is built. The server accepts only the choices in this list, so after changing it on a running server, redeploy and restart the app (see "On the live site"). The "I am a…" and "Videos per month" choices are the same lists as in the call form (`buyerOptions:` and `volumeOptions:`), so changing them there changes them here.
 
 **The lime "Send details" button shakes now and then until the visitor uses the card.** It shakes for under a second, first just after the switch comes into view and then every few seconds, at most five times. It stops for good as soon as the visitor clicks a field or either button. A visitor whose device is set to reduce motion never sees it shake (the button stays lime).
 
-The form is saved as a lead and sends two emails: Hassan gets `hassan-new-inquiry.yaml` and the visitor gets `inquiry-received.yaml` (see "Booking emails"). It is counted as one "Lead" in Meta. A visitor who first filled in the call form and then sent this one is still one lead, and Hassan gets no "no time picked" email about them. When booking is switched off (the offline card), the switch and the form are hidden.
+The form is saved as a lead and sends two emails: Hassan gets `hassan-new-inquiry.yaml` and the visitor gets `inquiry-received.yaml` (see "Booking emails"). It is counted as one "Lead" in Meta. A visitor who first filled in the call form and then sent this one in the same tab is still one lead. Whichever form came first, and in whichever tab, Hassan gets no "no time picked" email about someone who also sent this form with the same email address (in another tab they can count as two leads in Meta). When booking is switched off (the offline card), the switch and the form are hidden.
 
 ## The backup appointment link
 
