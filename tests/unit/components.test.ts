@@ -53,15 +53,16 @@ it('a client card shows its own file as the card image, with signing off or on',
   }
 });
 
-it('the hero card and "Watch the full edit" give the pop-up their video ids too', async () => {
-  const c = await AstroContainer.create();
-  const hero = await c.renderToString(HeroStage);
+it('the hero card gives the pop-up its video id too', async () => {
+  const hero = await (await AstroContainer.create()).renderToString(HeroStage);
   expect(lightboxOf(hero)).toMatchObject({ kind: 'stream', videoId: 'v-portfolio-reel' });
   noStreamAddress(hero);
-  const section = { ...loadSection('before-after'), mode: 'slider' as const,
-    slider: { before: { source: 'a.mp4', start: 0, duration: 4 }, after: { source: 'b.mp4', start: 0, duration: 4 }, fullVideoId: 'v-before-after-edit', fullVideoLabel: 'Watch the full edit' } };
-  const ba = await c.renderToString(BeforeAfter, { props: { enabled: true, section } });
-  expect(lightboxOf(ba)).toMatchObject({ kind: 'stream', videoId: 'v-before-after-edit', orientation: 'vertical' });
+});
+
+it('section 05 as shipped has no pop-up button and no Stream address', async () => {
+  const ba = await (await AstroContainer.create()).renderToString(BeforeAfter, { props: { enabled: true, section: loadSection('before-after') } });
+  expect(ba).not.toContain('data-lightbox');
+  expect(ba).not.toContain('<button');
   noStreamAddress(ba);
 });
 

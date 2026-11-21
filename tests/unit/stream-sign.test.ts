@@ -171,7 +171,7 @@ describe('GET /api/video/[id]', () => {
 
   it('answers for every video the pages play, the client videos included', async () => {
     const ctx = await fakes();
-    for (const id of ['t-kenneth', 't-chris', 'h-agent-led', 'v-before-after-edit']) {
+    for (const id of ['t-kenneth', 't-chris', 'h-agent-led', 'v-agent-spotlight']) {
       expect(((await (await ask(ctx, id)).json()) as { src: string }).src, id).toContain(`/${getVideo(id).streamUid}/iframe?`);
     }
   });

@@ -292,12 +292,3 @@ videos:
     orientation: vertical
     posterTime: 10.3
     streamUid: 6f05c5a2955864477bc285a425601a46
-  # Section 05: the full edited video behind "Watch the full edit" (not shown as a card)
-  - id: v-before-after-edit
-    title: Before and after, full edit
-    label: Before and after · full edit
-    duration: "1:00"
-    orientation: vertical
-    source: final-videos/Section-05/edited-section-5.mp4
-    posterTime: 1
-    streamUid: 832548aeb59e6a9e2a9d293f5c223ed6

@@ -80,11 +80,12 @@ for (const v of videos.data.videos) {
 const SHORT = '540:960';
 const clipVideo = ['-an', '-c:v', 'libx264', '-crf', '30', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
 const posterOf = (clip, at = 0) => ['-ss', String(at), '-i', path.join(OUT, clip), '-frames:v', '1', '-q:v', '8'];
+/** Cuts a clip from `start`; with no `duration` it runs to the end of the video. */
 function addClip(name, srcRel, start, duration, filters, depTime, posterAt = 0) {
   const src = sourceOf(srcRel);
   jobs.push({
     kind: 'clips', out: `clips/${name}.mp4`, deps: [src], depTimes: [depTime],
-    args: ['-ss', String(start), '-t', String(duration), '-i', src,
+    args: ['-ss', String(start), ...(duration === undefined ? [] : ['-t', String(duration)]), '-i', src,
       '-vf', `${filters ? filters + ',' : ''}scale=${SHORT}:force_original_aspect_ratio=increase,crop=${SHORT}`, ...clipVideo],
   });
   jobs.push({ kind: 'posters', out: `posters/${name}.jpg`, deps: [path.join(OUT, 'clips', `${name}.mp4`)], depTimes: [depTime], args: posterOf(`clips/${name}.mp4`, posterAt) });
@@ -100,10 +101,12 @@ if (ba.data.mode === 'slider') {
   if (!s) fail('content/sections/before-after.yaml: mode is slider but there is no slider: block');
   // boomerang: play forward then backward, so the loop has no jump. Both clips get the same treatment.
   const both = s.boomerang ? 'split[f][b];[b]reverse[r];[f][r]concat=n=2:v=1:a=0' : '';
-  // The still shown before playback (and to visitors with reduced motion) is the clip's middle frame.
-  const mid = Math.min(s.before.duration, s.after.duration) / 2;
-  addClip('ba-before', s.before.source, s.before.start, s.before.duration, both, ba.mtime, mid);
-  addClip('ba-after', s.after.source, s.after.start, s.after.duration, both, ba.mtime, mid);
+  // The still shown before playback (and to visitors with reduced motion) is the same moment from both clips:
+  // posterAt, or else the middle of a clip that has a duration, or else the very start.
+  const lengths = [s.before.duration, s.after.duration].filter((d) => d !== undefined);
+  const still = s.posterAt ?? (lengths.length ? Math.min(...lengths) / 2 : 0);
+  addClip('ba-before', s.before.source, s.before.start, s.before.duration, both, ba.mtime, still);
+  addClip('ba-after', s.after.source, s.after.start, s.after.duration, both, ba.mtime, still);
 } else {
   const r = ba.data.reveal;
   if (!r) fail('content/sections/before-after.yaml: mode is reveal but there is no reveal: block');

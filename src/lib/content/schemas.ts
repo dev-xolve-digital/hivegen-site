@@ -119,7 +119,8 @@ export const imagesSchema = z.strictObject({
 });
 export const videosFileSchema = z.strictObject({ videos: z.array(videoSchema).min(1) });
 
-const clip = z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive() });
+/** A slider clip. Without a duration it runs from `start` to the end of the video. */
+const clip = z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive().optional() });
 export const sectionSchemas = {
   nav: z.strictObject({ links: z.array(link), cta: link }),
   hero: z.strictObject({
@@ -139,7 +140,15 @@ export const sectionSchemas = {
     labels: z.strictObject({ before: text, after: text }),
     ariaLabel: text,
     reveal: z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive(), slowdown: z.number().positive(), cutAt: z.number().min(0) }).optional(),
-    slider: z.strictObject({ before: clip, after: clip, boomerang: z.boolean().optional(), fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
+    slider: z.strictObject({
+      before: clip,
+      after: clip,
+      boomerang: z.boolean().optional(),
+      /** The still shown before playback, in seconds from the start of the clip. */
+      posterAt: z.number().min(0).optional(),
+      fullVideoId: text.optional(),
+      fullVideoLabel: text.optional(),
+    }).optional(),
     sample: z.boolean(),
     note: text.optional(),
   }).superRefine((s, ctx) => {

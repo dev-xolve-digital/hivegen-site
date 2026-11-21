@@ -98,14 +98,17 @@ All 31 portfolio videos play from Cloudflare Stream. Each one has an entry in `c
 
 ## Section 05 (before/after)
 
-A drag slider compares the raw porch shot with the same shot from the finished edit. The two short clips come from `references/final-videos/Section-05/raw-section-5.mp4` and `edited-section-5.mp4`, from second 38.17 for 2.96 seconds. They play forward then backward (`boomerang: true`), so the loop has no jump. The site serves them itself, not Stream. "Watch the full edit" plays the full edited video (`v-before-after-edit` in `videos.yaml`) from Stream.
+A drag slider compares the raw video with the finished edit. The raw video plays underneath, the edit plays on top, and the handle decides how much of each you see. Both play the whole minute (about 60 seconds), from `references/final-videos/Section-05/raw-section-5.mp4` and `edited-section-5.mp4`. The site serves them itself, not Stream, and there is no "Watch the full edit" button.
 
-To use a different moment or different videos:
+The edit is a re-cut, so it is not the raw video frame for frame: for much of the minute the two sides show different shots. The opening shot is the same on both sides, so the still image shown before the videos play is taken from it (`posterAt: 2.5`, in seconds).
+
+To use different videos:
 
 1. Put the files under `references/`.
-2. In `content/sections/before-after.yaml`, change `source`, `start` and `duration` under `slider:`. Keep `start` and `duration` the same for both clips so the frames line up.
-3. Change `ariaLabel:` so it describes the new clip (screen readers read it out).
-4. Run `npm run media`. Until you do, the site stops and says which clip is missing.
+2. In `content/sections/before-after.yaml`, change `source` under `slider:` for both. Keep the two videos the same length so they finish together. To use only part of a video, add `duration` (seconds) and change `start`.
+3. Set `posterAt:` to the second whose frame should be the still image.
+4. Change `ariaLabel:` so it describes the new videos (screen readers read it out). Leave `boomerang: false`: playing forward then backward suits only short clips.
+5. Run `npm run media`. Until you do, the site stops and says which clip is missing.
 
 ## Message screenshots
 

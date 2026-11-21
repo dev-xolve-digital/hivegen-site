@@ -26,6 +26,34 @@ it('a section 05 mode without its clips says to run npm run media', () => {
   });
   expect(() => loadSection('before-after')).toThrow(/before-after\.yaml: public\/media\/clips\/ba-reveal\.mp4 is missing; run npm run media \(field reveal\)/);
 });
+// Section 05's slider: each clip is the whole video unless a duration cuts it; posterAt is the still's moment.
+/** Gives both slider clips the same `duration` clause (e.g. ', duration: 3', or '' for none), whatever the file holds now. */
+const sliderClips = (clause: string) => (s: string) => s.replace(/^(  (?:before|after): \{ source: [^,\s]+, start: [\d.]+)(?:, duration: [-\d.]+)? \}/gm, `$1${clause} }`);
+/** Sets `posterAt` under slider:, whatever the file holds now. */
+const posterAt = (n: number) => (s: string) => s.replace(/^  posterAt:.*\n/m, '').replace(/^(  boomerang:.*)$/m, `$1\n  posterAt: ${n}`);
+
+it('a slider clip without a duration is the whole video', () => {
+  process.env.CONTENT_DIR = tempContent({ 'sections/before-after.yaml': sliderClips('') });
+  const { slider } = loadSection('before-after');
+  expect(slider!.before.duration).toBeUndefined();
+  expect(slider!.after.duration).toBeUndefined();
+});
+it('a duration, when given, is still positive', () => {
+  process.env.CONTENT_DIR = tempContent({ 'sections/before-after.yaml': sliderClips(', duration: 3') });
+  expect(loadSection('before-after').slider!.before.duration).toBe(3);
+  for (const bad of ['0', '-2']) {
+    process.env.CONTENT_DIR = tempContent({ 'sections/before-after.yaml': sliderClips(`, duration: ${bad}`) });
+    expect(() => loadSection('before-after')).toThrow(/before-after\.yaml: "slider\.before\.duration" .*\(field slider\.before\.duration\)/);
+  }
+});
+it('posterAt, when given, is 0 or more', () => {
+  for (const ok of [0, 2.5]) {
+    process.env.CONTENT_DIR = tempContent({ 'sections/before-after.yaml': posterAt(ok) });
+    expect(loadSection('before-after').slider!.posterAt).toBe(ok);
+  }
+  process.env.CONTENT_DIR = tempContent({ 'sections/before-after.yaml': posterAt(-1) });
+  expect(() => loadSection('before-after')).toThrow(/before-after\.yaml: "slider\.posterAt" .*\(field slider\.posterAt\)/);
+});
 it('the manage-booking words: the rescheduled text must keep {when}, and a missing word is named with its field', () => {
   process.env.CONTENT_DIR = tempContent({ 'sections/manage-booking.yaml': (s) => s.replace(/^(rescheduledText:.*)\{when\}/m, '$1then') });
   expect(() => loadSection('manage-booking')).toThrow(/manage-booking\.yaml: "rescheduledText" must keep the \{when\} placeholder \(field rescheduledText\)/);
