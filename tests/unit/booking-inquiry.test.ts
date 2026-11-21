@@ -153,6 +153,30 @@ describe('sendInquiry', () => {
     expect(lead.visitorNotifiedAt).toBeUndefined();
   });
 
+  it("Hassan's email is marked as sent before the visitor's email is tried", async () => {
+    // If the process stops, or the visitor's send hangs for its timeouts, while the second email is going out, cron must not send Hassan's again.
+    const seen: Array<{ kind: EmailKind; hassanMarked: boolean }> = [];
+    const t = inquirySetup({ notifier: { send: async (kind: EmailKind, _data: EmailData) => {
+      const stored = await t.store.getLeadByRequestId(valid.requestId);
+      seen.push({ kind, hassanMarked: stored?.hassanNotifiedAt !== undefined });
+    } } });
+    expect(await t.svc.sendInquiry(valid, {})).toMatchObject({ ok: true });
+    expect(seen).toEqual([{ kind: 'hassan-new-inquiry', hassanMarked: false }, { kind: 'inquiry-received', hassanMarked: true }]);
+    const lead = await t.byRequest();
+    expect(lead.hassanNotifiedAt).toEqual(NOW);
+    expect(lead.visitorNotifiedAt).toEqual(NOW);
+  });
+
+  it("Hassan's mark survives a visitor's send that throws or never answers the way it should", async () => {
+    const t = inquirySetup({ notifier: { send: async (kind: EmailKind, _data: EmailData) => { if (kind === 'inquiry-received') throw new Error('timeout'); } } });
+    const updates = vi.spyOn(t.store, 'updateLead');
+    expect(await t.svc.sendInquiry(valid, {})).toMatchObject({ ok: true });
+    expect(updates).toHaveBeenCalledTimes(1); // one write for Hassan's mark, none for the visitor's failed send
+    const lead = await t.byRequest();
+    expect(lead.hassanNotifiedAt).toEqual(NOW);
+    expect(lead.visitorNotifiedAt).toBeUndefined();
+  });
+
   it('an earlier call-flow lead from this visit is told and not counted twice', async () => {
     const t = inquirySetup();
     const earlierId = await addLead(t.svc);

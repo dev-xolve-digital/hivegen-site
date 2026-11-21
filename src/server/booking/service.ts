@@ -214,12 +214,16 @@ export function createBookingService(d: ServiceDeps): BookingService {
         });
       }
 
-      // Each email on its own: one that fails stays unmarked, and cron sends it again.
-      const hassanSent = await trySend('hassan-new-inquiry', { lead });
-      const visitorSent = await trySend('inquiry-received', { lead });
-      const sentAt = d.clock.now();
-      if (hassanSent || visitorSent) {
-        await d.store.updateLead(lead.id, { ...(hassanSent && { hassanNotifiedAt: sentAt }), ...(visitorSent && { visitorNotifiedAt: sentAt }) }, sentAt);
+      // Each email on its own, marked the moment it has gone out (as cron does): one that fails stays unmarked, and cron sends it again.
+      // Hassan's is marked before the visitor's is tried: that send can take up to 40 s with its timeouts, and if the server stops in that
+      // time cron must not send Hassan's a second time.
+      if (await trySend('hassan-new-inquiry', { lead })) {
+        const sentAt = d.clock.now();
+        await d.store.updateLead(lead.id, { hassanNotifiedAt: sentAt }, sentAt);
+      }
+      if (await trySend('inquiry-received', { lead })) {
+        const sentAt = d.clock.now();
+        await d.store.updateLead(lead.id, { visitorNotifiedAt: sentAt }, sentAt);
       }
       return receivedFor(lead);
     },
