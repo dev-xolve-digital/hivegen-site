@@ -1,0 +1,17 @@
+# To the visitor, when Google could not make the calendar event: the time is held and Hassan confirms it by hand.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {when} {timezone} {manageUrl}
+# [confirm: how fast Hassan replies]
+# [confirm] connect@hivegen.co reaches Hassan, so "reply to this email" works.
+subject: "We've got your request: HiveGen call, {when}"
+body: |
+  Hi {name},
+
+  Thanks for booking. We're holding {when} ({timezone}) for you.
+
+  We confirm these calls by hand. You'll get another email with your Google Meet link as soon as it's done.
+
+  Need to cancel? Use the button below, or just reply to this email.
+button:
+  label: View your booking
+  link: manage

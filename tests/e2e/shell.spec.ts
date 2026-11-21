@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, loadSection, loadSite } from '../../src/lib/content/load';
 test('home serves a page titled HiveGen', async ({ page }) => {
   await page.goto('/');
@@ -37,14 +37,15 @@ test('phone: mobile bar hides while the booking form is on screen', async ({ pag
   const bar = page.getByTestId('mobile-bar');
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(bar).toBeVisible();
-  await page.getByTestId('booking').locator('form').scrollIntoViewIfNeeded();
+  await page.getByTestId('booking').locator('[data-flow] form').scrollIntoViewIfNeeded();
   await expect(bar).toBeHidden();
 });
 test('the footer email is a hivegen.co address, and the private Gmail is on no page', async ({ page, isMobile }) => {
   test.skip(!!isMobile);
   const privateEmail = loadSite().contact.notificationEmail;
   for (const path of [...listPages().map((p) => '/' + p.slug), '/privacy', '/terms', '/no-such-page']) {
-    expect(await (await page.request.get(path)).text(), path).not.toContain(privateEmail);
+    // A boolean on purpose: a failure must not print the address (or the page that holds it).
+    expect((await (await page.request.get(path)).text()).includes(privateEmail), `${path}: the contact address must not be on the page`).toBe(false);
   }
   await page.goto('/');
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Email' })).toHaveAttribute('href', /^mailto:[^@]+@hivegen\.co$/);

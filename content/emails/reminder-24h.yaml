@@ -1,0 +1,14 @@
+# To the visitor, 24 hours before a booked call.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {when} {timezone} {meetUrl} {manageUrl}
+# The button shows only when Google has given a Meet link, so the words must read well without it.
+subject: "Tomorrow: your HiveGen call, {when}"
+body: |
+  Hi {name},
+
+  A quick reminder: we're talking tomorrow, {when} ({timezone}). The Google Meet link is in your calendar invite.
+
+  Need to move it? Reschedule or cancel: {manageUrl}
+button:
+  label: Join the call
+  link: meet

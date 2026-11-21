@@ -2,6 +2,11 @@ const motionOk = () =>
   !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
   (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData !== true;
 
+/** The two slider clips may differ by this much before the raw one is moved. */
+const DRIFT_SECONDS = 0.5;
+/** HTMLMediaElement.readyState: enough data to play on from the current position. */
+const HAVE_FUTURE_DATA = 3;
+
 /** Plays the given videos only while they are on screen (never with reduced motion or data saver). */
 function playWhenVisible(root: HTMLElement, videos: HTMLVideoElement[]): void {
   if (videos.length === 0 || !motionOk() || !('IntersectionObserver' in window)) return;
@@ -58,8 +63,14 @@ export function initSlider(el: HTMLElement): void {
   el.addEventListener('pointermove', (e) => { if (el.hasPointerCapture?.(e.pointerId)) fromPointer(e); });
   const videos = [...el.querySelectorAll('video')];
   if (videos.length === 2) {
-    videos[1].addEventListener('timeupdate', () => {
-      if (Math.abs(videos[0].currentTime - videos[1].currentTime) > 0.2) videos[0].currentTime = videos[1].currentTime;
+    // The clips are a minute long and their keyframes can be seconds apart, so a slow connection cannot always catch up. Moving the raw
+    // clip while either one is still seeking or has too little data would send it back again and again (up to 4 times a second): the
+    // correction waits until both are ready to play, and only a real drift counts.
+    const [raw, edited] = videos;
+    const ready = (v: HTMLVideoElement) => !v.seeking && v.readyState >= HAVE_FUTURE_DATA;
+    edited.addEventListener('timeupdate', () => {
+      if (!ready(raw) || !ready(edited)) return;
+      if (Math.abs(raw.currentTime - edited.currentTime) > DRIFT_SECONDS) raw.currentTime = edited.currentTime;
     });
   }
   playWhenVisible(el, videos);

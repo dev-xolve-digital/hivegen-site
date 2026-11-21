@@ -6,6 +6,8 @@ brand:
 contact:
   # Where new-lead and booking emails go (used from Phase 2).
   notificationEmail: "Hasansiddiqui56@gmail.com"
+  # Replies to every booking email go here.
+  replyTo: connect@hivegen.co
   instagramHandle: hasan.drp
   # Opens an Instagram chat with the account above.
   instagramUrl: https://ig.me/m/hasan.drp
@@ -19,13 +21,25 @@ booking:
   bufferMinutes: 5
   minNoticeMinutes: 60
   horizonDays: 14
+  # Hassan's own appointment page. Visitors are offered it when the calendar cannot be checked, and when booking is offline. Leave empty for none.
+  backupUrl: ""
 
 settings:
   videoSource: stream         # stream = Cloudflare Stream; local = files from `npm run media`
   streamCustomerCode: yph9uum1du6x869b
+  streamSignedUrls: false     # true = video links are signed, so a copied link stops working (turn on at launch)
+  turnstileSiteKey: "0x4AAAAAAGKJgtTrU9QaH6z_"  # public site key from Cloudflare Turnstile (the bot check on the booking form)
   live3dOnMobile: false       # true = phones get the live 3D objects instead of still images
   showBeforeAfter: true       # false hides section 05
   heroLoop:                   # the short silent loop at the top (served by the site, not Stream)
     videoId: v-portfolio-reel
     start: 13                 # seconds into the source video
     duration: 14
+
+# Ad tracking. These ids are public (they are in the page's source anyway). Leave one empty to switch that tracker off:
+# with all of them empty the site loads no Meta or Google script at all.
+tracking:
+  metaPixelId: ""             # Meta Pixel id, digits only (Events Manager > Data sources). Also switches on the server-side Conversions API (needs META_CAPI_TOKEN)
+  googleTagId: ""             # Google tag / GA4 measurement id, e.g. G-ABC123XYZ4
+  googleAdsId: ""             # Google Ads account id, e.g. AW-123456789
+  googleAdsScheduleLabel: ""  # the label of the "booked call" conversion in Google Ads, e.g. AbC-D_efG-h

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, loadSection } from '../../src/lib/content/load';
 import { fillTerms } from '../../src/lib/text';
 test('plans show prices and terms from content', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { listPages, getVideo, loadSection } from '../../src/lib/content/load';
 const labels = (ids: string[]) => ids.map((id) => new RegExp(getVideo(id).label));
 for (const p of listPages()) {
@@ -14,11 +14,39 @@ test('desktop: the next arrow scrolls the vertical row', async ({ page, isMobile
   await page.getByRole('button', { name: loadSection('recent-edits').nextLabel }).first().click();
   await expect.poll(() => page.getByTestId('vertical-track').evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
 });
-test('tapping a card opens that video from Stream', async ({ page }) => {
+test('tapping a card asks the server for the video link, then plays it', async ({ page }) => {
+  await page.goto('/');
+  const video = getVideo(listPages()[0].videoOrder.vertical[0]);
+  const answer = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/video/${video.id}`);
+  await page.getByTestId('vertical-card').first().click();
+  const res = await answer;
+  expect(res.status()).toBe(200);
+  expect(res.headers()['cache-control']).toBe('no-store');
+  const { src } = (await res.json()) as { src: string };
+  await expect(page.getByTestId('lightbox').locator('iframe')).toHaveAttribute('src', src);
+  expect(src).toContain(`/${video.streamUid}/iframe?`);
+});
+test('when the server cannot give the video link, the pop-up says so, and closes as usual', async ({ page }) => {
+  await page.route('**/api/video/*', (route) => route.fulfill({ status: 503, json: { error: 'not_connected' } }));
   await page.goto('/');
   await page.getByTestId('vertical-card').first().click();
-  await expect(page.getByTestId('lightbox').locator('iframe'))
-    .toHaveAttribute('src', new RegExp(getVideo(listPages()[0].videoOrder.vertical[0]).streamUid!));
+  const lightbox = page.getByTestId('lightbox');
+  await expect(lightbox).toContainText(loadSection('hero').videoErrorText);
+  await expect(lightbox.locator('iframe')).toHaveCount(0);
+  await page.goBack();
+  await expect(lightbox).toBeHidden();
+  expect(new URL(page.url()).pathname).toBe('/');
+});
+test('the page loads nothing from Stream until a card is tapped: the card images are files of the site', async ({ page }) => {
+  const asked: string[] = [];
+  page.on('request', (r) => { if (new URL(r.url()).hostname.endsWith('cloudflarestream.com')) asked.push(r.url()); });
+  await page.goto('/');
+  await page.getByTestId('testimonial-video').last().scrollIntoViewIfNeeded();
+  await page.waitForLoadState('load');
+  expect(asked).toEqual([]);
+  const html = await page.content();
+  expect(html).not.toContain('cloudflarestream.com');
+  expect(html).not.toMatch(/eyJ[\w-]{10,}\.[\w-]+\./); // no signed token in the page, whatever the settings
 });
 test('Back closes the video pop-up and stays on the page', async ({ page }) => {
   await page.goto('/');

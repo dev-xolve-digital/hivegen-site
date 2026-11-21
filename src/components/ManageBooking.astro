@@ -1,0 +1,80 @@
+---
+import IgIcon from './IgIcon.astro';
+import { loadSection, loadSite } from '../lib/content/load';
+import { fillPlaceholders, scriptJson } from '../lib/text';
+import type { ManageState } from '../server/booking/manage-view';
+interface Props { state: ManageState }
+const { state } = Astro.props;
+const mg = loadSection('manage-booking');
+const b = loadSection('booking');
+const { instagramUrl } = loadSite().contact;
+const view = state.kind === 'found' ? state.view : undefined;
+const cancelled = view?.status === 'cancelled';
+const hasActions = !!view && !cancelled && (view.canCancel || view.canReschedule);
+
+// The sentence under the heading, when there is one to show from the start. After an action, the script fills it in.
+const notice = !view ? (state.kind === 'not_found' ? mg.notFoundText : mg.errorText)
+  : cancelled ? fillPlaceholders(mg.cancelledText, { when: view.when })
+    : hasActions ? '' : mg.tooLateText;
+
+// What the script says, as JSON: the result texts, and the booking form's own words for a taken time, too many tries and no times.
+const copy = scriptJson({
+  cancelledText: mg.cancelledText, rescheduledText: mg.rescheduledText, tooLateText: mg.tooLateText, errorText: mg.errorText,
+  slotTaken: b.errors.slotTaken, rateLimited: b.errors.rateLimited, noSlots: b.noSlots,
+});
+---
+<main class="legal-body glass in manage" {...(view ? { 'data-manage': '', 'data-token': view.token, 'data-tz': view.visitorTz } : {})}>
+  {view && <script type="application/json" data-manage-copy set:html={copy} />}
+  <h1 class="disp">{mg.heading}</h1>
+  {view && !cancelled && (
+    <dl class="manage-facts" data-details>
+      <div>
+        <dt>{mg.whenLabel}</dt>
+        <dd><time data-testid="manage-when" data-when datetime={view.start} data-end={view.end}>{view.when}</time></dd>
+      </div>
+      {view.meetUrl && (
+        <div>
+          <dt>{mg.meetLabel}</dt>
+          <dd><a class="u" href={view.meetUrl} target="_blank" rel="noopener noreferrer">{view.meetUrl.replace(/^https:\/\//, '')}</a></dd>
+        </div>
+      )}
+    </dl>
+  )}
+  <p class="manage-notice" data-notice data-testid="manage-notice" role="status" tabindex="-1" hidden={notice === ''}>{notice}</p>
+  {view && hasActions && (
+    <div class="manage-actions" data-actions>
+      <div class="time-actions">
+        {view.canReschedule && <button type="button" class="btn" data-reschedule-open aria-expanded="false" aria-controls="manage-reschedule">{mg.rescheduleLabel}</button>}
+        {view.canCancel && <button type="button" class="btn ghost" data-cancel-open aria-expanded="false" aria-controls="manage-cancel">{mg.cancelLabel}</button>}
+      </div>
+      {view.canReschedule && (
+        <div class="manage-panel" id="manage-reschedule" data-reschedule-panel hidden>
+          <h2 class="calh" data-reschedule-heading tabindex="-1">{mg.rescheduleHeading}</h2>
+          <p class="tz" data-time-note>{fillPlaceholders(b.timeNote, { timezone: view.visitorTz.replace(/_/g, ' ') })}</p>
+          <div class="days" data-days></div>
+          <div class="slots" data-slots></div>
+          <p class="err" data-reschedule-error role="alert" hidden></p>
+          <button type="button" class="btn" data-reschedule-confirm disabled>{mg.confirmRescheduleLabel}</button>
+        </div>
+      )}
+      {view.canCancel && (
+        <div class="manage-panel" id="manage-cancel" data-cancel-panel hidden>
+          <p>{mg.cancelConfirmText}</p>
+          <div class="time-actions">
+            <button type="button" class="btn" data-cancel-confirm>{mg.cancelConfirmLabel}</button>
+            <button type="button" class="btn ghost" data-cancel-keep>{mg.keepLabel}</button>
+          </div>
+          <p class="err" data-cancel-error role="alert" hidden></p>
+        </div>
+      )}
+    </div>
+  )}
+  <p class="manage-help"><a class="ig u" href={instagramUrl} target="_blank" rel="noopener noreferrer"><IgIcon />{b.confirmation.instagramLabel}</a></p>
+</main>
+<script>
+  import { httpManageApi } from '../lib/booking/api-client';
+  import { initManage } from '../scripts/manage-booking';
+  // Only a page for a real booking has the root; the not-found and error pages have nothing to start.
+  const root = document.querySelector<HTMLElement>('[data-manage]');
+  if (root) initManage(root, httpManageApi(root.dataset.token!));
+</script>

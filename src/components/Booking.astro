@@ -2,14 +2,22 @@
 import IgIcon from './IgIcon.astro';
 import Three3D from './Three3D.astro';
 import { loadSection, loadSite, type Page } from '../lib/content/load';
-import { keepHyphenated } from '../lib/text';
+import { keepHyphenated, scriptJson } from '../lib/text';
 interface Props { page: Page }
 const { page } = Astro.props;
 const b = loadSection('booking');
 const site = loadSite();
-const draft = process.env.SITE_MODE !== 'production';
-const copy = JSON.stringify({ errors: b.errors, timeNote: b.timeNote, noSlots: b.noSlots, confirmation: b.confirmation });
-const rules = JSON.stringify(site.booking);
+const backupUrl = site.booking.backupUrl;
+// What the script needs to say, as JSON. The calendar note is built here instead: its {backupLink} becomes a real link.
+const copy = scriptJson({ errors: b.errors, timeNote: b.timeNote, noSlots: b.noSlots, confirmation: b.confirmation, requested: b.requested });
+const rules = scriptJson(site.booking);
+const inq = b.inquiry;
+// The words of the "Send details" form. Its network, bot-check and rate-limit errors are the booking form's own.
+const inquiryCopy = scriptJson({
+  errors: { ...inq.errors, network: b.errors.network, botCheck: b.errors.botCheck, rateLimited: b.errors.rateLimited },
+  done: inq.done,
+});
+const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
 ---
 <section class="sec" id="book" data-testid="booking">
   <div class="blob lime" style="width:440px;height:440px;left:-90px;top:-20px"></div>
@@ -18,62 +26,132 @@ const rules = JSON.stringify(site.booking);
   <div class="in book glass" data-booking data-page={page.slug || 'main'}>
     <script type="application/json" data-booking-copy set:html={copy} />
     <script type="application/json" data-booking-rules set:html={rules} />
+    <script type="application/json" data-inquiry-copy set:html={inquiryCopy} />
     <div>
-      <h2 class="disp" set:html={keepHyphenated(b.heading)} />
-      <p class="sub">{b.subline}</p>
+      <h2 class="disp" data-heading="call" set:html={keepHyphenated(b.heading)} />
+      <h2 class="disp" data-heading="details" set:html={keepHyphenated(inq.heading)} hidden />
+      <p class="sub" data-subline="call">{b.subline}</p>
+      <p class="sub" data-subline="details" hidden>{inq.subline}</p>
       <ul>{b.bullets.map((x) => <li><span class="ck" aria-hidden="true">✓</span>{x}</li>)}</ul>
       <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.instagramLine}</a>
     </div>
     <div class="fwrap">
       <div class="form">
-        {draft && <p class="draft-note">{b.demoNote}</p>}
-        <div class="stepper" data-stepper aria-hidden="true">
-          <span data-n="1" class="on"><span class="n">1</span>{b.steps.details}</span><span>→</span>
-          <span data-n="2"><span class="n">2</span>{b.steps.time}</span>
+        <div class="switch" data-switch role="tablist" aria-label={b.switch.label}>
+          <button type="button" role="tab" id="bk-tab-call" data-view="call" aria-selected="true" aria-controls="bk-panel-call" tabindex="0">{b.switch.call}</button>
+          <button type="button" role="tab" id="bk-tab-details" class="nudge" data-view="details" aria-selected="false" aria-controls="bk-panel-details" tabindex="-1">{b.switch.details}</button>
+        </div>
+        <p class="draft-note" data-demo-note hidden>{b.demoNote}</p>
+        <div data-flow id="bk-panel-call" role="tabpanel" aria-labelledby="bk-tab-call">
+          <div class="stepper" data-stepper aria-hidden="true">
+            <span data-n="1" class="on"><span class="n">1</span>{b.steps.details}</span><span>→</span>
+            <span data-n="2"><span class="n">2</span>{b.steps.time}</span>
+          </div>
+
+          <form data-step="details" method="post" action="#book">
+            <div class="row2">
+              <div class="fld"><label for="bk-name">{b.fields.name}</label><input class="inp" id="bk-name" name="name" data-field="name" autocomplete="name" aria-describedby="bk-name-err" /><span class="err" id="bk-name-err" data-error="name" role="alert" hidden></span></div>
+              <div class="fld"><label for="bk-email">{b.fields.email}</label><input class="inp" id="bk-email" name="email" data-field="email" type="email" autocomplete="email" inputmode="email" aria-describedby="bk-email-err" /><span class="err" id="bk-email-err" data-error="email" role="alert" hidden></span></div>
+            </div>
+            <div class="fld"><label for="bk-phone">{b.fields.phone}</label><input class="inp" id="bk-phone" name="phone" data-field="phone" type="tel" autocomplete="tel" aria-describedby="bk-phone-err" /><span class="err" id="bk-phone-err" data-error="phone" role="alert" hidden></span></div>
+            <fieldset class="fld" role="radiogroup" data-field="buyer" aria-describedby="bk-buyer-err"><legend>{b.fields.buyer}</legend>
+              <div class="seg">{b.buyerOptions.map((o) => (
+                <label><input type="radio" name="buyer" value={o.value} checked={page.preselectBuyer === o.value} /><span>{o.label}</span></label>
+              ))}</div>
+              <span class="err" id="bk-buyer-err" data-error="buyer" role="alert" hidden></span>
+            </fieldset>
+            <fieldset class="fld" role="radiogroup" data-field="volume" aria-describedby="bk-volume-err"><legend>{b.fields.volume}</legend>
+              <div class="seg">{b.volumeOptions.map((v) => (
+                <label><input type="radio" name="volume" value={v} /><span>{v}</span></label>
+              ))}</div>
+              <span class="err" id="bk-volume-err" data-error="volume" role="alert" hidden></span>
+            </fieldset>
+            <div class="fld"><label for="bk-footage">{b.fields.footage}</label><input class="inp" id="bk-footage" name="footage" data-field="footage" type="url" inputmode="url" aria-describedby="bk-footage-hint bk-footage-err" /><small class="hint" id="bk-footage-hint">{b.fields.footageHint}</small><span class="err" id="bk-footage-err" data-error="footage" role="alert" hidden></span></div>
+            <div class="hp" aria-hidden="true"><label>{b.honeypotLabel}<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <div data-turnstile></div>
+            <p class="err" data-form-error role="alert" hidden></p>
+            <button type="submit" class="btn" data-submit disabled>{b.nextLabel} <span class="arr" aria-hidden="true">→</span></button>
+            <p class="consent">{b.consentLine}</p>
+          </form>
+
+          <div data-step="time" hidden>
+            <h3 class="calh" data-time-heading tabindex="-1">{b.timeHeading}</h3>
+            <p class="tz" data-time-note></p>
+            <p class="calnote" data-calendar-note hidden>{backupUrl ? <>{noteBefore}<a class="u" href={backupUrl} target="_blank" rel="noopener">{b.backupLabel}</a>{noteAfter}</> : (noteBefore + noteAfter).trim()}</p>
+            <div class="days" data-days></div>
+            <div class="slots" data-slots></div>
+            <p class="err" data-time-error role="alert" hidden></p>
+            <div class="time-actions">
+              <button type="button" class="btn ghost sm" data-back>{b.backLabel}</button>
+              <button type="button" class="btn" data-confirm disabled>{b.confirmLabel}</button>
+            </div>
+          </div>
+
+          <div class="done" data-testid="booking-done" tabindex="-1" hidden>
+            <h3 class="disp" data-done-heading></h3>
+            <p data-done-text></p>
+            <div data-done-next>
+              <p class="done-h">{b.confirmation.nextStepsHeading}</p>
+              <ol data-done-steps></ol>
+            </div>
+            <div class="time-actions">
+              <a class="btn" data-calendar href="#" target="_blank" rel="noopener">{b.confirmation.addToCalendar}</a>
+              <a class="u" data-manage href="#book">{b.confirmation.manageLabel}</a>
+              <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
+            </div>
+          </div>
         </div>
 
-        <form data-step="details">
-          <div class="row2">
-            <div class="fld"><label for="bk-name">{b.fields.name}</label><input class="inp" id="bk-name" name="name" autocomplete="name" aria-describedby="bk-name-err" /><span class="err" id="bk-name-err" data-error="name" role="alert" hidden></span></div>
-            <div class="fld"><label for="bk-email">{b.fields.email}</label><input class="inp" id="bk-email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="bk-email-err" /><span class="err" id="bk-email-err" data-error="email" role="alert" hidden></span></div>
-          </div>
-          <div class="fld"><label for="bk-phone">{b.fields.phone}</label><input class="inp" id="bk-phone" name="phone" type="tel" autocomplete="tel" /></div>
-          <fieldset class="fld"><legend>{b.fields.buyer}</legend>
-            <div class="seg">{b.buyerOptions.map((o) => (
-              <label><input type="radio" name="buyer" value={o.value} checked={page.preselectBuyer === o.value} /><span>{o.label}</span></label>
-            ))}</div>
-          </fieldset>
-          <fieldset class="fld"><legend>{b.fields.volume}</legend>
-            <div class="seg">{b.volumeOptions.map((v) => (
-              <label><input type="radio" name="volume" value={v} /><span>{v}</span></label>
-            ))}</div>
-          </fieldset>
-          <div class="fld"><label for="bk-footage">{b.fields.footage}</label><input class="inp" id="bk-footage" name="footage" type="url" inputmode="url" aria-describedby="bk-footage-hint" /><small class="hint" id="bk-footage-hint">{b.fields.footageHint}</small></div>
-          <p class="err" data-form-error role="alert" hidden></p>
-          <button type="submit" class="btn">{b.nextLabel} <span class="arr" aria-hidden="true">→</span></button>
-          <p class="consent">{b.consentLine}</p>
-        </form>
+        <div class="inq" data-inquiry id="bk-panel-details" role="tabpanel" aria-labelledby="bk-tab-details" hidden>
+          <form data-inquiry-form method="post" action="#book">
+            <p class="calnote">{inq.note}</p>
+            <div class="row2">
+              <div class="fld" data-inq-field="email"><label for="iq-email">{inq.fields.email}</label><input class="inp" id="iq-email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="iq-email-err" /><span class="err" id="iq-email-err" data-inq-error="email" role="alert" hidden></span></div>
+              <div class="fld" data-inq-field="name"><label for="iq-name">{inq.fields.name} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-name" name="name" maxlength="100" autocomplete="name" aria-describedby="iq-name-err" /><span class="err" id="iq-name-err" data-inq-error="name" role="alert" hidden></span></div>
+            </div>
+            <div class="fld" data-inq-field="phone"><label for="iq-phone">{inq.fields.phone} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="iq-phone-err" /><span class="err" id="iq-phone-err" data-inq-error="phone" role="alert" hidden></span></div>
+            <fieldset class="fld" role="radiogroup" data-inq-field="buyer" aria-describedby="iq-buyer-err"><legend>{inq.fields.buyer}</legend>
+              <div class="seg">{b.buyerOptions.map((o) => (
+                <label><input type="radio" name="buyer" value={o.value} checked={page.preselectBuyer === o.value} /><span>{o.label}</span></label>
+              ))}</div>
+              <span class="err" id="iq-buyer-err" data-inq-error="buyer" role="alert" hidden></span>
+            </fieldset>
+            <fieldset class="fld" role="radiogroup" data-inq-field="volume" aria-describedby="iq-volume-err"><legend>{inq.fields.volume}</legend>
+              <div class="seg">{b.volumeOptions.map((v) => (
+                <label><input type="radio" name="volume" value={v} /><span>{v}</span></label>
+              ))}</div>
+              <span class="err" id="iq-volume-err" data-inq-error="volume" role="alert" hidden></span>
+            </fieldset>
+            <fieldset class="fld" data-inq-field="needs" aria-describedby="iq-needs-err"><legend>{inq.fields.needs} <span>{inq.needsTag}</span></legend>
+              <div class="seg">{inq.needOptions.map((n) => (
+                <label><input type="checkbox" name="needs" value={n} /><span>{n}</span></label>
+              ))}</div>
+              <span class="err" id="iq-needs-err" data-inq-error="needs" role="alert" hidden></span>
+            </fieldset>
+            <div class="fld" data-inq-field="footage"><label for="iq-footage">{inq.fields.footage} <span>{inq.footageTag}</span></label><input class="inp" id="iq-footage" name="footage" type="url" inputmode="url" aria-describedby="iq-footage-hint iq-footage-err" /><small class="hint" id="iq-footage-hint">{inq.fields.footageHint}</small><span class="err" id="iq-footage-err" data-inq-error="footage" role="alert" hidden></span></div>
+            <div class="fld" data-inq-field="message"><label for="iq-message">{inq.fields.message} <span>{inq.optionalTag}</span></label><textarea class="inp" id="iq-message" name="message" rows="4" maxlength="2000" placeholder={inq.messagePlaceholder} aria-describedby="iq-message-err"></textarea><span class="err" id="iq-message-err" data-inq-error="message" role="alert" hidden></span></div>
+            <div class="hp" aria-hidden="true"><label>{b.honeypotLabel}<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <div data-inq-turnstile></div>
+            <button type="submit" class="btn" data-inq-submit disabled>{inq.submitLabel} <span class="arr" aria-hidden="true">→</span></button>
+            <p class="err" data-inq-form-error role="alert" hidden></p>
+            <p class="consent">{inq.consentLine}</p>
+          </form>
 
-        <div data-step="time" hidden>
-          <h3 class="calh" data-time-heading tabindex="-1">{b.timeHeading}</h3>
-          <p class="tz" data-time-note></p>
-          <div class="days" data-days></div>
-          <div class="slots" data-slots></div>
-          <p class="err" data-time-error role="alert" hidden></p>
-          <div class="time-actions">
-            <button type="button" class="btn ghost sm" data-back>{b.backLabel}</button>
-            <button type="button" class="btn" data-confirm disabled>{b.confirmLabel}</button>
+          <div class="done" data-inquiry-done tabindex="-1" hidden>
+            <h3 class="disp" data-inq-done-heading></h3>
+            <p data-inq-done-text></p>
+            <div class="time-actions">
+              <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
+            </div>
           </div>
         </div>
 
-        <div class="done" data-testid="booking-done" tabindex="-1" hidden>
-          <h3 class="disp">{b.confirmation.heading}</h3>
-          <p data-done-text></p>
-          <p class="done-h">{b.confirmation.nextStepsHeading}</p>
-          <ol data-done-steps></ol>
+        <div class="offline" data-offline data-testid="booking-offline" hidden>
+          <h3 class="disp">{b.offline.heading}</h3>
+          <p>{b.offline.text}</p>
           <div class="time-actions">
-            <a class="btn" data-calendar href="#" target="_blank" rel="noopener">{b.confirmation.addToCalendar}</a>
-            <a class="ig u" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
+            <a class="btn" href={site.contact.instagramUrl} target="_blank" rel="noopener"><IgIcon />{b.confirmation.instagramLabel}</a>
+            {backupUrl && <a class="ig u" data-backup href={backupUrl} target="_blank" rel="noopener">{b.backupLabel}</a>}
           </div>
         </div>
       </div>
@@ -81,10 +159,11 @@ const rules = JSON.stringify(site.booking);
   </div>
 </section>
 <script>
-  import { initBooking } from '../scripts/booking-ui';
-  import { demoApi } from '../lib/booking/api-client';
-  document.querySelectorAll<HTMLElement>('[data-booking]').forEach((root) => {
-    const rules = JSON.parse(root.querySelector('[data-booking-rules]')!.textContent!);
-    initBooking(root, demoApi(rules));
-  });
+  import { bootBooking } from '../scripts/booking-boot';
+  import { browserStorage, captureAttribution } from '../scripts/attribution';
+  import { trackLead, trackSchedule } from '../scripts/tracking';
+  // Keep this visit's ad tags (the first touch wins for 30 days), then start the form. It asks the server and loads Cloudflare's bot check later.
+  captureAttribution(new URL(location.href), browserStorage(window), Date.now());
+  // The form tells the trackers when a lead is saved and a call is booked, with the event ids the server made (the Pixel and the Conversions API share them).
+  document.querySelectorAll<HTMLElement>('[data-booking]').forEach((root) => bootBooking(root, { hooks: { onLead: trackLead, onSchedule: trackSchedule } }));
 </script>

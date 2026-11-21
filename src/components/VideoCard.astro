@@ -1,12 +1,12 @@
 ---
 import type { Video } from '../lib/content/load';
 import { loadSite } from '../lib/content/load';
-import { resolveVideo } from '../lib/media';
+import { resolveVideo, lightboxJson } from '../lib/media';
 interface Props { video: Video; testid?: string; class?: string; showLabel?: boolean; ariaLabel?: string }
 const { video, testid, class: cls, showLabel = true, ariaLabel } = Astro.props;
 const { poster, play } = resolveVideo(video, loadSite().settings);
 const vertical = video.orientation === 'vertical';
-const lightbox = JSON.stringify({ kind: play.kind, src: play.src, orientation: video.orientation, title: video.title });
+const lightbox = lightboxJson(video, play);
 ---
 <button
   type="button"

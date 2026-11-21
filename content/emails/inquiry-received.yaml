@@ -1,0 +1,10 @@
+# To the visitor, right after they send the "Send details" form.
+# For safety it repeats nothing they typed (no name, link or message), so it has no {placeholders}.
+# [confirm: "usually within a day" is how fast Hassan replies]
+subject: We've got your details
+body: |
+  Thanks for getting in touch with HiveGen.
+
+  We've got your details and we'll reply by email, usually within a day. If you sent a link to your raw footage, we can start your free edit from it.
+
+  Questions in the meantime? Just reply to this email.

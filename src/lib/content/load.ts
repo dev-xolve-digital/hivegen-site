@@ -4,12 +4,14 @@ import { load as parseYaml, YAMLException } from 'js-yaml';
 import { imageSize } from 'image-size';
 import type { z } from 'zod';
 import { ContentError } from './errors';
+import type { EmailKind } from '../../server/booking/types';
+import { allowedPlaceholders, splitPlaceholders } from './placeholders';
 import {
-  siteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema,
-  type Site, type Page, type Video, type Sections, type Testimonials, type Images,
+  siteSchema, emailSiteSchema, bookingSiteSchema, trackingSiteSchema, streamSiteSchema, pageSchema, videosFileSchema, sectionSchemas, testimonialsSchema, imagesSchema, emailSchema,
+  type Site, type BookingRules, type Page, type Video, type Sections, type Testimonials, type Images, type Email,
 } from './schemas';
 
-export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images } from './schemas';
+export type { Site, Page, Video, Sections, Testimonials, BookingRules, Images, Email } from './schemas';
 export type PageSlug = '' | 'agencies' | 'videographers' | 'agents';
 /** A message screenshot plus its image size, so the page can reserve its space before it loads. */
 export type Screenshot = Testimonials['screenshots'][number] & { width: number; height: number };
@@ -24,9 +26,12 @@ const publicDir = () => process.env.PUBLIC_DIR ?? 'public';
 /** Where a site path such as "/brand/logo.png" or "media/clips/x.mp4" lives on disk. */
 const inPublic = (sitePath: string) => path.join(publicDir(), sitePath.replace(/^\//, ''));
 
+/** Whether a file of the site (a site path such as "media/posters/t-x.jpg") is in public/. */
+export const publicFileExists = (sitePath: string): boolean => fs.existsSync(inPublic(sitePath));
+
 /** Stops the build when a file the page needs is not in public/, naming the content file and field. */
 function requirePublic(sitePath: string, rel: string, field: string, message: string): void {
-  if (!fs.existsSync(inPublic(sitePath))) throw new ContentError(`${shown(rel)}: ${message} (field ${field})`, shown(rel), field);
+  if (!publicFileExists(sitePath)) throw new ContentError(`${shown(rel)}: ${message} (field ${field})`, shown(rel), field);
 }
 const runMedia = (sitePath: string) => `public/${sitePath.replace(/^\//, '')} is missing; run npm run media`;
 
@@ -101,6 +106,17 @@ export function loadImages(): Images {
   return parse(imagesSchema, 'images.yaml');
 }
 
+/** One video by id, or undefined when there is none, for the running server: just videos.yaml, with none of loadVideos()'s checks of public/. */
+export function findVideo(id: string): Video | undefined {
+  return parse(videosFileSchema, 'videos.yaml').videos.find((v) => v.id === id);
+}
+
+/** The first video that has a Stream ID, for `npm run check:services` to try a signed link on: just videos.yaml, with none of loadVideos()'s checks of public/. */
+export function loadFirstStreamVideo(): { id: string; uid: string } | undefined {
+  const video = parse(videosFileSchema, 'videos.yaml').videos.find((v) => v.streamUid);
+  return video?.streamUid ? { id: video.id, uid: video.streamUid } : undefined;
+}
+
 export function getVideo(id: string): Video {
   const v = loadVideos().find((x) => x.id === id);
   if (!v) throw new ContentError(`${shown('videos.yaml')}: no video with id "${id}"`, shown('videos.yaml'), 'videos');
@@ -113,6 +129,71 @@ export function loadSite(): Site {
   requirePublic(site.brand.logo, 'site.yaml', 'brand.logo', `"${site.brand.logo}" was not found in public/; check the spelling or add the image`);
   for (const f of ['media/clips/hero-loop.mp4', 'media/posters/hero-loop.jpg']) requirePublic(f, 'site.yaml', 'settings.heroLoop', runMedia(f));
   return site;
+}
+
+/**
+ * Just the public Turnstile site key from site.yaml, for the running server: one small file read,
+ * with none of loadSite()'s build-time checks (other content files, files in public/).
+ */
+export function loadTurnstileSiteKey(): string | undefined {
+  const key = (readYaml('site.yaml') as { settings?: { turnstileSiteKey?: unknown } } | null)?.settings?.turnstileSiteKey;
+  return typeof key === 'string' ? key.trim() || undefined : undefined;
+}
+
+/**
+ * Where videos play from and whether their links are signed, for the running server: one small file read,
+ * with none of loadSite()'s build-time checks (other content files, files in public/).
+ */
+export function loadStreamSettings(): Pick<Site['settings'], 'videoSource' | 'streamCustomerCode' | 'streamSignedUrls'> {
+  return parse(streamSiteSchema, 'site.yaml').settings;
+}
+
+/**
+ * What an email needs from site.yaml: the brand name and logo for its layout, and the Reply-To address.
+ * One small file read for the running server, with none of loadSite()'s build-time checks.
+ */
+export function loadEmailSite(): { brandName: string; logo: string; replyTo: string } {
+  const { brand, contact } = parse(emailSiteSchema, 'site.yaml');
+  return { brandName: brand.name, logo: brand.logo, replyTo: contact.replyTo };
+}
+
+/**
+ * What the booking server needs from site.yaml: the call rules and the address Hassan's emails go to.
+ * One small file read for the running server, with none of loadSite()'s build-time checks.
+ */
+export function loadBookingSite(): { rules: BookingRules; hassanEmail: string } {
+  const { booking, contact } = parse(bookingSiteSchema, 'site.yaml');
+  return { rules: booking, hassanEmail: contact.notificationEmail };
+}
+
+/**
+ * The Meta Pixel id from site.yaml (none when empty), for the running server: one small file read, with none of loadSite()'s
+ * build-time checks. The server sends events to Meta's Conversions API only when there is one.
+ */
+export function loadMetaPixelId(): string | undefined {
+  return parse(trackingSiteSchema, 'site.yaml').tracking?.metaPixelId;
+}
+
+/** The name shown in messages for an email's wording file, e.g. "content/emails/reminder-1h.yaml". */
+export const emailFile = (kind: EmailKind) => shown(`emails/${kind}.yaml`);
+
+/** One email's wording. Every {placeholder} in it is one that email is allowed to use. */
+export function loadEmail(kind: EmailKind): Email {
+  const rel = `emails/${kind}.yaml`;
+  const email = parse(emailSchema, rel);
+  const allowed = allowedPlaceholders(kind);
+  const wording: Array<[field: string, text: string]> = [['subject', email.subject], ['body', email.body]];
+  if (email.button) wording.push(['button.label', email.button.label]);
+  for (const [field, text] of wording) {
+    for (const piece of splitPlaceholders(text)) {
+      if ('placeholder' in piece && !allowed.includes(piece.placeholder)) {
+        const list = allowed.map((name) => `{${name}}`).join(' ');
+        const instead = allowed.length ? `use only ${list}` : 'it takes no {placeholders} at all';
+        throw new ContentError(`${shown(rel)}: {${piece.placeholder}} can't be used in this email; ${instead} (field ${field})`, shown(rel), field);
+      }
+    }
+  }
+  return email;
 }
 
 export function loadPage(slug: PageSlug): Page {

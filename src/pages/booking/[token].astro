@@ -1,0 +1,48 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import ManageBooking from '../../components/ManageBooking.astro';
+import { loadSection } from '../../lib/content/load';
+import { toManageView, type ManageState } from '../../server/booking/manage-view';
+import { getContext, type ServerContext } from '../../server/context';
+import { kindOf } from '../../server/http/handlers';
+
+const mg = loadSection('manage-booking');
+
+// A private page for one booking: it is never kept by a cache, and (below) never indexed. Whatever the answer is, it is this one.
+Astro.response.headers.set('cache-control', 'no-store');
+// Its address holds the secret manage token: a link or request from this page must never carry it as a referrer (to the Pixel or the Google tag on the next page).
+Astro.response.headers.set('referrer-policy', 'no-referrer');
+
+let state: ManageState;
+let ctx: ServerContext | undefined;
+try {
+  ctx = await getContext();
+} catch (e) {
+  console.error(`manage page: the server could not start (${kindOf(e)})`);
+}
+if (!ctx?.service) {
+  state = { kind: 'error' };
+  Astro.response.status = 503; // booking is not connected
+} else {
+  try {
+    const managed = await ctx.service.getManaged(Astro.params.token ?? '');
+    state = managed ? { kind: 'found', view: toManageView(managed) } : { kind: 'not_found' };
+    if (!managed) Astro.response.status = 404;
+  } catch (e) {
+    console.error(`manage page: the lookup failed (${kindOf(e)})`); // the kind of error only: the message could hold the link
+    state = { kind: 'error' };
+    Astro.response.status = 500;
+  }
+}
+---
+<BaseLayout seo={{ title: mg.title, description: mg.heading, noindex: true }} tracking={false}>
+  <section class="sec hero-sec legal">
+    <Nav base="/" />
+    <ManageBooking state={state} />
+  </section>
+  <Footer />
+</BaseLayout>

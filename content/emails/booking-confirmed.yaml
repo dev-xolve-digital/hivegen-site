@@ -1,0 +1,21 @@
+# To the visitor, when their call is booked (Google also sends its own calendar invite).
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {when} {timezone} {meetUrl} {manageUrl}
+# {when} is the visitor's own time. The button shows only when Google has given a Meet link,
+# so the words must read well without it: do not put {meetUrl} in the subject or the body.
+# [confirm] Google puts the Meet link in the invite even when it was not ready at booking time.
+subject: "You're booked: 15-minute call with HiveGen, {when}"
+body: |
+  Hi {name},
+
+  You're booked for {when} ({timezone}). The Google Meet link is in your calendar invite.
+
+  To make the call count, have raw footage from one listing ready (a Google Drive, Dropbox or WeTransfer link is fine). Your first edit is free.
+
+  Need another time? Reschedule or cancel: {manageUrl}
+
+  Talk soon,
+  Hassan · HiveGen
+button:
+  label: Join the call
+  link: meet   # meet = the Google Meet link (the button is left out when there is none); manage = the reschedule/cancel page

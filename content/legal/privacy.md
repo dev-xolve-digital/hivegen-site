@@ -10,7 +10,7 @@ When you book a call, we collect the details you type into the booking form: you
 
 ## How we use it
 
-We use your details only to arrange your call, send your calendar invite and reminders, and set up your free first edit. We don't sell your details.
+We use your details only to arrange your call, send your calendar invite and reminders, and set up your free first edit. If you use the "Send details" form instead, the details you send, including your message and what you need, are used to reply to you by email and to make your free first edit. We don't sell your details.
 
 ## Contact
 

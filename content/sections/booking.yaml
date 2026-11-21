@@ -9,6 +9,42 @@ instagramLine: Prefer to chat? Message us on Instagram
 steps:
   details: Your details
   time: Pick a time
+# The switch at the top of the form panel: the call (selected when the page opens) or the form below.
+switch:
+  label: How would you like to reach us?   # read out by screen readers only
+  call: Book a call
+  details: Send details
+# The form for visitors who would rather not have a call. Only the email is required.
+inquiry:
+  heading: Send us your details
+  subline: Rather not have a call? Tell us about your listings and we'll reply by email. Your first edit is still free.
+  note: Only your email is required. The rest helps us reply with the right answer.
+  fields:
+    email: Email
+    name: Name
+    phone: Phone or WhatsApp
+    buyer: I am a…
+    volume: Videos per month
+    needs: What do you need?
+    footage: Raw footage link
+    footageHint: A Google Drive, Dropbox or WeTransfer link is fine.
+    message: Message
+  optionalTag: (optional)
+  needsTag: (pick any)
+  footageTag: (optional, for your free edit)
+  messagePlaceholder: Your listings, the style you like, deadlines, or any question.
+  needOptions: ["Listing videos", "Reels for social", "3D & AI hooks", "Not sure yet"]
+  submitLabel: Send my details
+  consentLine: We'll reply by email, usually within a day. We only use your details to answer you and make your free edit.   # [confirm: "usually within a day"]
+  done:
+    heading: Thanks, we've got your details.
+    text: We'll reply to {email}, usually within a day.   # {email} is the address they typed; keep it
+  errors:
+    email: Please enter a valid email.
+    name: Please check your name.
+    phone: Please check the phone number. Use digits, spaces, + ( ) or -.
+    footage: Please paste the full link, starting with https://.
+    message: Please keep your message under 2,000 characters.
 fields:
   name: Name
   email: Email
@@ -34,6 +70,11 @@ consentLine: By booking, you agree to our Privacy Policy. We only use your detai
 timeHeading: Pick a time
 timeNote: Times shown in your time zone ({timezone}).
 noSlots: No times are open in the next two weeks. Message us on Instagram and we'll find one.
+# Shown above the times when the calendar could not be checked. {backupLink} becomes a link to the backup appointment page
+# (backupUrl in site.yaml), written with the words of backupLabel. With no backupUrl set, the link is left out.
+calendarNote: We couldn't check the calendar just now, so we'll confirm your time by email. {backupLink}
+backupLabel: Or pick a time on our own appointment page
+# The visitor's booking is confirmed (Google made the event).
 confirmation:
   heading: You're booked.
   text: We've sent a calendar invite with a Google Meet link to {email}.
@@ -43,12 +84,38 @@ confirmation:
     - Send footage from one listing; your first edit is free.
     - Get your video in 24–48 hours.
   addToCalendar: Add to calendar
+  manageLabel: Reschedule or cancel   # the link to the visitor's private booking page
   calendarTitle: 15-minute call with HiveGen   # event name used by "Add to calendar"
   instagramLabel: Chat on Instagram
+# The time is held but Google could not make the event, so it is confirmed by hand. {when} and {email} are filled in.
+# Never say "booked" here: the visitor has not got a calendar invite yet.
+requested:
+  heading: We've got your request.
+  text: We're holding {when} for you. We confirm these calls by hand, so you'll get an email at {email} with your Google Meet link as soon as it's done.
+# In place of the form when online booking is not available (not set up yet, or the server cannot be reached).
+offline:
+  heading: Booking is not available right now.
+  text: Message us on Instagram and we'll find a time that suits you. Your first edit is still free.
+honeypotLabel: Leave this field empty   # a hidden field that only robots fill in; people never see it
 errors:
   name: Please enter your name.
   email: Please enter a valid email.
+  buyer: Please choose what describes you best.
+  volume: Please choose how many videos you need each month.
+  phone: Please check the phone number. Use digits, spaces, + ( ) or -.
+  footage: Please paste the full link, starting with https://.
   slotTaken: That time was just taken. Please pick another one.
+  # Shown only when the details were saved but the times could not be loaded. Do not promise a time: Hassan follows up on every saved lead.
   # [confirm: how fast Hassan replies]
-  unreachable: Your details are saved. We'll confirm your time by email shortly.
-demoNote: "Demo booking: no real call is booked yet. Real calendar booking arrives in the next phase."
+  unreachable: Your details are saved, but we couldn't load the times just now. Please try again in a moment, or we'll be in touch by email.
+  network: We couldn't send your details. Please check your connection and try again, or message us on Instagram.
+  # Shown when the booking itself failed: nothing is booked and nobody has been told yet, so never say the details are handled.
+  confirm: We couldn't confirm your booking just now. Please try again, or message us on Instagram.
+  botCheck: We couldn't check that you're a person. Please try again in a moment, or message us on Instagram.
+  rateLimited: Too many tries from this connection. Please wait a little and try again, or message us on Instagram.
+# The calendar invite the visitor receives. {name} and {manageUrl} are filled in by the site.
+# Keep personal details (phone, volume, ads) out of the description: the visitor sees it in their calendar.
+calendarEvent:
+  title: "HiveGen call · {name}"
+  description: "Your 15-minute call with HiveGen. Join with the Google Meet link in this invite. To reschedule or cancel: {manageUrl}"
+demoNote: "Demo booking: no real call is booked and nothing is sent. The real calendar is not connected on this copy of the site."

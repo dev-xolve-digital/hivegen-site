@@ -1,21 +1,22 @@
 # 05 · Before / after
-# A drag slider: the raw clip underneath, the finished edit on top, the same moment from both.
-# `npm run media` cuts the two short clips from the files under references/; the site serves them
-# itself (never Stream). Keep start and duration the same in both so the frames line up.
-#   boomerang: true     plays each clip forward then backward, so the loop has no jump
-#   fullVideoId         a video in videos.yaml; its button plays the full edit from Stream
+# A drag slider: the raw video underneath, the finished edit on top. Both play the whole video.
+# `npm run media` makes the two clips from the files under references/; the site serves them
+# itself (never Stream). A clip is the whole video unless `start` and `duration` cut it
+# (both in seconds, and `duration` can be left out to run to the end).
+#   posterAt: 2.5       the moment in seconds that the still image shows before the videos play
+#   boomerang: true     plays each clip forward then backward, so the loop has no jump;
+#                       it suits only short clips, so leave it off (false) for the whole videos
 # After changing anything under slider:, run `npm run media`.
 mode: slider
 heading: Same footage. Different result.
-subline: Drag the handle to compare a raw clip with our finished edit.
+subline: Drag the handle to compare the raw footage with our finished edit.
 labels:
   before: Raw footage
   after: HiveGen edit
-ariaLabel: Compare the raw porch shot with the same shot after HiveGen's edit
+ariaLabel: Compare the raw footage with HiveGen's edit
 slider:
-  before: { source: final-videos/Section-05/raw-section-5.mp4, start: 38.17, duration: 2.96 }
-  after: { source: final-videos/Section-05/edited-section-5.mp4, start: 38.17, duration: 2.96 }
-  boomerang: true
-  fullVideoId: v-before-after-edit
-  fullVideoLabel: Watch the full edit
+  before: { source: final-videos/Section-05/raw-section-5.mp4, start: 0 }
+  after: { source: final-videos/Section-05/edited-section-5.mp4, start: 0 }
+  boomerang: false
+  posterAt: 2.5
 sample: false

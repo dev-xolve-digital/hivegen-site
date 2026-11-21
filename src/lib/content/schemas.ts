@@ -17,22 +17,68 @@ export const bookingSchema = z.strictObject({
   bufferMinutes: z.number().int().min(0),
   minNoticeMinutes: z.number().int().min(0),
   horizonDays: z.number().int().positive(),
+  /** Hassan's own appointment page: offered when the calendar cannot be checked, and when booking is offline. Empty or left out means none. */
+  backupUrl: z.union([z.literal(''), z.url({ protocol: /^https?$/ })]).transform((v) => v || undefined).optional(),
+});
+
+/** One public tracking id: empty means that tracker is off. The shape is checked so a pasted snippet never reaches a page or an address. */
+const trackingId = (shape: RegExp, example: string) => z.string().trim()
+  .refine((v) => v === '' || shape.test(v), `must look like ${example}, or be empty to switch it off`)
+  .transform((v) => v || undefined).optional();
+
+/** The ad trackers' public ids from site.yaml. The access token for Meta's Conversions API is a secret, so it is not here (META_CAPI_TOKEN). */
+export const trackingSchema = z.strictObject({
+  /** The Meta Pixel (Events Manager > Data sources): digits. Also what switches the server-side Conversions API on. */
+  metaPixelId: trackingId(/^\d{6,20}$/, '1234567890123456'),
+  /** The Google tag / GA4 measurement id. */
+  googleTagId: trackingId(/^(G|GT)-[A-Za-z0-9]{4,}$/, 'G-ABC123XYZ4'),
+  /** The Google Ads account id. */
+  googleAdsId: trackingId(/^AW-\d{6,}$/, 'AW-123456789'),
+  /** The label of the Google Ads conversion for a booked call (with the account id it makes the "send_to"). */
+  googleAdsScheduleLabel: trackingId(/^[A-Za-z0-9_-]{4,}$/, 'AbC-D_efG-h'),
 });
 
 export const siteSchema = z.strictObject({
   brand: z.strictObject({ name: text, logo: text }),
-  contact: z.strictObject({ notificationEmail: z.email(), instagramHandle: text, instagramUrl: z.url() }),
+  contact: z.strictObject({ notificationEmail: z.email(), replyTo: z.email(), instagramHandle: text, instagramUrl: z.url() }),
   booking: bookingSchema,
   settings: z.strictObject({
     videoSource: z.enum(['local', 'stream']),
     streamCustomerCode: text.optional(),
+    streamSignedUrls: z.boolean().default(false),
+    turnstileSiteKey: z.string().trim().optional(),
     live3dOnMobile: z.boolean(),
     showBeforeAfter: z.boolean(),
     heroLoop: z.strictObject({ videoId: text, start: z.number().min(0), duration: z.number().positive() }),
   }).refine((s) => s.videoSource !== 'stream' || !!s.streamCustomerCode, {
     message: 'is needed when videoSource is stream', path: ['streamCustomerCode'],
   }),
+  tracking: trackingSchema.optional(),
 });
+
+/** Just the site.yaml values an email needs. The rest of the file is not looked at. */
+export const emailSiteSchema = z.looseObject({
+  brand: siteSchema.shape.brand,
+  contact: z.looseObject({ replyTo: siteSchema.shape.contact.shape.replyTo }),
+});
+
+/** Just the site.yaml values the booking server needs: the call rules and where Hassan's emails go. The rest of the file is not looked at. */
+export const bookingSiteSchema = z.looseObject({
+  booking: bookingSchema,
+  contact: z.looseObject({ notificationEmail: siteSchema.shape.contact.shape.notificationEmail }),
+});
+
+/** Just the site.yaml values the video route needs: where videos play from, and whether their links are signed. The rest of the file is not looked at. */
+export const streamSiteSchema = z.looseObject({
+  settings: z.looseObject({
+    videoSource: siteSchema.shape.settings.shape.videoSource,
+    streamCustomerCode: siteSchema.shape.settings.shape.streamCustomerCode,
+    streamSignedUrls: siteSchema.shape.settings.shape.streamSignedUrls,
+  }),
+});
+
+/** Just the site.yaml values the booking server needs for tracking: whether there is a Meta Pixel. The rest of the file is not looked at. */
+export const trackingSiteSchema = z.looseObject({ tracking: trackingSchema.optional() });
 
 export const pageSchema = z.strictObject({
   slug: z.enum(['', 'agencies', 'videographers', 'agents']),
@@ -73,12 +119,13 @@ export const imagesSchema = z.strictObject({
 });
 export const videosFileSchema = z.strictObject({ videos: z.array(videoSchema).min(1) });
 
-const clip = z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive() });
+/** A slider clip. Without a duration it runs from `start` to the end of the video. */
+const clip = z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive().optional() });
 export const sectionSchemas = {
   nav: z.strictObject({ links: z.array(link), cta: link }),
   hero: z.strictObject({
     primaryCta: link, instagramCta: z.strictObject({ label: text }), videoLabel: text, videoDuration: text,
-    videoAriaLabel: text, floatTitle: text, floatText: text, closeVideoLabel: text,
+    videoAriaLabel: text, floatTitle: text, floatText: text, closeVideoLabel: text, videoErrorText: text,
   }),
   'recent-edits': z.strictObject({ heading: text, subline: text, verticalLabel: text, horizontalLabel: text, prevLabel: text, nextLabel: text }),
   'who-its-for': z.strictObject({
@@ -93,7 +140,15 @@ export const sectionSchemas = {
     labels: z.strictObject({ before: text, after: text }),
     ariaLabel: text,
     reveal: z.strictObject({ source: text, start: z.number().min(0), duration: z.number().positive(), slowdown: z.number().positive(), cutAt: z.number().min(0) }).optional(),
-    slider: z.strictObject({ before: clip, after: clip, boomerang: z.boolean().optional(), fullVideoId: text.optional(), fullVideoLabel: text.optional() }).optional(),
+    slider: z.strictObject({
+      before: clip,
+      after: clip,
+      boomerang: z.boolean().optional(),
+      /** The still shown before playback, in seconds from the start of the clip. */
+      posterAt: z.number().min(0).optional(),
+      fullVideoId: text.optional(),
+      fullVideoLabel: text.optional(),
+    }).optional(),
     sample: z.boolean(),
     note: text.optional(),
   }).superRefine((s, ctx) => {
@@ -120,6 +175,26 @@ export const sectionSchemas = {
     bullets: z.array(text),
     instagramLine: text,
     steps: z.strictObject({ details: text, time: text }),
+    /** The switch at the top of the form panel. `label` is read out by screen readers only. */
+    switch: z.strictObject({ label: text, call: text, details: text }),
+    /** The "Send details" form. Only the email is required. */
+    inquiry: z.strictObject({
+      heading: text,
+      subline: text,
+      note: text,
+      fields: z.strictObject({ email: text, name: text, phone: text, buyer: text, volume: text, needs: text, footage: text, footageHint: text, message: text }),
+      optionalTag: text,
+      needsTag: text,
+      footageTag: text,
+      messagePlaceholder: text,
+      /** The choices of "What do you need?". The server accepts only these. */
+      needOptions: z.array(text).min(1).refine((list) => new Set(list).size === list.length, 'must not repeat a choice'),
+      submitLabel: text,
+      consentLine: text,
+      /** {email} is the address the visitor typed. */
+      done: z.strictObject({ heading: text, text: text.refine((s) => s.includes('{email}'), 'must keep the {email} placeholder') }),
+      errors: z.strictObject({ email: text, name: text, phone: text, footage: text, message: text }),
+    }),
     fields: z.strictObject({ name: text, email: text, phone: text, buyer: text, volume: text, footage: text, footageHint: text }),
     buyerOptions: z.array(z.strictObject({ value: z.enum(['agency', 'videographer', 'agent', 'other']), label: text })),
     volumeOptions: z.array(text).min(1),
@@ -130,15 +205,44 @@ export const sectionSchemas = {
     timeHeading: text,
     timeNote: text,
     noSlots: text,
-    confirmation: z.strictObject({ heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, calendarTitle: text, instagramLabel: text }),
-    errors: z.strictObject({ name: text, email: text, slotTaken: text, unreachable: text }),
+    /** Shown above the times when the calendar could not be checked. {backupLink} becomes a link with the words of backupLabel. */
+    calendarNote: text.refine((s) => s.includes('{backupLink}'), 'must keep the {backupLink} placeholder'),
+    backupLabel: text,
+    confirmation: z.strictObject({
+      heading: text, text: text, nextStepsHeading: text, nextSteps: z.array(text), addToCalendar: text, manageLabel: text, calendarTitle: text, instagramLabel: text,
+    }),
+    requested: z.strictObject({ heading: text, text: text }),
+    offline: z.strictObject({ heading: text, text: text }),
+    honeypotLabel: text,
+    errors: z.strictObject({
+      name: text, email: text, buyer: text, volume: text, phone: text, footage: text,
+      slotTaken: text, unreachable: text, network: text, confirm: text, botCheck: text, rateLimited: text,
+    }),
+    calendarEvent: z.strictObject({ title: text, description: text }),
     demoNote: text,
   }),
   faq: z.strictObject({ heading: text, items: z.array(z.strictObject({ q: text, a: text })) }),
   'final-cta': z.strictObject({ headingLines: z.array(text).min(1), highlight: text, subline: text, ctaLabel: text, instagramLabel: text }),
   footer: z.strictObject({ copyright: text, tagline: text, links: z.array(link) }),
   'not-found': z.strictObject({ title: text, heading: text, text: text }),
+  /** The reschedule/cancel page. {when} in the two result texts is the call time; the rescheduled text must show it. */
+  'manage-booking': z.strictObject({
+    title: text, heading: text, whenLabel: text, meetLabel: text,
+    rescheduleLabel: text, rescheduleHeading: text, confirmRescheduleLabel: text,
+    cancelLabel: text, cancelConfirmText: text, cancelConfirmLabel: text, keepLabel: text,
+    cancelledText: text,
+    rescheduledText: text.refine((s) => s.includes('{when}'), 'must keep the {when} placeholder'),
+    tooLateText: text, notFoundText: text, errorText: text,
+  }),
 };
+
+/** One email: a subject, a body and optionally one button. Words in {curly braces} are filled in when it is sent. */
+export const emailSchema = z.strictObject({
+  subject: text,
+  body: text,
+  /** `meet` goes to the Google Meet link (left out when there is none); `manage` goes to the visitor's reschedule/cancel page. */
+  button: z.strictObject({ label: text, link: z.enum(['meet', 'manage']) }).optional(),
+});
 
 export const testimonialsSchema = z.strictObject({
   heading: text,
@@ -154,5 +258,6 @@ export type BookingRules = z.infer<typeof bookingSchema>;
 export type Page = z.infer<typeof pageSchema>;
 export type Video = z.infer<typeof videoSchema>;
 export type Testimonials = z.infer<typeof testimonialsSchema>;
+export type Email = z.infer<typeof emailSchema>;
 export type Images = z.infer<typeof imagesSchema>;
 export type Sections = { [K in keyof typeof sectionSchemas]: z.infer<(typeof sectionSchemas)[K]> };

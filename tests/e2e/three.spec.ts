@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 test('desktop: seven 3D objects render', async ({ page, isMobile }) => {
   test.skip(!!isMobile);
   await page.goto('/');

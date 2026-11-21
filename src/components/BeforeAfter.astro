@@ -2,7 +2,7 @@
 import SampleTag from './SampleTag.astro';
 import BeforeAfterScript from './BeforeAfterScript.astro';
 import { getVideo, loadSite, type Sections } from '../lib/content/load';
-import { resolveVideo, imageUrl } from '../lib/media';
+import { resolveVideo, lightboxJson, imageUrl } from '../lib/media';
 interface Props { enabled: boolean; section: Sections['before-after'] }
 const { enabled, section: s } = Astro.props;
 const draft = process.env.SITE_MODE !== 'production';
@@ -11,7 +11,7 @@ let full: string | undefined;
 if (enabled && s.mode === 'slider' && s.slider?.fullVideoId) {
   const v = getVideo(s.slider.fullVideoId);
   const { play } = resolveVideo(v, loadSite().settings);
-  full = JSON.stringify({ kind: play.kind, src: play.src, orientation: v.orientation, title: v.title });
+  full = lightboxJson(v, play);
 }
 ---
 {enabled && (

@@ -10,3 +10,4 @@ videoAriaLabel: Watch the full portfolio reel with sound
 floatTitle: 24–48h
 floatText: from footage to final cut
 closeVideoLabel: Close video   # the close button on every video pop-up
+videoErrorText: This video could not be loaded. Please close it and try again.   # shown inside the pop-up when a video's link can't be fetched

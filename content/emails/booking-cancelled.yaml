@@ -1,0 +1,13 @@
+# To the visitor, after they cancel their call.
+# Words in {curly braces} are filled in by the site; keep them as they are. You can use:
+#   {name} {when} {timezone} {manageUrl}
+# {when} is the time that was cancelled.
+# Every other email to the visitor carries the reschedule/cancel link; this one leaves it out on purpose, because the booking is gone.
+# [confirm] connect@hivegen.co reaches Hassan, so "reply to this email" works.
+subject: "Cancelled: your HiveGen call, {when}"
+body: |
+  Hi {name},
+
+  Your call on {when} ({timezone}) is cancelled.
+
+  Want another time? Just reply to this email and we'll find one.

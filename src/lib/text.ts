@@ -9,3 +9,13 @@ export function keepHyphenated(s: string): string {
 export function fillTerms(template: string, min: number, revisions: number): string {
   return template.replace(/\{min\}/g, String(min)).replace(/\{revisions\}/g, String(revisions)).replace(/\{s\}/g, revisions === 1 ? '' : 's');
 }
+
+/** JSON for a `<script type="application/json">` in a page: "<" is escaped, so no wording can ever close the script tag. */
+export function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+/** Fills {name} placeholders from `values` in one pass, so a value is never read as a placeholder. One that is not in `values` stays as written. */
+export function fillPlaceholders(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key: string) => values[key] ?? whole);
+}
