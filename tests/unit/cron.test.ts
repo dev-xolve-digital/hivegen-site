@@ -62,9 +62,9 @@ function world() {
 
   let n = 0;
   /** A lead saved at `createdAt`; `status` is what the lead row says. */
-  async function lead(createdAt: Date, status: LeadStatus = 'started'): Promise<Lead> {
+  async function lead(createdAt: Date, status: LeadStatus = 'started', email?: string): Promise<Lead> {
     n += 1;
-    const input: NewLead = { publicId: `lead-${n}`, name: 'Zoë O’Brien', email: `zoe+${n}@example.com`, buyerType: 'agent', volume: '6–15', pageVersion: 'agents', attribution: {} };
+    const input: NewLead = { publicId: `lead-${n}`, name: 'Zoë O’Brien', email: email ?? `zoe+${n}@example.com`, buyerType: 'agent', volume: '6–15', pageVersion: 'agents', attribution: {} };
     const l = await store.createLead(input, createdAt);
     if (status !== 'started') await store.updateLead(l.id, { status }, createdAt);
     return (await store.getLead(l.id))!;
@@ -273,6 +273,77 @@ describe('the new-lead email', () => {
     w.failing.clear();
     expect(await w.run(after(NOW, 35 * MIN))).toEqual({ ...quiet, newLeadEmails: 1 });
     expect(w.kinds()).toEqual(['hassan-new-lead']);
+  });
+});
+
+describe('the new-lead email: a visitor who also sent the "Send details" form', () => {
+  const email = 'Visitor@Example.com';
+  /** The same address typed again in the other form. */
+  const retyped = 'visitor@example.COM';
+  const marked = async (w: ReturnType<typeof world>, id: number) => (await w.store.getLead(id))!.newLeadNotifiedAt;
+  /** An inquiry whose own emails have gone out, as sendInquiry marks them: the pass has nothing of it to send again. */
+  async function inquiryOf(w: ReturnType<typeof world>, createdAt: Date, address: string) {
+    const l = await w.lead(createdAt, 'inquiry', address);
+    await w.store.updateLead(l.id, { hassanNotifiedAt: createdAt, visitorNotifiedAt: createdAt }, createdAt);
+    return l;
+  }
+
+  it('form first, then the call flow (another tab): no "no time picked" email, and the lead is marked so it is never looked at again', async () => {
+    const w = world();
+    await inquiryOf(w, NOW, email);
+    const started = await w.lead(after(NOW, 5 * MIN), 'started', retyped);
+    const at = after(NOW, 36 * MIN); // 31 minutes after the call-flow lead
+
+    expect(await w.run(at)).toEqual(quiet);
+    expect(w.tried).toEqual([]); // not even tried
+    expect(await marked(w, started.id)).toEqual(at);
+    expect(await w.run(after(at, 3 * DAY))).toEqual(quiet);
+    expect(w.tried).toEqual([]);
+  });
+
+  it('the call flow first, then the form without a leadId: no email either, though it was due', async () => {
+    const w = world();
+    const started = await w.lead(NOW, 'started', email);
+    await inquiryOf(w, after(NOW, 10 * MIN), retyped);
+    const at = after(NOW, 30 * MIN);
+
+    expect(await w.run(at)).toEqual(quiet);
+    expect(w.tried).toEqual([]);
+    expect(await marked(w, started.id)).toEqual(at);
+  });
+
+  it('a started lead with no inquiry of its address still gets its email, even when another address looks alike', async () => {
+    const w = world();
+    await inquiryOf(w, NOW, 'someone.else@example.com');
+    await inquiryOf(w, NOW, 'visitor+inquiry@example.com');
+    await inquiryOf(w, NOW, 'visitor@example.com.au');
+    const alone = await w.lead(NOW, 'started', 'visitor@example.com');
+    expect(await w.run(after(NOW, 31 * MIN))).toEqual({ ...quiet, newLeadEmails: 1 });
+    expect(w.sent.map((s) => s.data.lead.id)).toEqual([alone.id]);
+  });
+
+  it('only an inquiry within 7 days of the call-flow lead counts, before or after it', async () => {
+    const w = world();
+    const now = new Date('2026-12-20T10:00:00.000Z');
+    const leadAt = before(now, 31 * MIN);
+    await inquiryOf(w, before(leadAt, 7 * DAY), 'a@example.com'); // exactly 7 days earlier: counts
+    await inquiryOf(w, before(leadAt, 7 * DAY + 1), 'b@example.com'); // a millisecond more: does not
+    const matched = await w.lead(leadAt, 'started', 'a@example.com');
+    const unmatched = await w.lead(leadAt, 'started', 'b@example.com');
+
+    expect(await w.run(now)).toEqual({ ...quiet, newLeadEmails: 1 });
+    expect(w.sent.map((s) => s.data.lead.id)).toEqual([unmatched.id]);
+    expect(await marked(w, matched.id)).toEqual(now);
+    expect(await marked(w, unmatched.id)).toEqual(now);
+  });
+
+  it('a lead that booked is not the new-lead pass\'s business, whatever else its address sent', async () => {
+    const w = world();
+    const booked = await w.booking(START, NOW); // its lead has the address zoe+1@example.com
+    await inquiryOf(w, NOW, 'zoe+1@example.com');
+    expect(await w.run(after(NOW, 31 * MIN))).toEqual(quiet);
+    expect(w.tried).toEqual([]);
+    expect(await marked(w, booked.leadId)).toBeUndefined();
   });
 });
 

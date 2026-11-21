@@ -101,10 +101,29 @@ export async function runScheduledWork(d: ScheduledDeps): Promise<ScheduledSumma
 
   // A lead that filled in the form but picked no time: Hassan hears of it once, after 30 minutes. A lead who booked no longer has the
   // status "started"; the active-booking check covers the moment inside `book()`, when the booking is saved and the lead is not yet updated.
+  // A visitor who also sent the "Send details" form (an inquiry with the same address, made up to 7 days before or after the lead, in this
+  // tab or another) is already known to Hassan by an email of its own: no "no time picked" email, and the lead is marked so it is not looked at again.
+  let inquiryTimes: Map<string, number[]> | undefined;
+  const inquiriesOf = async (email: string): Promise<number[]> => {
+    if (!inquiryTimes) {
+      inquiryTimes = new Map();
+      // A lead looked at here is at most 7 days old, and an inquiry counts up to 7 days before it: so 14 days back is enough.
+      for (const l of await d.store.leadsCreatedBetween(iso(at - 2 * NEW_LEAD_WINDOW), iso(at + 1))) {
+        if (l.status !== 'inquiry') continue;
+        const key = l.email.toLowerCase();
+        inquiryTimes.set(key, [...(inquiryTimes.get(key) ?? []), l.createdAt.getTime()]);
+      }
+    }
+    return inquiryTimes.get(email.toLowerCase()) ?? [];
+  };
   for (const lead of await d.store.leadsCreatedBetween(iso(at - NEW_LEAD_WINDOW), iso(at - NEW_LEAD_AFTER + 1))) {
     if (lead.status !== 'started' || lead.newLeadNotifiedAt) continue;
     if (lead.createdAt.getTime() > at - NEW_LEAD_AFTER || lead.createdAt.getTime() < at - NEW_LEAD_WINDOW) continue;
     if (await d.store.getActiveBookingForLead(lead.id)) continue;
+    if ((await inquiriesOf(lead.email)).some((made) => Math.abs(made - lead.createdAt.getTime()) <= NEW_LEAD_WINDOW)) {
+      await d.store.updateLead(lead.id, { newLeadNotifiedAt: now }, now);
+      continue;
+    }
     if (await trySend('hassan-new-lead', { lead })) {
       await d.store.updateLead(lead.id, { newLeadNotifiedAt: now }, now);
       summary.newLeadEmails += 1;
