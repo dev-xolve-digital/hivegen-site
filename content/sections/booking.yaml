@@ -41,6 +41,7 @@ inquiry:
     text: We'll reply to {email}, usually within a day.   # {email} is the address they typed; keep it
   errors:
     email: Please enter a valid email.
+    name: Please check your name.
     phone: Please check the phone number. Use digits, spaces, + ( ) or -.
     footage: Please paste the full link, starting with https://.
     message: Please keep your message under 2,000 characters.

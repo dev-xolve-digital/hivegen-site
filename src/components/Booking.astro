@@ -107,7 +107,7 @@ const [noteBefore, noteAfter] = b.calendarNote.split('{backupLink}');
             <p class="calnote">{inq.note}</p>
             <div class="row2">
               <div class="fld" data-inq-field="email"><label for="iq-email">{inq.fields.email}</label><input class="inp" id="iq-email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="iq-email-err" /><span class="err" id="iq-email-err" data-inq-error="email" role="alert" hidden></span></div>
-              <div class="fld" data-inq-field="name"><label for="iq-name">{inq.fields.name} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-name" name="name" autocomplete="name" aria-describedby="iq-name-err" /><span class="err" id="iq-name-err" data-inq-error="name" role="alert" hidden></span></div>
+              <div class="fld" data-inq-field="name"><label for="iq-name">{inq.fields.name} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-name" name="name" maxlength="100" autocomplete="name" aria-describedby="iq-name-err" /><span class="err" id="iq-name-err" data-inq-error="name" role="alert" hidden></span></div>
             </div>
             <div class="fld" data-inq-field="phone"><label for="iq-phone">{inq.fields.phone} <span>{inq.optionalTag}</span></label><input class="inp" id="iq-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="iq-phone-err" /><span class="err" id="iq-phone-err" data-inq-error="phone" role="alert" hidden></span></div>
             <fieldset class="fld" role="radiogroup" data-inq-field="buyer" aria-describedby="iq-buyer-err"><legend>{inq.fields.buyer}</legend>

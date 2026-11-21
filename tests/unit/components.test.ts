@@ -140,6 +140,7 @@ describe('the booking card: the switch and the "Send details" form', () => {
     expect(form.querySelector('input[name="email"]')!.getAttribute('type')).toBe('email');
     expect(form.querySelector('input[name="footage"]')!.getAttribute('type')).toBe('url');
     expect(form.querySelector('textarea[name="message"]')!.getAttribute('maxlength')).toBe('2000');
+    expect(form.querySelector('input[name="name"]')!.getAttribute('maxlength')).toBe('100'); // the server refuses a longer name
     // the honeypot is there, out of the tab order and out of a screen reader's way
     const trap = form.querySelector('.hp[aria-hidden="true"] input[name="website"]')!;
     expect(trap.getAttribute('tabindex')).toBe('-1');

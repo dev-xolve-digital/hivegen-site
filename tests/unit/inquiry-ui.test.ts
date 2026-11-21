@@ -105,6 +105,75 @@ describe('the Send details form: what is checked', () => {
   });
 });
 
+describe('the Send details form: free text is cleaned, and a refusal gets words that fit the field', () => {
+  it('a name has a limit the box enforces, like the message', async () => {
+    expect(field(await open(fakeApi()), 'name').maxLength).toBe(100);
+  });
+
+  it('a pasted tab (or any control character) in the name becomes one space, and the name is sent cleaned', async () => {
+    const api = fakeApi();
+    const m = await open(api);
+    fill(m, { email: 'v@example.com', name: 'Zoë\tO’Brien' });
+    send(m);
+    await vi.waitFor(() => expect(api.sendInquiry).toHaveBeenCalledTimes(1));
+    expect(api.sendInquiry.mock.calls[0][0].name).toBe('Zoë O’Brien');
+    await vi.waitFor(() => expect(isDone(m)).toBe(true));
+
+    // A run of controls is one space; at the ends they only go.
+    const run = fakeApi();
+    const n = await open(run);
+    fill(n, { email: 'v@example.com', name: '\u0001Zoë\t\u0002\u0007O’Brien\u007f' });
+    send(n);
+    await vi.waitFor(() => expect(run.sendInquiry).toHaveBeenCalledTimes(1));
+    expect(run.sendInquiry.mock.calls[0][0].name).toBe('Zoë O’Brien');
+
+    // A name that was only controls is not given at all.
+    const none = fakeApi();
+    const o = await open(none);
+    fill(o, { email: 'v@example.com', name: '\u0001\u0002' });
+    send(o);
+    await vi.waitFor(() => expect(none.sendInquiry).toHaveBeenCalledTimes(1));
+    expect(none.sendInquiry.mock.calls[0][0]).not.toHaveProperty('name');
+  });
+
+  it('a soft line break (a PowerPoint paste) or form feed in the message becomes a line break, other control characters go, and it is sent cleaned', async () => {
+    const api = fakeApi();
+    const m = await open(api);
+    fill(m, { email: 'v@example.com', message: 'Line one\u000bLine two\fLine three\u0001\u0008 ends\u007f\nand a real break\ttab kept' });
+    send(m);
+    await vi.waitFor(() => expect(api.sendInquiry).toHaveBeenCalledTimes(1));
+    expect(api.sendInquiry.mock.calls[0][0].message).toBe('Line one\nLine two\nLine three ends\nand a real break\ttab kept');
+    await vi.waitFor(() => expect(isDone(m)).toBe(true));
+
+    // A message that was only controls is not given at all.
+    const none = fakeApi();
+    const o = await open(none);
+    fill(o, { email: 'v@example.com', message: '\u0001\u0002' });
+    send(o);
+    await vi.waitFor(() => expect(none.sendInquiry).toHaveBeenCalledTimes(1));
+    expect(none.sendInquiry.mock.calls[0][0]).not.toHaveProperty('message');
+  });
+
+  it.each([['invalid'], ['too_long']] as const)('a name the server still refuses (%s) says so under the Name field, not the connection words', async (code) => {
+    const m = await open(fakeApi(async () => { throw new FieldsError({ name: code }); }));
+    fill(m, { email: 'v@example.com', name: 'Zoë' });
+    send(m);
+    await vi.waitFor(() => expect(errorOf(m, 'name').hidden).toBe(false));
+    expect(errorOf(m, 'name').textContent).toBe(inq.errors.name);
+    expect(errorOf(m, 'name').textContent).not.toBe(b.errors.network);
+    expect(m.document.activeElement).toBe(field(m, 'name'));
+    expect(formError(m).hidden).toBe(true);
+  });
+
+  it('a message the server still refuses for a control character keeps the message wording', async () => {
+    const m = await open(fakeApi(async () => { throw new FieldsError({ message: 'invalid' }); }));
+    fill(m, { email: 'v@example.com', message: 'hello' });
+    send(m);
+    await vi.waitFor(() => expect(errorOf(m, 'message').hidden).toBe(false));
+    expect(errorOf(m, 'message').textContent).toBe(inq.errors.message);
+  });
+});
+
 describe('the Send details form: what is sent', () => {
   it('sends what was given and nothing else: the trimmed name, the needs in page order, the page, the ad tags, the cookies, the honeypot, the token and the request id', async () => {
     const api = fakeApi();

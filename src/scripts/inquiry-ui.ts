@@ -9,7 +9,7 @@ import { cookie } from './cookie';
 
 /** The wording the page hands the script (from booking.yaml, as JSON in the page). Its network, bot-check and rate-limit words are the booking form's own. */
 export interface InquiryCopy {
-  errors: { email: string; phone: string; footage: string; message: string; network: string; botCheck: string; rateLimited: string };
+  errors: { email: string; name: string; phone: string; footage: string; message: string; network: string; botCheck: string; rateLimited: string };
   done: { heading: string; text: string };
 }
 
@@ -41,6 +41,10 @@ const isWebLink = (v: string) => {
   if (v.length > 500) return false;
   try { const u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
 };
+/** A name never carries a control character: a tab (two spreadsheet cells pasted into the box) or any other becomes one space. */
+const cleanName = (v: string) => v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+/** A message keeps its line breaks and tabs. A soft line break (what PowerPoint pastes) or a form feed becomes a line break; the other controls go. */
+const cleanMessage = (v: string) => v.replace(/[\u000b\u000c]/g, '\n').replace(/[\u0000-\u0008\u000e-\u001f\u007f]/g, '').trim();
 /** A tracking hook must never be able to break the form. */
 const safely = (hook: () => void) => { try { hook(); } catch { /* tracking is best effort */ } };
 
@@ -85,7 +89,9 @@ export function initInquiry(root: HTMLElement, api: BookingApi, opts: InquiryOpt
   const setError = (field: Field, on: boolean) => {
     const msg = $(`[data-inq-error="${field}"]`);
     msg.hidden = !on;
-    // The page offers only valid choices, so the server can refuse a name, a choice or a need only when the page is out of date: no words of its own then.
+    // The page offers only valid choices, so the server can refuse a buyer type, a volume or a need only when the page is out of date:
+    // no words of their own then, the connection text stands in. A name or a message the server still refuses (after the clean-up
+    // on send) has its own words.
     msg.textContent = on ? ((copy.errors as Record<string, string>)[field] ?? copy.errors.network) : '';
     control(field).setAttribute('aria-invalid', String(on));
   };
@@ -140,11 +146,11 @@ export function initInquiry(root: HTMLElement, api: BookingApi, opts: InquiryOpt
       pageVersion: root.dataset.page ?? 'main',
       attribution: readAttribution(browserStorage(win), Date.now()),
     };
-    const name = value('name');
+    const name = cleanName(value('name'));
     const buyer = value('buyer');
     const volume = value('volume');
     const needs = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="needs"]:checked'), (box) => box.value);
-    const message = value('message');
+    const message = cleanMessage(value('message'));
     const fbp = cookie(doc, '_fbp');
     const fbc = cookie(doc, '_fbc');
     if (name) input.name = name;

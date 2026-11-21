@@ -69,3 +69,12 @@ it('the inquiry words: done.text must keep {email}, and needOptions cannot be em
   process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^  submitLabel:.*\n/m, '') });
   expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.submitLabel" is missing \(field inquiry\.submitLabel\)/);
 });
+it('the inquiry name has its own refusal words, and leaving them out is named with the field', () => {
+  expect(loadSection('booking').inquiry.errors.name).toBe('Please check your name.');
+  process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^    name: Please check your name\.\r?\n/m, '') });
+  expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.errors\.name" is missing \(field inquiry\.errors\.name\)/);
+});
+it('the "What do you need?" choices are all different: a repeat would make the server refuse anyone who ticks both', () => {
+  process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^(  needOptions:).*$/m, '$1 ["Listing videos", "Reels for social", "Listing videos"]') });
+  expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.needOptions" must not repeat a choice \(field inquiry\.needOptions\)/);
+});
