@@ -1,8 +1,10 @@
+import { type Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 import { loadSection, loadSite } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime } from '../../src/lib/booking/format';
 import { generateSlots } from '../../src/lib/booking/slots';
-import { callPanel, openBooking, pretendMode } from './helpers';
+import { fillPlaceholders } from '../../src/lib/text';
+import { callPanel, inquiryPanel, openBooking, pretendMode } from './helpers';
 
 // This file runs on both devices, in parallel, against one test server: so every test here leaves the server's state alone.
 // (Demo and offline are the page being told another mode; real bookings are in booking-flow.spec.ts.)
@@ -88,12 +90,101 @@ test('off mode: no form, an offline card with Instagram instead', async ({ page 
   await expect(card.getByRole('heading', { name: b.offline.heading })).toBeVisible();
   await expect(card.getByRole('link', { name: b.confirmation.instagramLabel })).toHaveAttribute('href', loadSite().contact.instagramUrl);
   await expect(callPanel(page).locator('form')).toBeHidden();
+  // The switch and the "Send details" form go too: with no booking, there is nothing to choose between.
+  await expect(page.locator('[data-switch]')).toBeHidden();
+  await expect(page.locator('[data-view="details"]')).toBeHidden();
+  await expect(inquiryPanel(page)).toBeHidden();
   await expect(page.getByText(b.demoNote)).toBeHidden();
   await expect(page.getByTestId('booking-done')).toBeHidden();
 });
 
+// The switch at the top of the card: "Book a call" (selected when the page opens) and "Send details" (lime, and it shakes now and then).
+
+/** The ink colour of the site (--ink, #0E1233) and its lime (--lime, #D3FF52), as the browser reports them. */
+const INK = 'rgb(14, 18, 51)';
+const LIME = 'rgb(211, 255, 82)';
+const callTab = (page: Page) => page.locator('[data-view="call"]');
+const detailsTab = (page: Page) => page.locator('[data-view="details"]');
+
+test('the card opens on Book a call, with Send details in lime', async ({ page }) => {
+  await pretendMode(page, 'demo');
+  await openBooking(page, '/#book');
+  await expect(callTab(page)).toHaveAttribute('aria-selected', 'true');
+  await expect(detailsTab(page)).toHaveAttribute('aria-selected', 'false');
+  await expect(callTab(page)).toHaveText(b.switch.call);
+  await expect(detailsTab(page)).toHaveText(b.switch.details);
+  await expect(detailsTab(page)).toHaveCSS('background-color', LIME);
+  await expect(detailsTab(page)).toHaveCSS('color', INK);
+  await expect(page.locator('[data-heading="call"]')).toBeVisible();
+  await expect(callPanel(page)).toBeVisible();
+  await expect(inquiryPanel(page)).toBeHidden();
+});
+
+test('Send details shows the form and its heading; sending only an email thanks the visitor', async ({ page }) => {
+  await pretendMode(page, 'demo');
+  await openBooking(page, '/#book');
+  await detailsTab(page).click();
+  await expect(detailsTab(page)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-heading="details"]')).toHaveText(b.inquiry.heading);
+  await expect(page.locator('[data-heading="call"]')).toBeHidden();
+  await expect(callPanel(page)).toBeHidden();
+
+  await inquiryPanel(page).getByLabel(b.inquiry.fields.email).fill('ines+inquiry@example.com');
+  await inquiryPanel(page).getByRole('button', { name: b.inquiry.submitLabel }).click();
+  const done = page.locator('[data-inquiry-done]');
+  await expect(done).toBeVisible();
+  await expect(done.locator('[data-inq-done-heading]')).toHaveText(b.inquiry.done.heading);
+  await expect(done.locator('[data-inq-done-text]')).toHaveText(fillPlaceholders(b.inquiry.done.text, { email: 'ines+inquiry@example.com' }));
+  await expect(inquiryPanel(page).locator('form')).toBeHidden();
+});
+
+test('a wrong email is told on the field and nothing is sent', async ({ page }) => {
+  const sent: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('/api/booking/inquiries')) sent.push(r.url()); });
+  await pretendMode(page, 'demo');
+  await openBooking(page, '/#book');
+  await detailsTab(page).click();
+  await inquiryPanel(page).getByLabel(b.inquiry.fields.email).fill('nope');
+  await inquiryPanel(page).getByRole('button', { name: b.inquiry.submitLabel }).click();
+  await expect(inquiryPanel(page).getByText(b.inquiry.errors.email)).toBeVisible();
+  await expect(inquiryPanel(page).getByLabel(b.inquiry.fields.email)).toBeFocused();
+  await expect(page.locator('[data-inquiry-done]')).toBeHidden();
+  expect(sent).toEqual([]);
+});
+
+/** True when `[data-view="details"]` got the class `shake` at any moment in the next `ms` ms. */
+const shakesWithin = (page: Page, ms: number) => page.evaluate((window_) => new Promise<boolean>((resolve) => {
+  const tab = document.querySelector('[data-view="details"]')!;
+  let shook = tab.classList.contains('shake');
+  const watcher = new MutationObserver(() => { if (tab.classList.contains('shake')) shook = true; });
+  watcher.observe(tab, { attributes: true, attributeFilter: ['class'] });
+  setTimeout(() => { watcher.disconnect(); resolve(shook); }, window_);
+}), ms);
+
+test.describe('with reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('the button never shakes', async ({ page }) => {
+    await pretendMode(page, 'demo');
+    await openBooking(page, '/#book');
+    await page.locator('[data-switch]').scrollIntoViewIfNeeded();
+    await expect(page.locator('[data-switch]')).toBeInViewport({ ratio: 0.6 }); // the switch is on the screen, where a shake would start
+    expect(await shakesWithin(page, 2000)).toBe(false);
+    await expect(detailsTab(page)).toHaveCSS('background-color', LIME); // still lime: only the motion is left out
+  });
+});
+
 test.describe('with normal motion', () => {
   test.use({ reducedMotion: 'no-preference' });
+
+  test('the Send details button shakes once the card is in view', async ({ page }) => {
+    test.setTimeout(60_000); // the home page's live 3D can keep a busy machine's page waiting for a while: the 2 seconds below start once the card is in view
+    await pretendMode(page, 'demo');
+    await page.goto('/');
+    await page.locator('[data-switch]').scrollIntoViewIfNeeded();
+    // The first shake is meant to come 600 ms after the switch is on the screen. A shake lasts 0.7 s, so it is looked for on every frame.
+    await page.waitForFunction(() => document.querySelector('[data-view="details"]')!.classList.contains('shake'), undefined, { timeout: 2000, polling: 'raf' });
+  });
 
   test('booking buttons scroll to the booking section', async ({ page }) => {
     await page.goto('/');

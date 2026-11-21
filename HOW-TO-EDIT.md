@@ -39,6 +39,7 @@ Lines starting with `#` are notes for you. The site ignores them. Notes marked `
 | The line under each plan price | `content/sections/plans.yaml`, `termsLine:` | `termsLine: "{min}+ videos a month · {revisions} revision{s}"` |
 | The single-video bar and the free-edit note | `content/sections/plans.yaml`, `single:` and `freeNote:` | `priceFrom: 90` |
 | Every word in the booking form and its messages | `content/sections/booking.yaml` | `nextLabel: "Next: pick a time"` |
+| The "Book a call / Send details" switch and every word of the Send details form | `content/sections/booking.yaml`, `switch:` and `inquiry:` | `submitLabel: Send my details` (see "The Send details form") |
 | Questions and answers | `content/sections/faq.yaml` | add a `- q:` line and an `a:` line |
 | The last call to action | `content/sections/final-cta.yaml` | `subline: Book a 15-minute call. Your first edit is free.` |
 | Footer text and links | `content/sections/footer.yaml` | `href: https://www.instagram.com/hasan.drp` |
@@ -173,10 +174,14 @@ Words in `{curly braces}` are filled in when the email is sent. Each email may u
 | `hassan-confirm-by-hand.yaml` | Hassan, when a booking waits for him to confirm it | the same as the line above |
 | `hassan-new-lead.yaml` | Hassan, about 30 minutes after someone filled in the form but picked no time | `{name}` `{email}` `{phone}` `{buyerType}` `{volume}` `{footageUrl}` `{pageVersion}` `{source}`. There is no call time yet, so do not use `{when}` or `{whenPakistan}` |
 | `hassan-booking-changed.yaml` | Hassan, when a visitor cancels or moves their call | the same as the `hassan-new-booking` line, plus `{change}` (it says "cancelled" or "rescheduled") |
+| `hassan-new-inquiry.yaml` | Hassan, at once, when someone sends the Send details form instead of booking a call. Its Reply-To is the visitor's address, so pressing "reply" answers the visitor | `{name}` `{email}` `{phone}` `{buyerType}` `{volume}` `{needs}` `{footageUrl}` `{message}` `{pageVersion}` `{source}`. There is no call time, so do not use `{when}` or `{whenPakistan}` |
+| `inquiry-received.yaml` | The visitor, right after they send the Send details form | none, on purpose (see below) |
 
-What they stand for: `{when}` is the call time in the visitor's own zone (for example "Monday, December 7, 9:00 AM EST") and `{timezone}` is the name of that zone (for example "America/New York"); `{whenPakistan}` is the same time in Hassan's zone; `{manageUrl}` is the visitor's private reschedule and cancel page; `{source}` is where the visitor came from (for example an ad).
+What they stand for: `{needs}` is what the visitor ticked under "What do you need?", separated by commas, and `{message}` is what they wrote; `{when}` is the call time in the visitor's own zone (for example "Monday, December 7, 9:00 AM EST") and `{timezone}` is the name of that zone (for example "America/New York"); `{whenPakistan}` is the same time in Hassan's zone; `{manageUrl}` is the visitor's private reschedule and cancel page; `{source}` is where the visitor came from (for example an ad).
 
-**Every email to the visitor except the cancellation carries the reschedule and cancel link** (`{manageUrl}`, or the button that goes to it), so a visitor can always move or cancel the call. Keep it when you change the wording. The cancellation leaves it out on purpose: the booking is gone.
+**Every email to the visitor except the cancellation and the Send details confirmation carries the reschedule and cancel link** (`{manageUrl}`, or the button that goes to it), so a visitor can always move or cancel the call. Keep it when you change the wording. The cancellation leaves it out on purpose: the booking is gone. `inquiry-received.yaml` leaves it out too: someone who sent the Send details form has no booking to move or cancel.
+
+**The visitor's confirmation for the Send details form (`inquiry-received.yaml`) cannot use any `{curly braces}` word.** Anyone can type any address into a public form, and this email goes from HiveGen's own address to the address that was typed. If it repeated the name, the link or the message, a stranger could make HiveGen send their words to someone else. So it says only what you write in the file, and it never repeats what the visitor typed. If you add a `{word}` to it, the site stops when it builds and names the file. Hassan's email (`hassan-new-inquiry.yaml`) has no such limit: it is the one place the visitor's words belong.
 
 **A line that starts with `#` is a note for you.** Many email files have `# [confirm] ...` notes. A `[confirm]` note means: "this wording assumes something that only you or Hassan can check". For example, `connect@hivegen.co reaches Hassan, so "reply to this email" works`. Check it. When it is true, delete the note; when it is not, change the wording. A note such as `[confirm: how fast Hassan replies]` marks a line that promises something about timing: only keep it if you can keep it.
 
@@ -211,6 +216,7 @@ The booking section is one card with several faces. All of its words are in `con
 | Face | When it shows | Where in the file |
 |---|---|---|
 | The form, and then the times | A visitor is booking | `fields:`, `steps:`, `timeHeading:`, `timeNote:` and the buttons |
+| The Send details form, and its thank-you | A visitor chose "Send details" instead of a call | `switch:` and `inquiry:` (see "The Send details form") |
 | **Booked** | Google made the event, and the invite is on its way | `confirmation:` |
 | **Requested** | The time is held, but Google could not make the event, so Hassan confirms it by hand | `requested:` |
 | **Offline** | Booking is not set up yet, or the server cannot be reached. The form is replaced by this card with the Instagram chat button, and the backup link if there is one | `offline:` |
@@ -220,6 +226,39 @@ The booking section is one card with several faces. All of its words are in `con
 | The demo note | Only on a copy of the site where booking is not connected (for example your computer before `HOW-TO-SETUP.md`) | `demoNote:` |
 
 Two rules for the words: **never say "booked" or "confirmed" in `requested:`** (the visitor has no calendar invite yet), and keep the `{curly braces}` words (`{email}`, `{when}`, `{timezone}`, `{backupLink}`) in the lines that already have them. A note starting with `# [confirm: how fast Hassan replies]` marks a line that makes a promise about timing.
+
+## The Send details form
+
+Next to the 15-minute call, the card has a second way in for visitors who would rather not have a call: a short form that sends Hassan their details by email. A switch at the top of the card chooses between the two, and the card opens on "Book a call". Every word is in `content/sections/booking.yaml`, in two blocks.
+
+**`switch:`** is the switch itself.
+
+| Word | What it controls |
+|---|---|
+| `label:` | Read out by screen readers only; nobody sees it |
+| `call:` | The button for the call (the one that is selected when the page opens) |
+| `details:` | The lime button for the form |
+
+**`inquiry:`** is the form. Only the email is required; everything else helps Hassan reply with the right answer.
+
+| Word | What it controls |
+|---|---|
+| `heading:` and `subline:` | Replace the card's heading and the line under it while the form is open |
+| `note:` | The line at the top of the form ("Only your email is required…") |
+| `fields:` | The label of each field: `email`, `name`, `phone`, `buyer`, `volume`, `needs`, `footage`, `message`, and `footageHint` (the small line under the link field) |
+| `optionalTag:`, `needsTag:`, `footageTag:` | The small grey tags next to a label, such as "(optional)" and "(pick any)" |
+| `messagePlaceholder:` | The faint example inside the message box |
+| `needOptions:` | The choices of "What do you need?" (see below) |
+| `submitLabel:` | The send button |
+| `consentLine:` | The line under the button. It promises a reply time, so it has a `[confirm]` note: only keep "usually within a day" if you can keep it |
+| `done:` | The thank-you after a send: `heading:` and `text:`. Keep `{email}` in `text:`: it becomes the address the visitor typed |
+| `errors:` | The messages for a wrong email, phone number, link or too long a message |
+
+**`needOptions` is a list you can edit.** Each line is one tick box under "What do you need?": add a line, delete a line or reword one, and keep at least one. The visitor may tick any of them, and Hassan's email shows what they ticked next to "Needs". Write each choice once. The server accepts only the choices in this list, so after changing it on a running server, redeploy and restart the app (see "On the live site"). The "I am a…" and "Videos per month" choices are the same lists as in the call form (`buyerOptions:` and `volumeOptions:`), so changing them there changes them here.
+
+**The lime "Send details" button shakes now and then until the visitor uses the card.** It shakes for under a second, first just after the switch comes into view and then every few seconds, at most five times. It stops for good as soon as the visitor clicks a field or either button. A visitor whose device is set to reduce motion never sees it shake (the button stays lime).
+
+The form is saved as a lead and sends two emails: Hassan gets `hassan-new-inquiry.yaml` and the visitor gets `inquiry-received.yaml` (see "Booking emails"). It is counted as one "Lead" in Meta. A visitor who first filled in the call form and then sent this one is still one lead, and Hassan gets no "no time picked" email about them. When booking is switched off (the offline card), the switch and the form are hidden.
 
 ## The backup appointment link
 
@@ -234,8 +273,8 @@ booking:
 
 Under `contact:` in `content/site.yaml`:
 
-- `notificationEmail` is where Hassan's emails go (a new booking, a lead with no time picked, a change). It is never shown on the site.
-- `replyTo` is the address that every booking email asks for replies at, so when a visitor presses "reply" it reaches Hassan. It must be an address Hassan reads. The sender shown on the emails (`MAIL_FROM`) is a setting of the mailbox, not a content file: see `HOW-TO-SETUP.md`, step 3.
+- `notificationEmail` is where Hassan's emails go (a new booking, a lead with no time picked, a message from the Send details form, a change). It is never shown on the site.
+- `replyTo` is the address that every booking email to a visitor asks for replies at, so when a visitor presses "reply" it reaches Hassan. It must be an address Hassan reads. The one email that works the other way round is Hassan's `hassan-new-inquiry.yaml`: its Reply-To is the visitor, so Hassan answers them by pressing "reply". The sender shown on the emails (`MAIL_FROM`) is a setting of the mailbox, not a content file: see `HOW-TO-SETUP.md`, step 3.
 
 ## Tracking IDs
 

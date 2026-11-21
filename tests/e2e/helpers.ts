@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 /** Helpers for the browser tests that change server state (tests/e2e/booking-flow.spec.ts), over the test server's HTTP API. */
 
 /** The call booking's panel. The "Send details" form has fields with the same labels, so the call form's fields are looked up inside this panel. */
 export const callPanel = (page: Page) => page.locator('[data-flow]');
+/** The "Send details" panel: its form and, after a send, its thank-you. The same labels exist in the call panel, so look inside this one. */
+export const inquiryPanel = (page: Page) => page.locator('[data-inquiry]');
 
 export interface Slot { start: string; end: string }
 export interface Booked { status: 'booked' | 'requested'; start: string; end: string; meetUrl?: string; manageUrl: string; eventId: string }
@@ -13,6 +16,11 @@ export interface Mail { kind: string; to: string; subject: string; text: string 
 export const goodLead = {
   name: 'Zoë O’Brien', email: 'zoe+ads@example.com', phone: '+1 (555) 010-2000', buyerType: 'agent', volume: '6–15',
   footageUrl: 'https://drive.google.com/x', pageVersion: 'agents', attribution: { utm_source: 'facebook' }, turnstileToken: 'ok', website: '',
+};
+
+/** What the "Send details" form sends when only the email is given. The test server's bot check passes every token except "fail". */
+export const goodInquiry = {
+  email: 'ines+inquiry@example.com', pageVersion: 'main', attribution: {}, turnstileToken: 'ok', website: '',
 };
 
 /** Empties the test server: its bookings, calendar, outbox, tracked events and rate limits. */
@@ -27,6 +35,13 @@ export async function createLead(request: APIRequestContext, over: Record<string
   expect(res.status(), 'POST /api/booking/leads').toBe(200);
   return ((await res.json()) as { leadId: string }).leadId;
 }
+
+/**
+ * Sends the "Send details" form through the API (a new request id each time, unless `over` gives one). Returns the response so a test
+ * can look at its status; it gives `{ status: 'received', eventId }` when the details were taken.
+ */
+export const sendInquiry = (request: APIRequestContext, over: Record<string, unknown> = {}) =>
+  request.post('/api/booking/inquiries', { data: { ...goodInquiry, requestId: randomUUID(), ...over } });
 
 export async function getSlots(request: APIRequestContext): Promise<{ slots: Slot[]; calendarChecked: boolean }> {
   const res = await request.get('/api/booking/slots');
@@ -68,15 +83,28 @@ export async function trackedEvents(request: APIRequestContext): Promise<Array<{
   return res.json();
 }
 
-/** What Cloudflare's Turnstile script does for the form, in a few lines: a widget that hands out the token "test-token" (and a fresh one after reset). */
+/**
+ * What Cloudflare's Turnstile script does for the booking card, in a few lines. Each widget (the call form's, then the "Send details"
+ * form's) hands out a token of its own: "test-token" for the first, "test-token-2" for the second, and the same one again after a reset.
+ * `window.__turnstileRenders` lists the widgets as they were made (their `action` and token), so a test can see which widget a send used.
+ */
 const TURNSTILE_STUB = `(function () {
-  var callbacks = {};
+  var widgets = {};
   var count = 0;
-  var later = function (callback) { setTimeout(function () { callback('test-token'); }, 0); };
+  window.__turnstileRenders = [];
+  var later = function (callback, token) { setTimeout(function () { callback(token); }, 0); };
   window.turnstile = {
-    render: function (el, opts) { count += 1; var id = 'widget-' + count; callbacks[id] = opts.callback; later(opts.callback); return id; },
-    getResponse: function () { return 'test-token'; },
-    reset: function (id) { if (callbacks[id]) later(callbacks[id]); },
+    render: function (el, opts) {
+      count += 1;
+      var id = 'widget-' + count;
+      var token = count === 1 ? 'test-token' : 'test-token-' + count;
+      widgets[id] = { callback: opts.callback, token: token };
+      window.__turnstileRenders.push({ action: opts.action, token: token });
+      later(opts.callback, token);
+      return id;
+    },
+    getResponse: function (id) { return widgets[id] ? widgets[id].token : 'test-token'; },
+    reset: function (id) { if (widgets[id]) later(widgets[id].callback, widgets[id].token); },
     remove: function () {}
   };
 })();`;

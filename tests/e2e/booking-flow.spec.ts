@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 import { loadSection } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime, groupByLocalDay } from '../../src/lib/booking/format';
 import { fillPlaceholders } from '../../src/lib/text';
-import { book, bookNewLead, callPanel, createLead, enableTracking, getSlots, goodLead, outbox, resetServer, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
+import { book, bookNewLead, callPanel, createLead, enableTracking, getSlots, goodLead, inquiryPanel, outbox, resetServer, sendInquiry, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
 
 const b = loadSection('booking');
 const mg = loadSection('manage-booking');
@@ -140,6 +140,65 @@ test('a body over 32 KB is refused with 400 invalid before it is read into memor
   expect(res.headers()['cache-control']).toBe('no-store');
   expect(await res.json()).toEqual({ error: 'invalid' });
   expect((await trackedEvents(request))).toEqual([]);
+});
+
+// The "Send details" form: through the HTTP API first, then in a real browser.
+
+const INQUIRER = 'ines+inquiry@example.com';
+
+test('an inquiry through the HTTP API: stored, both emails, and a repeat changes nothing', async ({ request }) => {
+  const sent = await sendInquiry(request, { email: INQUIRER, requestId: 'e2e-req-0001' });
+  expect(sent.status()).toBe(200);
+  expect(sent.headers()['cache-control']).toBe('no-store');
+  expect(await sent.json()).toMatchObject({ status: 'received', eventId: expect.stringMatching(/^lead\.[A-Za-z0-9_-]{22}$/) });
+
+  const mails = await outbox(request);
+  expect(mails.map((m) => m.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
+  // Hassan's mail goes to him and carries the visitor's address in its text (his own address is not printed or compared here).
+  expect(mails[0].to === INQUIRER).toBe(false);
+  expect(mails[0].text).toContain(INQUIRER);
+  // The visitor's confirmation goes to the visitor, and repeats nothing they typed.
+  expect(mails[1].to).toBe(INQUIRER);
+  expect(mails[1].text).not.toContain(INQUIRER);
+
+  const again = await sendInquiry(request, { email: INQUIRER, requestId: 'e2e-req-0001' });
+  expect(again.status()).toBe(200);
+  expect(await again.json()).toEqual(await sent.json()); // the same answer, the same event id
+  expect(await outbox(request)).toHaveLength(2);
+
+  expect((await trackedEvents(request)).filter((e) => e.name === 'Lead')).toHaveLength(1);
+});
+
+test('an inquiry with every field: Hassan gets all of it, the visitor\'s confirmation repeats none of it', async ({ request }) => {
+  const message = 'Twelve listings a month, moody drone shots please.\nCall me Thursday.';
+  const res = await sendInquiry(request, {
+    email: INQUIRER, name: 'Inés Álvarez', phone: '+34 600 111 222', buyerType: 'agent', volume: b.volumeOptions[1],
+    needs: [b.inquiry.needOptions[0], b.inquiry.needOptions[2]], footageUrl: 'https://drive.google.com/drive/folders/inquiry-footage', message,
+  });
+  expect(res.status()).toBe(200);
+  const [hassan, visitor] = await outbox(request);
+  for (const detail of ['Inés Álvarez', '+34 600 111 222', 'Type: agent', `Videos per month: ${b.volumeOptions[1]}`, b.inquiry.needOptions[0], b.inquiry.needOptions[2], 'https://drive.google.com/drive/folders/inquiry-footage', 'Twelve listings a month', 'Call me Thursday.']) {
+    expect(hassan.text, `Hassan's mail has ${detail}`).toContain(detail);
+    expect(visitor.text, `the visitor's mail has none of ${detail}`).not.toContain(detail);
+  }
+});
+
+test('a bad email is 400 with fields.email, and nothing is sent or counted', async ({ request }) => {
+  const res = await sendInquiry(request, { email: 'nope' });
+  expect(res.status()).toBe(400);
+  expect(await res.json()).toMatchObject({ error: 'invalid', fields: { email: 'invalid' } });
+  expect(await outbox(request)).toEqual([]);
+  expect(await trackedEvents(request)).toEqual([]);
+});
+
+test('a failed bot check on an inquiry is 403, and a filled honeypot is thanked and ignored', async ({ request }) => {
+  const bot = await sendInquiry(request, { turnstileToken: 'fail' });
+  expect(bot.status()).toBe(403);
+  expect(await bot.json()).toEqual({ error: 'bot_check_failed' });
+  const robot = await sendInquiry(request, { website: 'http://spam.example' });
+  expect(robot.status()).toBe(200);
+  expect(await outbox(request)).toEqual([]);
+  expect(await trackedEvents(request)).toEqual([]);
 });
 
 // The booking form in a real browser, on the real API (the test server's fake Google, mailbox and bot check).
@@ -291,6 +350,57 @@ test('the Pixel Lead and Schedule events carry the event ids the server sent to 
     ['event', 'book_call'],
   ]);
   expect(JSON.stringify(fbq)).not.toContain('zoe'); // the Pixel never sees the visitor email
+});
+
+test('sends from the page: Send details, an email and a message, a thank-you, and both emails', async ({ page, request }) => {
+  const posts: Array<{ path: string; token?: string }> = [];
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/booking/')) posts.push({ path: new URL(r.url()).pathname, token: r.postDataJSON()?.turnstileToken }); });
+  await page.goto('/#book');
+  await page.locator('[data-view="details"]').click();
+  const form = inquiryPanel(page);
+  await form.getByLabel(b.inquiry.fields.email).fill(INQUIRER);
+  await form.getByLabel(b.inquiry.fields.message).fill('Twelve listings a month, moody drone shots please.');
+  await form.getByRole('button', { name: b.inquiry.submitLabel }).dblclick(); // one inquiry, however fast the clicks
+
+  const done = page.locator('[data-inquiry-done]');
+  await expect(done.locator('[data-inq-done-heading]')).toHaveText(b.inquiry.done.heading);
+  await expect(done.locator('[data-inq-done-text]')).toHaveText(fillPlaceholders(b.inquiry.done.text, { email: INQUIRER }));
+  const mails = await outbox(request);
+  expect(mails.map((m) => m.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
+  expect(mails[0].text).toContain('Twelve listings a month');
+  expect(mails[1].to).toBe(INQUIRER);
+  expect(mails[1].text).not.toContain('Twelve listings');
+  expect((await trackedEvents(request)).filter((e) => e.name === 'Lead')).toHaveLength(1);
+
+  // The form has its own bot check: a second widget, made for the action "inquiry", and its token is the one this send carried.
+  const widgets = await page.evaluate(() => (window as unknown as { __turnstileRenders: Array<{ action: string; token: string }> }).__turnstileRenders);
+  expect(widgets.map((w) => w.action)).toEqual(['booking', 'inquiry']);
+  const inquiries = posts.filter((p) => p.path === '/api/booking/inquiries');
+  expect(inquiries).toEqual([{ path: '/api/booking/inquiries', token: widgets[1].token }]);
+  expect(posts.filter((p) => p.path === '/api/booking/leads')).toEqual([]);
+});
+
+test('a visitor who fills the call flow\'s step 1 and then sends the form counts as one Lead', async ({ page, request }) => {
+  await enableTracking(page);
+  await page.goto(`${SITE}/#book`);
+  await fillDetails(page, { email: INQUIRER });
+  await page.getByRole('button', { name: b.nextLabel }).click();
+  await expect(page.getByTestId('slot').first()).toBeVisible(); // the lead is saved: the times are showing
+
+  // They would rather not pick a time: what they typed is carried across, and the form goes with the lead they already are.
+  await page.locator('[data-view="details"]').click();
+  const form = inquiryPanel(page);
+  await expect(form.getByLabel(b.inquiry.fields.email)).toHaveValue(INQUIRER);
+  await form.getByRole('button', { name: b.inquiry.submitLabel }).click();
+  await expect(page.locator('[data-inquiry-done] [data-inq-done-heading]')).toHaveText(b.inquiry.done.heading);
+  await expect.poll(async () => (await trackedEvents(request)).some((e) => e.name === 'PageView')).toBe(true); // the page's own beacon, so it does not land in a later test
+
+  const leads = (await trackedEvents(request)).filter((e) => e.name === 'Lead');
+  expect(leads).toHaveLength(1); // the server counted this visitor once...
+  const { fbq } = await trackerCalls(page);
+  expect(fbq.filter((c) => c[0] === 'track' && c[1] === 'Lead')).toEqual([['track', 'Lead', {}, { eventID: leads[0].eventId }]]); // ...and so did the Pixel, with the same id
+  // The inquiry is the answer: Hassan hears of it, and gets no "no time picked" email for the lead that came first.
+  expect((await outbox(request)).map((m) => m.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
 });
 
 // The manage page (/booking/<token>) in a real browser: each booking is made through the HTTP API, as an email link would lead to it.
