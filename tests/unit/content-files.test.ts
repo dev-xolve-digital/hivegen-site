@@ -1,5 +1,5 @@
 import { it, expect, afterEach } from 'vitest';
-import { loadSite, loadVideos, loadSection, loadTestimonials } from '../../src/lib/content/load';
+import { loadSite, loadVideos, loadSection, loadTestimonials, loadLegal } from '../../src/lib/content/load';
 import { tempContent, removeTempContent } from '../helpers/temp-content';
 afterEach(() => { delete process.env.CONTENT_DIR; removeTempContent(); });
 
@@ -77,4 +77,14 @@ it('the inquiry name has its own refusal words, and leaving them out is named wi
 it('the "What do you need?" choices are all different: a repeat would make the server refuse anyone who ticks both', () => {
   process.env.CONTENT_DIR = tempContent({ 'sections/booking.yaml': (s) => s.replace(/^(  needOptions:).*$/m, '$1 ["Listing videos", "Reels for social", "Listing videos"]') });
   expect(() => loadSection('booking')).toThrow(/booking\.yaml: "inquiry\.needOptions" must not repeat a choice \(field inquiry\.needOptions\)/);
+});
+it('the privacy page covers the "Send details" form: its message and needs are used to reply by email and to make the free edit', () => {
+  const { markdown } = loadLegal('privacy');
+  const sentence = markdown.split(/(?<=[.!?])\s+/).find((s) => s.includes('Send details'));
+  expect(sentence, 'a sentence about the Send details form').toBeDefined();
+  expect(sentence).toMatch(/message/);
+  expect(sentence).toMatch(/what you need/);
+  expect(sentence).toMatch(/reply/);
+  expect(sentence).toMatch(/free (first )?edit/);
+  expect(markdown).toMatch(/^\*\*Draft\.\*\*/); // still a draft until the final policy is added
 });
