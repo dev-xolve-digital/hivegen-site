@@ -30,7 +30,7 @@ Stack:
 - `npx playwright test`: 195 passed, 47 skipped, 0 failed
 - `npm run check`: 0 errors
 
-Nothing is deployed yet. **No real account is connected yet**, apart from the Turnstile widget and the mailbox (see "Next steps").
+The site is deployed: https://hivegen.co serves this repo (2026-11-21). **No booking account is connected yet**, apart from the Turnstile widget and the mailbox DNS (see "Next steps"), so the live booking card is the offline card.
 
 ## Run it
 
@@ -119,7 +119,13 @@ Then run `npm run check:services` (expect ✓ on every line), make one real test
 - **The privacy page:** `content/legal/privacy.md` still says details are used "only to arrange your call". Reword it when the final policy is written.
 
 ### 4. Phase 3: deploy to Hostinger
-The owner said to go ahead with Hostinger (2026-11-21). Follow HOW-TO-SETUP.md steps 8–9. Touch only hivegen.co. Cloudflare changes (SSL mode, Stream, Images) still need a separate OK.
+The site is on Hostinger (2026-11-21). https://hivegen.co returns the HiveGen pages, and `/api/booking/config` returns `{"mode":"off"}`. Touch only hivegen.co. Cloudflare changes (SSL mode, Stream, Images) still need a separate OK. None were made; HTTPS through Cloudflare already answered 200.
+
+The Node 24 app runs from `domains/hivegen.co/app` (SSH host `hivegen`). LiteSpeed starts it through `public_html/.htaccess`. The server `.env` is not in git. It has `NODE_ENV=production`, `PUBLIC_SITE_URL=https://hivegen.co`, and a `CRON_SECRET`. It does not have the database, Google, mailbox, or Turnstile secret, so visitors get the offline card, not the demo.
+
+This account's SSH has no `crontab` command. Add the every-5-minutes job in hPanel (HOW-TO-SETUP.md step 8) with the `CRON_SECRET` already in that server `.env`. Do not print the secret.
+
+The host could not run `npm run build` (the bundler could not start a thread). The live `dist/` was built on this PC from `main` and uploaded. A later hPanel deploy overwrites `public_html`, including the `.htaccess`. When that is set up, use Node 24, framework Other, entry file `dist/server/entry.mjs`, and the repository folder as the working directory so the process can see `content/` and `db/migrations/`.
 
 **The Node.js app:** Node 24, build with `npm run build`, start with `node dist/server/entry.mjs` **from the repository folder** (it reads `content/`, `public/` and `db/migrations/`).
 
