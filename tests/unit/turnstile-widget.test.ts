@@ -137,6 +137,73 @@ describe('loadTurnstile', () => {
     expect(p.window.document.querySelectorAll('script').length).toBe(0);
   });
 
+  it('two widgets share one script and keep their own tokens and actions', async () => {
+    const p = page();
+    const second = p.window.document.createElement('div');
+    p.window.document.body.append(second);
+    // Cloudflare's render, with a widget id and the options of each widget kept apart.
+    const widgets: Record<string, { container: unknown; options: Record<string, unknown> }> = {};
+    p.fake.render.mockImplementation((el: unknown, options: Record<string, unknown>) => {
+      const id = `widget-${Object.keys(widgets).length + 1}`;
+      widgets[id] = { container: el, options };
+      return id;
+    });
+    const tokenFor = (id: string, t: string) => (widgets[id].options.callback as (t: string) => void)(t);
+
+    const booking = loadTurnstile('0xKEY', p.container);
+    const inquiry = loadTurnstile('0xKEY', second, 'inquiry'); // asked while the script is still on its way
+    expect(p.window.document.querySelectorAll('script').length).toBe(1);
+    p.scriptLoads();
+    expect(p.window.document.querySelectorAll('script').length).toBe(1);
+
+    expect(p.fake.render).toHaveBeenCalledTimes(2);
+    expect(widgets['widget-1']).toMatchObject({ container: p.container, options: { action: 'booking', sitekey: '0xKEY' } });
+    expect(widgets['widget-2']).toMatchObject({ container: second, options: { action: 'inquiry', sitekey: '0xKEY' } });
+
+    const inquiryToken = inquiry.getToken();
+    const bookingToken = booking.getToken();
+    tokenFor('widget-2', 'for-the-inquiry');
+    tokenFor('widget-1', 'for-the-booking');
+    expect(await inquiryToken).toBe('for-the-inquiry');
+    expect(await bookingToken).toBe('for-the-booking');
+    // Each one starts the next token of its own widget only.
+    expect(p.fake.reset.mock.calls).toEqual([['widget-2'], ['widget-1']]);
+  });
+
+  it('a widget asked for after the script has loaded renders at once, without a second script', () => {
+    const p = page();
+    loadTurnstile('0xKEY', p.container);
+    p.scriptLoads();
+    const later = p.window.document.createElement('div');
+    loadTurnstile('0xKEY', later, 'inquiry');
+    expect(p.window.document.querySelectorAll('script').length).toBe(1);
+    expect(p.fake.render).toHaveBeenCalledTimes(2);
+    expect(p.fake.render.mock.calls[1][1]).toMatchObject({ action: 'inquiry' });
+  });
+
+  it('a script that fails fails every widget waiting for it, and the next try of either loads it again (once)', async () => {
+    const p = page();
+    const second = p.window.document.createElement('div');
+    const booking = loadTurnstile('k', p.container);
+    const inquiry = loadTurnstile('k', second, 'inquiry');
+    const both = Promise.all([expect(booking.getToken()).rejects.toThrow(), expect(inquiry.getToken()).rejects.toThrow()]);
+    p.scriptFails();
+    await both;
+    expect(p.window.document.querySelectorAll('script').length).toBe(0);
+
+    const callbacks: Array<(t: string) => void> = [];
+    p.fake.render.mockImplementation((_el: unknown, options: Record<string, unknown>) => { callbacks.push(options.callback as (t: string) => void); return `widget-${callbacks.length}`; });
+    const retryBooking = booking.getToken();
+    const retryInquiry = inquiry.getToken(); // the script from the first retry is still on its way
+    expect(p.window.document.querySelectorAll('script').length).toBe(1);
+    p.scriptLoads();
+    expect(callbacks.length).toBe(2);
+    callbacks[0]('b');
+    callbacks[1]('i');
+    expect(await retryBooking).toBe('b');
+    expect(await retryInquiry).toBe('i');
+  });
+
   it('uses the Turnstile that is already on the page instead of loading the script again', async () => {
     const p = page();
     (p.window as unknown as { turnstile: unknown }).turnstile = p.fake;

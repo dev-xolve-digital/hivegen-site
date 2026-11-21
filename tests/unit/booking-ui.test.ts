@@ -387,6 +387,28 @@ describe('tracking hooks', () => {
     expect(onSchedule).toHaveBeenCalledWith('schedule.x', GOOD.email);
   });
 
+  it('a saved lead is written to the session, and onLead marks it tracked', async () => {
+    const session = { leadId: null as string | null, leadTracked: false };
+    const m = await open(fakeApi(), { onLead: vi.fn(), session });
+    await toTimeStep(m);
+    expect(session).toEqual({ leadId: LEAD_ID, leadTracked: true });
+  });
+
+  it('a pretend lead (demo) is written to the session but not marked tracked, as nobody is told about it', async () => {
+    const demo = { leadId: null as string | null, leadTracked: false };
+    await toTimeStep(await open(fakeApi(), { mode: 'demo', onLead: vi.fn(), session: demo }));
+    expect(demo).toEqual({ leadId: LEAD_ID, leadTracked: false });
+  });
+
+  it('a lead that fails to save leaves the session as it was', async () => {
+    const session = { leadId: null as string | null, leadTracked: false };
+    const m = await open(fakeApi({ createLead: vi.fn(async () => { throw new NetworkError(); }) }), { onLead: vi.fn(), session });
+    fill(m, GOOD);
+    next(m);
+    await vi.waitFor(() => expect(m.$('[data-form-error]').hidden).toBe(false));
+    expect(session).toEqual({ leadId: null, leadTracked: false });
+  });
+
   it('demo: a pretend booking is never tracked', async () => {
     const onLead = vi.fn();
     const onSchedule = vi.fn();

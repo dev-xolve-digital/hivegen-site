@@ -20,6 +20,12 @@ export interface BookingCopy {
   requested: { heading: string; text: string };
 }
 
+/**
+ * What the booking card knows about this visitor, shared by the call flow and the "Send details" form (and kept in the tab across reloads):
+ * the lead the call flow saved, and whether the Lead has been reported to the trackers (one per visitor).
+ */
+export interface BookingSession { leadId: string | null; leadTracked: boolean }
+
 export interface BookingOptions {
   /** live: the real booking; demo: pretend (with its note); off: no booking, the offline card instead. */
   mode: 'live' | 'demo' | 'off';
@@ -28,6 +34,8 @@ export interface BookingOptions {
   /** Tracking hooks, called in live mode only. */
   onLead?(eventId: string): void;
   onSchedule?(eventId: string, email: string): void;
+  /** Where the saved lead's id is written, and the Lead marked as reported. Left out, the call flow keeps them to itself. */
+  session?: BookingSession;
 }
 
 type Field = 'name' | 'email' | 'phone' | 'buyer' | 'volume' | 'footage';
@@ -161,7 +169,11 @@ export function initBooking(root: HTMLElement, api: BookingApi, opts: BookingOpt
         leadId = lead.leadId;
         leadKey = key;
         leadSaved = true;
-        if (live) safely(() => opts.onLead?.(lead.eventId));
+        if (opts.session) opts.session.leadId = lead.leadId;
+        if (live) {
+          if (opts.session) opts.session.leadTracked = true;
+          safely(() => opts.onLead?.(lead.eventId));
+        }
       }
       await loadSlots();
       showStep(2);

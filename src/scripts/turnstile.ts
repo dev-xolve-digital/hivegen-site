@@ -1,4 +1,4 @@
-import { TURNSTILE_ACTION } from '../lib/booking/api-client';
+import { TURNSTILE_ACTION, type TurnstileAction } from '../lib/booking/api-client';
 
 const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 /** How long a submit waits for the bot check before giving up. */
@@ -11,18 +11,45 @@ interface TurnstileApi {
 }
 type TurnstileWindow = Window & { turnstile?: TurnstileApi };
 
+/** What a widget does once Cloudflare's script has loaded, or has failed to. */
+interface ScriptWaiter { loaded(): void; failed(): void }
+/** The widgets waiting for the script of a document, for as long as it is on its way. Every widget of a page shares the one script. */
+const loadingScripts = new WeakMap<Document, Set<ScriptWaiter>>();
+
 /**
- * Loads Cloudflare's Turnstile script and shows its widget in `container`. The widget stays invisible unless Cloudflare needs the
- * visitor to do something. `getToken()` gives a token (waiting for one for at most 10 seconds, then rejecting; at once when the script
- * cannot load, and the next call tries the script again); a token is good for one lead, so each one handed out starts the next.
+ * Calls `waiter.loaded()` once Cloudflare's script is on the page (at once when it already is), or `waiter.failed()` when it cannot load.
+ * The script is added once per document, however many widgets ask while it loads. A script that fails (blocked, offline, a blip) is taken
+ * out again, so the next ask adds a fresh one. The answers come in the script's own load and error events, so a widget renders right then.
  */
-export function loadTurnstile(siteKey: string, container: HTMLElement): { getToken(): Promise<string> } {
+function whenScriptReady(doc: Document, waiter: ScriptWaiter): void {
+  if ((doc.defaultView as TurnstileWindow).turnstile) { waiter.loaded(); return; }
+  const waiters = loadingScripts.get(doc);
+  if (waiters) { waiters.add(waiter); return; }
+  const joined = new Set([waiter]);
+  loadingScripts.set(doc, joined);
+  const script = doc.createElement('script');
+  script.src = SRC;
+  script.async = true;
+  script.defer = true;
+  script.addEventListener('load', () => { loadingScripts.delete(doc); joined.forEach((w) => w.loaded()); });
+  script.addEventListener('error', () => { loadingScripts.delete(doc); script.remove(); joined.forEach((w) => w.failed()); });
+  doc.head.append(script);
+}
+
+/**
+ * Loads Cloudflare's Turnstile script (once for the page, however many widgets there are) and shows its widget in `container`, made for
+ * `action` (the server accepts a token only for the action of the form it was made for). The widget stays invisible unless Cloudflare needs
+ * the visitor to do something. `getToken()` gives a token (waiting for one for at most 10 seconds, then rejecting; at once when the script
+ * cannot load, and the next call tries the script again); a token is good for one send, so each one handed out starts the next.
+ */
+export function loadTurnstile(siteKey: string, container: HTMLElement, action: TurnstileAction = TURNSTILE_ACTION): { getToken(): Promise<string> } {
   const doc = container.ownerDocument;
   const win = doc.defaultView as TurnstileWindow;
   let token: string | null = null;
   let widget: string | undefined;
-  /** True from the moment Cloudflare's script is added until it has loaded or failed. */
-  let loading = false;
+  let rendered = false;
+  /** True from the moment this widget asked for the script until it has loaded or failed. */
+  let asking = false;
   const waiting = new Set<{ resolve(t: string): void; reject(e: Error): void; timer: ReturnType<typeof setTimeout> }>();
 
   /** Hands out the token and starts the next one. */
@@ -44,9 +71,10 @@ export function loadTurnstile(siteKey: string, container: HTMLElement): { getTok
   };
 
   const render = () => {
+    rendered = true;
     widget = win.turnstile!.render(container, {
       sitekey: siteKey,
-      action: TURNSTILE_ACTION,
+      action,
       appearance: 'interaction-only',
       callback: onToken,
       'expired-callback': () => { token = null; },
@@ -54,31 +82,27 @@ export function loadTurnstile(siteKey: string, container: HTMLElement): { getTok
     });
   };
 
-  /** Adds Cloudflare's script. A script that fails (blocked, offline, a blip) is taken out again, so the next getToken can add a fresh one. */
-  const loadScript = () => {
-    loading = true;
-    const script = doc.createElement('script');
-    script.src = SRC;
-    script.async = true;
-    script.defer = true;
-    script.addEventListener('load', () => { loading = false; render(); });
-    script.addEventListener('error', () => {
-      loading = false;
-      script.remove();
-      for (const w of waiting) { clearTimeout(w.timer); w.reject(new Error('turnstile_unavailable')); }
-      waiting.clear(); // nobody should wait for a token that cannot come
+  /** Asks for the script, to render once it is there. Does nothing while an ask is on its way or the widget is up. */
+  const start = () => {
+    if (asking || rendered) return;
+    asking = true;
+    whenScriptReady(doc, {
+      loaded: () => { asking = false; render(); },
+      failed: () => {
+        asking = false;
+        for (const w of waiting) { clearTimeout(w.timer); w.reject(new Error('turnstile_unavailable')); }
+        waiting.clear(); // nobody should wait for a token that cannot come
+      },
     });
-    doc.head.append(script);
   };
 
-  if (win.turnstile) render();
-  else loadScript();
+  start();
 
   return {
     getToken() {
       const ready = take();
       if (ready !== null) return Promise.resolve(ready);
-      if (!win.turnstile && !loading) loadScript(); // the first try failed: try the script again
+      start(); // the first try failed: try the script again
       return new Promise<string>((resolve, reject) => {
         const w = {
           resolve, reject,
