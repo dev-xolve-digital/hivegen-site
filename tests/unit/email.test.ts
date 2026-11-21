@@ -444,7 +444,8 @@ describe('the inquiry emails', () => {
   it('hassan-new-inquiry goes to Hassan with the visitor as Reply-To', async () => {
     const hassanEmail = loadBookingSite().hassanEmail;
     const m = await sendInquiry('hassan-new-inquiry', inquiry, hassanEmail);
-    expect(m.to).toBe(hassanEmail);
+    // A boolean on purpose: if this fails, the message must not print the private contact address.
+    expect(m.to === hassanEmail, 'the email goes to the contact address from site.yaml').toBe(true);
     expect(m.replyTo).toBe('visitor@example.com');
     expect(m.tag).toBe('hassan-new-inquiry');
     expect(m.subject).toContain('visitor@example.com');

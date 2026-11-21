@@ -455,7 +455,11 @@ describe('createContextProvider', () => {
 describe('loadBookingSite', () => {
   it('gives the call rules and where Hassan\'s emails go, from site.yaml alone', () => {
     const site = loadSite();
-    expect(loadBookingSite()).toEqual({ rules: site.booking, hassanEmail: site.contact.notificationEmail });
+    const loaded = loadBookingSite();
+    expect(Object.keys(loaded).sort()).toEqual(['hassanEmail', 'rules']);
+    expect(loaded.rules).toEqual(site.booking);
+    // A boolean on purpose: if this fails, the message must not print the private contact address.
+    expect(loaded.hassanEmail === site.contact.notificationEmail, 'hassanEmail is contact.notificationEmail from site.yaml').toBe(true);
   });
 });
 
