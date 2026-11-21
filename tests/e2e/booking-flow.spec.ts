@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures';
-import { loadSection } from '../../src/lib/content/load';
+import { loadSection, loadSite } from '../../src/lib/content/load';
 import { formatSlotLong, formatSlotTime, groupByLocalDay } from '../../src/lib/booking/format';
 import { fillPlaceholders } from '../../src/lib/text';
 import { book, bookNewLead, callPanel, createLead, enableTracking, getSlots, goodLead, inquiryPanel, outbox, resetServer, sendInquiry, setCalendar, TRACKING_IDS, trackedEvents, trackerCalls, type Slot } from './helpers';
@@ -145,6 +145,8 @@ test('a body over 32 KB is refused with 400 invalid before it is read into memor
 // The "Send details" form: through the HTTP API first, then in a real browser.
 
 const INQUIRER = 'ines+inquiry@example.com';
+/** Where the test server sends Hassan's emails (a made-up address: FAKE_HASSAN_EMAIL in src/server/context.ts). */
+const FAKE_HASSAN = 'hassan@example.test';
 
 test('an inquiry through the HTTP API: stored, both emails, and a repeat changes nothing', async ({ request }) => {
   const sent = await sendInquiry(request, { email: INQUIRER, requestId: 'e2e-req-0001' });
@@ -154,11 +156,14 @@ test('an inquiry through the HTTP API: stored, both emails, and a repeat changes
 
   const mails = await outbox(request);
   expect(mails.map((m) => m.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
-  // Hassan's mail goes to him and carries the visitor's address in its text (his own address is not printed or compared here).
-  expect(mails[0].to === INQUIRER).toBe(false);
-  expect(mails[0].text).toContain(INQUIRER);
+  // Addresses are compared as true or false and never printed, so a failure cannot put one into a log. The test server sends Hassan's mail
+  // to a made-up address of its own (HIVEGEN_FAKES never uses the real one); the real routing is tested in tests/unit/email.test.ts.
+  expect(mails[0].to === FAKE_HASSAN, "Hassan's mail goes to the test server's Hassan").toBe(true);
+  expect(mails[0].to === loadSite().contact.notificationEmail, 'the test server never mails the real contact address').toBe(false);
+  expect(mails[0].to === INQUIRER, "Hassan's mail does not go to the visitor").toBe(false);
+  expect(mails[0].text).toContain(INQUIRER); // it carries the visitor's address, to answer them
   // The visitor's confirmation goes to the visitor, and repeats nothing they typed.
-  expect(mails[1].to).toBe(INQUIRER);
+  expect(mails[1].to === INQUIRER, 'the confirmation goes to the visitor').toBe(true);
   expect(mails[1].text).not.toContain(INQUIRER);
 
   const again = await sendInquiry(request, { email: INQUIRER, requestId: 'e2e-req-0001' });
@@ -368,7 +373,7 @@ test('sends from the page: Send details, an email and a message, a thank-you, an
   const mails = await outbox(request);
   expect(mails.map((m) => m.kind)).toEqual(['hassan-new-inquiry', 'inquiry-received']);
   expect(mails[0].text).toContain('Twelve listings a month');
-  expect(mails[1].to).toBe(INQUIRER);
+  expect(mails[1].to === INQUIRER, 'the confirmation goes to the visitor').toBe(true);
   expect(mails[1].text).not.toContain('Twelve listings');
   expect((await trackedEvents(request)).filter((e) => e.name === 'Lead')).toHaveLength(1);
 

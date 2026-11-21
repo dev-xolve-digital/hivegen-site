@@ -1,3 +1,4 @@
+import { type Locator } from '@playwright/test';
 import { test, expect } from './fixtures';
 import AxeBuilder from '@axe-core/playwright';
 import { gzipSync } from 'node:zlib';
@@ -44,36 +45,67 @@ test('axe: the booking card with Send details open has no violations', async ({ 
   expect(r.violations).toEqual([]);
 });
 
+/** The width of the phone the page is built for at the narrowest. */
+const PHONE = 320;
+
+/** Where the controls of a panel are: the edges of every text field, choice pill and submit button that takes room on the page. */
+const controlEdges = (panel: Locator) => panel.locator('.inp, .seg label, button[type="submit"]').evaluateAll((els) => els
+  .map((el) => ({ name: (el.textContent?.trim() || el.id || el.tagName).slice(0, 40), left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, width: el.getBoundingClientRect().width }))
+  .filter((box) => box.width > 0));
+
 test('phone (320 px wide): the switch stays on one line and nothing scrolls sideways, also mid-shake', async ({ page }) => {
+  test.setTimeout(90_000); // it loads the page with its live 3D, like the axe tests above
   const b = loadSection('booking');
-  await page.setViewportSize({ width: 320, height: 800 });
+  await page.setViewportSize({ width: PHONE, height: 800 });
   await openBooking(page, '/');
   const bar = page.locator('[data-switch]');
   await bar.scrollIntoViewIfNeeded();
-  const call = bar.getByRole('tab', { name: b.switch.call, exact: true }); // the real words of booking.yaml, not shorter ones
-  const details = bar.getByRole('tab', { name: b.switch.details, exact: true });
-  const sideways = () => page.evaluate(() => document.documentElement.scrollWidth);
-  /** Where each tab's box starts, from the top of the page: the same number when the two sit on one line. */
-  const tops = () => Promise.all([call, details].map((tab) => tab.evaluate((el) => el.getBoundingClientRect().top)));
-
-  // The visitor uses the card first (focus in a field), which ends the page's own nudge for good. From here on no shake can start or stop on
-  // its own: the one measured below is the one added by hand, and the layout measured before it is the settled one.
+  const details = bar.getByRole('tab', { name: b.switch.details, exact: true }); // the real words of booking.yaml, not shorter ones
+  await expect(bar.getByRole('tab', { name: b.switch.call, exact: true })).toBeVisible();
+  // The visitor uses the card first (focus in a field), which ends the page's own nudge for good: the only shake left is the one made below.
   await page.locator('[data-flow] [data-field="name"]').focus();
   await expect(details).not.toHaveClass(/shake/);
-  expect(await sideways()).toBeLessThanOrEqual(320);
-  const [callTop, detailsTop] = await tops();
-  expect(detailsTop).toBe(callTop);
 
-  // Mid-shake: the class goes on by hand, and the measure waits until its animation is half way (350 ms of 0.7 s).
-  await details.evaluate((el) => { el.classList.remove('shake'); void el.getBoundingClientRect(); el.classList.add('shake'); });
-  await page.waitForFunction(() => document.querySelector('[data-view="details"]')!.getAnimations().some((a) => Number(a.currentTime) >= 350), undefined, { polling: 'raf' });
-  expect(await sideways()).toBeLessThanOrEqual(320);
-  // The shake turns the tab a little (its box moves by a pixel or so), so "on one line" is read from where the two tabs are laid out.
-  const layoutTops = await Promise.all([call, details].map((tab) => tab.evaluate((el) => (el as HTMLElement).offsetTop)));
-  expect(layoutTops[1]).toBe(layoutTops[0]);
+  // `scrollWidth` cannot see a tab or a field that sticks out: the page clips its sides (`.page{overflow-x:clip}`) instead of scrolling.
+  // So the edges of the boxes are read. The shake is paused at its peaks (in the CSS keyframes: 140 ms and 245 ms to the sides, then 350, 455
+  // and 560 ms) and every box is read in this one call, so nothing waits on the clock or on how busy the machine is.
+  const TIMES = [0, 140, 245, 350, 455, 560];
+  const frames = await details.evaluate((tab, times) => {
+    const call = document.querySelector('[data-view="call"]')!;
+    tab.classList.remove('shake');
+    void tab.getBoundingClientRect();
+    tab.classList.add('shake');
+    const shake = tab.getAnimations().find((a) => (a as CSSAnimation).animationName === 'switch-shake');
+    if (!shake) return null;
+    shake.pause();
+    const read = times.map((ms) => {
+      shake.currentTime = ms;
+      const box = tab.getBoundingClientRect();
+      return { ms, left: box.left, right: box.right, top: box.top, callTop: call.getBoundingClientRect().top, shift: new DOMMatrix(getComputedStyle(tab).transform).e };
+    });
+    shake.cancel();
+    tab.classList.remove('shake');
+    return read;
+  }, TIMES);
+  expect(frames, 'the Send details tab has the animation "switch-shake" while it has the class "shake"').not.toBeNull();
+  expect(frames!.find((f) => f.ms === 245)!.shift, 'at 245 ms the tab is at its right peak (about 5 px)').toBeGreaterThan(4);
+  for (const f of frames!) {
+    expect(f.left, `the Send details tab, ${f.ms} ms into the shake: its left edge`).toBeGreaterThanOrEqual(0);
+    expect(f.right, `the Send details tab, ${f.ms} ms into the shake: its right edge`).toBeLessThanOrEqual(PHONE);
+    // The turn of the shake moves the tab's box by about a pixel: the two tabs are on one line when their tops are within 2 px
+    // (a tab on a second line would be about 35 px lower).
+    expect(Math.abs(f.top - f.callTop), `the two tabs' tops, ${f.ms} ms into the shake`).toBeLessThanOrEqual(2);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(PHONE);
 
-  // The form that opens from it fits too.
+  // The call form's fields and the "Send details" form's fit the phone too.
+  const call = await controlEdges(page.locator('[data-flow]'));
+  expect(call.length, 'the call form has its fields, choices and button').toBeGreaterThan(8);
+  expect(call.filter((c) => c.left < 0 || c.right > PHONE), 'the call form: controls outside the screen').toEqual([]);
   await details.click();
   await expect(inquiryPanel(page)).toBeVisible();
-  expect(await sideways()).toBeLessThanOrEqual(320);
+  const inquiry = await controlEdges(inquiryPanel(page));
+  expect(inquiry.length, 'the Send details form has its fields, choices and button').toBeGreaterThan(14);
+  expect(inquiry.filter((c) => c.left < 0 || c.right > PHONE), 'the Send details form: controls outside the screen').toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(PHONE);
 });
