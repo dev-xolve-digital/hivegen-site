@@ -497,6 +497,86 @@ describe('bootBooking: the Send details form', () => {
   });
 });
 
+describe('bootBooking: links to the booking card bring it back to the call', () => {
+  const ready = { loaded: Promise.resolve(), near: Promise.resolve() };
+  /** The page around the card: a "Book a call" link as the nav, the hero and the mobile bar have it, and links that are not for the card. */
+  const LINKS = `
+    <a id="hash" href="#book"><span id="inside">Book a call</span></a>
+    <a id="root" href="/#book">Book a call</a>
+    <a id="same-page" href="/agents#book">Book a call</a>
+    <a id="elsewhere" href="https://elsewhere.test/#book">Not ours</a>
+    <a id="other-hash" href="#faq">FAQ</a>
+    <a id="plain" href="/privacy">Privacy</a>`;
+  async function openOnDetails(url = 'https://hivegen.test/agents') {
+    const m = mount(await mainHtml(), url);
+    m.document.body.insertAdjacentHTML('afterbegin', LINKS);
+    const { fetchFn } = server({ mode: 'demo' });
+    bootBooking(m.root, { fetchFn, ...ready });
+    m.$<HTMLButtonElement>('[data-view="details"]').click();
+    expect(m.$('[data-inquiry]').hidden).toBe(false);
+    return m;
+  }
+  const link = (m: Mounted, id: string) => m.document.getElementById(id)!;
+  const onCall = (m: Mounted) => !m.$('[data-flow]').hidden && m.$('[data-inquiry]').hidden && m.$('[data-view="call"]').getAttribute('aria-selected') === 'true';
+
+  it.each([['hash'], ['root'], ['same-page'], ['inside']])('a click on the Book a call link (%s) shows the call again', async (id) => {
+    const m = await openOnDetails();
+    link(m, id).dispatchEvent(new m.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(onCall(m)).toBe(true);
+    expect(m.$('[data-heading="call"]').hidden).toBe(false);
+    expect(m.$('[data-heading="details"]').hidden).toBe(true);
+  });
+
+  it('takes what the visitor typed in Send details back to the call form', async () => {
+    const m = await openOnDetails();
+    m.$<HTMLInputElement>('[data-inquiry-form] input[name="email"]').value = 'v@example.com';
+    link(m, 'hash').dispatchEvent(new m.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(m.$<HTMLInputElement>('[data-flow] input[name="email"]').value).toBe('v@example.com');
+  });
+
+  it.each([['elsewhere'], ['other-hash'], ['plain']])('a click on a link that is not for the card (%s) leaves Send details open', async (id) => {
+    const m = await openOnDetails();
+    link(m, id).dispatchEvent(new m.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(m.$('[data-inquiry]').hidden).toBe(false);
+    expect(m.$('[data-view="details"]').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('a hash change to #book (a link followed from the address bar, or the back button) shows the call again; another hash does not', async () => {
+    const m = await openOnDetails();
+    m.window.location.hash = '#faq';
+    await new Promise((r) => setTimeout(r, 20));
+    expect(m.$('[data-inquiry]').hidden).toBe(false);
+    m.window.location.hash = '#book';
+    await vi.waitFor(() => expect(onCall(m)).toBe(true));
+  });
+
+  it('with the call already shown, the click changes nothing and does not end the nudge', async () => {
+    const html = await mainHtml(); // rendered before the fake timers start
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const m = mount(html, 'https://hivegen.test/agents');
+      m.document.body.insertAdjacentHTML('afterbegin', LINKS);
+      const seeing: IntersectionObserverCallback[] = [];
+      class FakeObserver {
+        constructor(callback: IntersectionObserverCallback) { seeing.push(callback); }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+      (m.window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeObserver;
+      bootBooking(m.root, { fetchFn: server({ mode: 'demo' }).fetchFn, ...ready });
+      seeing[0]([{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry], {} as IntersectionObserver); // the switch is on screen
+
+      link(m, 'hash').dispatchEvent(new m.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(onCall(m)).toBe(true);
+      vi.advanceTimersByTime(600); // NUDGE.firstDelayMs
+      expect(m.$('[data-view="details"]').classList.contains('shake')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('whenNear and whenLoaded', () => {
   it('whenNear watches the section with a 600px margin and resolves when it comes within it', async () => {
     const m = mount(await mainHtml());

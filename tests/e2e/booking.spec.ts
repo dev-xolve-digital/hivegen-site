@@ -138,6 +138,22 @@ test('Send details shows the form and its heading; sending only an email thanks 
   await expect(inquiryPanel(page).locator('form')).toBeHidden();
 });
 
+test('a "Book a call" button brings the card back to the call after Send details was chosen', async ({ page }) => {
+  await pretendMode(page, 'demo');
+  await openBooking(page, '/#book');
+  await detailsTab(page).click();
+  await expect(inquiryPanel(page)).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.getByRole('link', { name: loadSection('hero').primaryCta.label }).first().click();
+  await expect(callTab(page)).toHaveAttribute('aria-selected', 'true');
+  await expect(detailsTab(page)).toHaveAttribute('aria-selected', 'false');
+  await expect(page.locator('[data-heading="call"]')).toBeVisible();
+  await expect(callPanel(page)).toBeVisible();
+  await expect(inquiryPanel(page)).toBeHidden();
+});
+
 test('a wrong email is told on the field and nothing is sent', async ({ page }) => {
   const sent: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/api/booking/inquiries')) sent.push(r.url()); });

@@ -1,5 +1,5 @@
 import { demoApi, httpApi, INQUIRY_TURNSTILE_ACTION, timeoutSignal, type BookingApi } from '../lib/booking/api-client';
-import { initSwitch } from './booking-switch';
+import { initSwitch, type View } from './booking-switch';
 import { initBooking, type BookingOptions, type BookingSession } from './booking-ui';
 import { initInquiry, type InquiryOptions } from './inquiry-ui';
 import { loadTurnstile } from './turnstile';
@@ -113,9 +113,23 @@ export function bootBooking(root: HTMLElement, env: BootEnv = {}): void {
     }
     return inquiryWidget;
   };
+  let view: View = 'call';
   const switchApi = initSwitch(root, {
-    onShow: (view) => { if (view === 'details') { detailsShown = true; ensureInquiryWidget(); } },
+    onShow: (shown) => {
+      view = shown;
+      if (shown === 'details') { detailsShown = true; ensureInquiryWidget(); }
+    },
   });
+
+  // Every "Book a call" link on the page (the nav, the hero, the mobile bar, the plans) jumps to this card, and the visitor expects the call
+  // there, even if they chose "Send details" earlier. Only a card that is on "Send details" is touched: a click that changes nothing must
+  // not end the switch's nudge. A hash change covers the address bar and the back button.
+  const backToCall = () => { if (view === 'details') switchApi.show('call'); };
+  root.ownerDocument.addEventListener('click', (e) => {
+    const link = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+    if (link && link.hash === '#book' && link.origin === win.location.origin) backToCall();
+  });
+  win.addEventListener('hashchange', () => { if (win.location.hash === '#book') backToCall(); });
 
   // Before the real forms take over: a submit is held, and it wakes the loading.
   const held = new Set<HTMLFormElement>();
