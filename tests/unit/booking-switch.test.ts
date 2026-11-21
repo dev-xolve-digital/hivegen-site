@@ -7,12 +7,15 @@ beforeAll(async () => { html = await mainHtml(); }); // rendered before the fake
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
-/** An IntersectionObserver the test drives by hand: `see(true)` is "the switch scrolled into view". */
+/**
+ * An IntersectionObserver the test drives by hand: `see(true)` is "the whole switch scrolled into view" and `see(false)` "it left".
+ * `see(0.2)` is a sliver of it: the browser reports it as intersecting, with the share that is on screen as the ratio.
+ */
 function fakeObserver(m: Mounted) {
-  const watchers: Array<{ callback: IntersectionObserverCallback; target?: Element; disconnected: boolean }> = [];
+  const watchers: Array<{ callback: IntersectionObserverCallback; target?: Element; options?: IntersectionObserverInit; disconnected: boolean }> = [];
   class FakeObserver {
     w: (typeof watchers)[number];
-    constructor(callback: IntersectionObserverCallback) { this.w = { callback, disconnected: false }; watchers.push(this.w); }
+    constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) { this.w = { callback, options, disconnected: false }; watchers.push(this.w); }
     observe(el: Element) { this.w.target = el; }
     unobserve() {}
     disconnect() { this.w.disconnected = true; }
@@ -20,8 +23,10 @@ function fakeObserver(m: Mounted) {
   (m.window as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeObserver;
   return {
     watchers,
-    see(visible: boolean) {
-      for (const w of watchers) if (!w.disconnected) w.callback([{ isIntersecting: visible } as IntersectionObserverEntry], w as unknown as IntersectionObserver);
+    see(visible: boolean | number) {
+      const ratio = typeof visible === 'number' ? visible : visible ? 1 : 0;
+      const entry = { isIntersecting: ratio > 0, intersectionRatio: ratio } as IntersectionObserverEntry;
+      for (const w of watchers) if (!w.disconnected) w.callback([entry], w as unknown as IntersectionObserver);
     },
   };
 }
@@ -222,6 +227,26 @@ describe('the nudge', () => {
     io.see(true);
     const rest = shakeStarts(shaking, 120_000);
     expect(1 + again.length + rest.length).toBe(NUDGE.maxShakes);
+  });
+
+  it('a sliver of the switch on screen is not "seen": no shake until most of it is, and it stops when most of it has gone', () => {
+    const { io, shaking } = card();
+    io.see(0.2); // the browser reports any overlap as intersecting
+    expect(shakeStarts(shaking, 30_000)).toEqual([]);
+    io.see(0.59);
+    expect(shakeStarts(shaking, 30_000)).toEqual([]);
+    io.see(0.7);
+    expect(shakeStarts(shaking, 1000)).toEqual([600]);
+    io.see(0.6); // exactly the share the owner asked for counts
+    io.see(0.3); // scrolled mostly away, still overlapping: it stops at once
+    expect(shaking()).toBe(false);
+    expect(shakeStarts(shaking, 30_000)).toEqual([]);
+    io.see(0.9);
+    expect(shakeStarts(shaking, 7000)).toEqual([6000]); // the next one, 6 s after it was seen again
+  });
+
+  it('asks the browser to report when 60% of the switch is on screen', () => {
+    expect(card().io.watchers[0].options).toEqual({ threshold: 0.6 });
   });
 
   const stoppers: Array<[string, (c: ReturnType<typeof card>) => void]> = [

@@ -97,7 +97,9 @@ export function initSwitch(root: HTMLElement, opts: SwitchOptions = {}): Switch 
     root.addEventListener('focusin', onUse);
     root.addEventListener('change', onUse); // some browsers do not focus a radio button that is clicked
     watcher = new win.IntersectionObserver((entries) => {
-      const seen = entries[entries.length - 1]?.isIntersecting ?? false;
+      const last = entries[entries.length - 1];
+      // isIntersecting is true at any overlap, so a sliver counts too: the share on screen has to be there as well.
+      const seen = last !== undefined && last.isIntersecting && last.intersectionRatio >= SEEN;
       if (stopped || seen === inView) return;
       inView = seen;
       if (seen) arm(shakes === 0 ? NUDGE.firstDelayMs : NUDGE.everyMs);
